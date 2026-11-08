@@ -1,13 +1,12 @@
 import { syntax } from './errors';
 import { evaluateExpression, type EvaluationContext } from './expression';
+import type { Scalar } from './value';
 
 export type VerifOperator = '=' | '≠' | '>' | '<' | '≥' | '≤';
 
 const VERIF_OPS: VerifOperator[] = ['≠', '≥', '≤', '=', '>', '<'];
 
-function comparePair(op: VerifOperator, lhsText: string, rhsText: string, ctx: EvaluationContext): boolean {
-  const lhs = evaluateExpression(lhsText, ctx);
-  const rhs = evaluateExpression(rhsText, ctx);
+function compareValues(op: VerifOperator, lhs: Scalar, rhs: Scalar): boolean {
   const diff = lhs.decimal.minus(rhs.decimal);
   const scale = lhs.decimal.abs().plus(rhs.decimal.abs()).plus(1);
   const eq = diff.abs().lte(scale.times('1e-24'));
@@ -64,8 +63,10 @@ export function evaluateVerification(source: string, ctx: EvaluationContext): bo
   if (!tail) syntax('Incomplete verification statement', prev);
   parts.push(tail);
 
+  // Evaluate each operand ONCE so chained inequalities like 0 ≤ Ran# ≤ 1 compare the same middle sample
+  const evaluated = parts.map((seg) => evaluateExpression(seg, ctx));
   for (let i = 0; i < ops.length; i++) {
-    if (!comparePair(ops[i].op, parts[i], parts[i + 1], ctx)) return false;
+    if (!compareValues(ops[i].op, evaluated[i], evaluated[i + 1])) return false;
   }
   return true;
 }

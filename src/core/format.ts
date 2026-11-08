@@ -162,13 +162,12 @@ export function formatEngineering(value: Scalar, exponentMultipleOf3: number, de
 export function initialEngExponent(value: Scalar): number {
   const d = value.decimal.abs();
   if (d.isZero()) return 0;
-  const exp = Math.floor(Number(d.log(10).toFixed(8)));
-  return Math.floor(exp / 3) * 3;
+  const rounded = d.toSignificantDigits(10);
+  return Math.floor(rounded.e / 3) * 3;
 }
 
 export function formatDms(value: Scalar, decimalMark: DecimalMark = 'Dot'): string {
   const d = value.decimal;
-  const negative = d.isNegative() && !d.isZero();
   const totalSeconds = d.abs().times(3600).toDecimalPlaces(2);
   let deg = totalSeconds.divToInt(3600);
   const remAfterDeg = totalSeconds.minus(deg.times(3600));
@@ -182,6 +181,8 @@ export function formatDms(value: Scalar, decimalMark: DecimalMark = 'Dot'): stri
     min = min.minus(60);
     deg = deg.plus(1);
   }
+  const isZeroShown = deg.isZero() && min.isZero() && sec.isZero();
+  const negative = d.isNegative() && !d.isZero() && !isZeroShown;
   const secText = applyDecimalMark(sec.toFixed(2).replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, ''), decimalMark);
   return `${negative ? '−' : ''}${deg.toFixed(0)}°${min.toFixed(0)}’${secText}”`;
 }
