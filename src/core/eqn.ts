@@ -35,6 +35,34 @@ function cleanScalar(d: InstanceType<typeof D>): Scalar {
   if (cleaned.isInteger() && cleaned.abs().lt('1e15')) {
     return scalarFromInteger(BigInt(cleaned.toFixed(0)));
   }
+  // Recognize exact small rationals p/q via continued fractions (e.g. -1/2, 2/3 in cubic deflation)
+  if (cleaned.abs().lt('1e9')) {
+    let x = cleaned.abs();
+    let hPrev = 0n;
+    let hCur = 1n;
+    let kPrev = 1n;
+    let kCur = 0n;
+    for (let step = 0; step < 12; step++) {
+      const fl = x.floor();
+      if (fl.gt('1e9')) break;
+      const a = BigInt(fl.toFixed(0));
+      const hNext = a * hCur + hPrev;
+      const kNext = a * kCur + kPrev;
+      if (kNext > 10000n) break;
+      hPrev = hCur; hCur = hNext;
+      kPrev = kCur; kCur = kNext;
+      if (kCur > 0n) {
+        const approx = new D(hCur.toString()).div(kCur.toString());
+        if (cleaned.abs().minus(approx).abs().lt('1e-22')) {
+          const signedN = cleaned.isNegative() ? -hCur : hCur;
+          return divide(scalarFromInteger(signedN), scalarFromInteger(kCur));
+        }
+      }
+      const frac = x.minus(fl);
+      if (frac.lt('1e-20')) break;
+      x = new D(1).div(frac);
+    }
+  }
   // Recognize exact small rational multiples of π (e.g. ±1/2 π in INEQ/EQN)
   const piVal = D.acos(-1);
   const overPi = cleaned.div(piVal);
@@ -179,6 +207,104 @@ export function solveQuadratic(coeffs: Scalar[]): EqnOutcome {
   return { status: 'solved', items };
 }
 
+function buildComplexConjugatePair(
+  realS: Scalar,
+  imagPosS: Scalar,
+  label1: string,
+  label2: string,
+): [EqnSolutionItem, EqnSolutionItem] {
+  const rSym = formatSymbolicLinear(realS);
+  const iSym = formatSymbolicLinear(imagPosS);
+  if (rSym !== null && iSym !== null) {
+    const iPart = iSym === '1' ? 'i' : iSym.includes('+') || iSym.includes('−') ? `(${iSym})i` : `${iSym}i`;
+    if (realS.decimal.abs().lt('1e-24')) {
+      return [
+        { label: label1, complexText: iPart, complexParts: { re: realS, im: imagPosS } },
+        { label: label2, complexText: `−${iPart}`, complexParts: { re: realS, im: negate(imagPosS) } },
+      ];
+    }
+    return [
+      { label: label1, complexText: `${rSym}+${iPart}`, complexParts: { re: realS, im: imagPosS } },
+      { label: label2, complexText: `${rSym}−${iPart}`, complexParts: { re: realS, im: negate(imagPosS) } },
+    ];
+  }
+  const [c1, c2] = formatComplex(realS.decimal, imagPosS.decimal.abs());
+  return [
+    { label: label1, complexText: c1, complexParts: { re: realS, im: imagPosS } },
+    { label: label2, complexText: c2, complexParts: { re: realS, im: negate(imagPosS) } },
+  ];
+}
+
+function tryDeflateCubicWithExactRoot(coeffs: Scalar[], approxCandidates: InstanceType<typeof D>[]): EqnOutcome | null {
+  const [aS, bS, cS, dS] = coeffs;
+  for (const cand of approxCandidates) {
+    const rExact = cleanScalar(cand);
+    if (!rExact.exact && !rExact.symbolic) continue;
+    // Horner check: ((a * r + b) * r + c) * r + d === 0
+    const q1 = add(multiply(aS, rExact), bS);
+    const q0 = add(multiply(q1, rExact), cS);
+    const rem = add(multiply(q0, rExact), dS);
+    const scale = aS.decimal.abs().plus(bS.decimal.abs()).plus(cS.decimal.abs()).plus(dS.decimal.abs()).plus(1);
+    if (!isTiny(rem) && rem.decimal.abs().gt(scale.times('1e-22'))) continue;
+
+    // Deflated quadratic: aS * X^2 + q1 * X + q0 = 0
+    const twoA = multiply(scalarFromInteger(2), aS);
+    const disc = subtract(multiply(q1, q1), multiply(multiply(scalarFromInteger(4), aS), q0));
+    if (isTiny(disc)) {
+      const rDouble = snapExactScalar(divide(negate(q1), twoA));
+      if (rExact.decimal.minus(rDouble.decimal).abs().lt('1e-20')) {
+        return { status: 'solved', items: [{ label: 'X', scalar: rExact }] };
+      }
+      return {
+        status: 'solved',
+        items: [
+          { label: 'X₁', scalar: rExact },
+          { label: 'X₂', scalar: rDouble },
+        ],
+      };
+    }
+    if (disc.decimal.gt(0)) {
+      const sq = applyFunction('sqrt', [disc], 'DEG');
+      const r2 = snapExactScalar(divide(add(negate(q1), sq), twoA));
+      const r3 = snapExactScalar(divide(subtract(negate(q1), sq), twoA));
+      const allReal = [rExact, r2, r3];
+      const unique: Scalar[] = [];
+      for (const rt of allReal) {
+        if (!unique.some((u) => u.decimal.minus(rt.decimal).abs().lt('1e-20'))) {
+          unique.push(rt);
+        }
+      }
+      if (unique.length === 1) return { status: 'solved', items: [{ label: 'X', scalar: unique[0] }] };
+      if (unique.length === 2) {
+        return {
+          status: 'solved',
+          items: [
+            { label: 'X₁', scalar: unique[0] },
+            { label: 'X₂', scalar: unique[1] },
+          ],
+        };
+      }
+      return {
+        status: 'solved',
+        items: [
+          { label: 'X₁', scalar: unique[0] },
+          { label: 'X₂', scalar: unique[1] },
+          { label: 'X₃', scalar: unique[2] },
+        ],
+      };
+    }
+    const realPart = divide(negate(q1), twoA);
+    const absTwoA = twoA.decimal.isNegative() ? negate(twoA) : twoA;
+    const imagPos = divide(applyFunction('sqrt', [negate(disc)], 'DEG'), absTwoA);
+    const [z2, z3] = buildComplexConjugatePair(realPart, imagPos, 'X₂', 'X₃');
+    return {
+      status: 'solved',
+      items: [{ label: 'X₁', scalar: rExact }, z2, z3],
+    };
+  }
+  return null;
+}
+
 /** 4: aX³ + bX² + cX + d = 0 */
 export function solveCubic(coeffs: Scalar[]): EqnOutcome {
   const [aS, bS, cS, dS] = coeffs;
@@ -199,12 +325,16 @@ export function solveCubic(coeffs: Scalar[]): EqnOutcome {
 
   if (disc.abs().lte('1e-24')) {
     if (p.abs().lte('1e-24')) {
-      return { status: 'solved', items: [{ label: 'X', scalar: cleanScalar(shift.neg()) }] };
+      const triple = shift.neg();
+      return tryDeflateCubicWithExactRoot(coeffs, [triple]) ?? {
+        status: 'solved',
+        items: [{ label: 'X', scalar: cleanScalar(triple) }],
+      };
     }
     const u = halfQ.neg().cbrt();
     const x1 = u.times(2).minus(shift);
     const x2 = u.neg().minus(shift);
-    return {
+    return tryDeflateCubicWithExactRoot(coeffs, [x1, x2]) ?? {
       status: 'solved',
       items: [
         { label: 'X₁', scalar: cleanScalar(x1) },
@@ -218,20 +348,25 @@ export function solveCubic(coeffs: Scalar[]): EqnOutcome {
     const u = halfQ.neg().plus(sqrtD).cbrt();
     const v = halfQ.neg().minus(sqrtD).cbrt();
     const realRoot = u.plus(v).minus(shift);
+    const deflated = tryDeflateCubicWithExactRoot(coeffs, [realRoot]);
+    if (deflated) return deflated;
+
     const complexReal = u.plus(v).div(-2).minus(shift);
     const complexImag = u.minus(v).abs().times(new D(3).sqrt()).div(2);
-    const [z1, z2] = formatComplex(complexReal, complexImag);
+    const reScalar = cleanScalar(complexReal);
+    const imScalar = makeScalar(complexImag, undefined, true);
+    const [z2, z3] = buildComplexConjugatePair(reScalar, imScalar, 'X₂', 'X₃');
     return {
       status: 'solved',
       items: [
         { label: 'X₁', scalar: cleanScalar(realRoot) },
-        { label: 'X₂', complexText: z1 },
-        { label: 'X₃', complexText: z2 },
+        z2,
+        z3,
       ],
     };
   }
 
-  // Three distinct real roots via trigonometric method
+  // Three distinct real roots via trigonometric method (+ exact symbolic deflation when a rational root exists!)
   const r = thirdP.neg().sqrt();
   const cosArg = D.max(new D(-1), D.min(new D(1), halfQ.neg().div(r.pow(3))));
   const phi = cosArg.acos();
@@ -239,6 +374,9 @@ export function solveCubic(coeffs: Scalar[]): EqnOutcome {
   const t1 = r.times(2).times(phi.div(3).cos()).minus(shift);
   const t2 = r.times(2).times(phi.plus(pi.times(2)).div(3).cos()).minus(shift);
   const t3 = r.times(2).times(phi.plus(pi.times(4)).div(3).cos()).minus(shift);
+
+  const deflated = tryDeflateCubicWithExactRoot(coeffs, [t1, t2, t3]);
+  if (deflated) return deflated;
 
   return {
     status: 'solved',
