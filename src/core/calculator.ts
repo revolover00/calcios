@@ -1460,12 +1460,17 @@ function handleMenu(s: CalculatorState, id: string): CalculatorState {
 function simpleInputChar(id: string, shift: boolean, alpha: boolean): string | null {
   if (/^[0-9]$/.test(id)) return id;
   if (shift && id === 'exp') return 'π';
-  if (alpha && id === 'exp') return 'e';
+  if (alpha && (id === 'exp' || id === 'ln')) return 'e';
   if (alpha && ALPHA_KEYS[id]) return ALPHA_KEYS[id];
   if (shift && id === 'sin') return 'asin(';
   if (shift && id === 'cos') return 'acos(';
   if (shift && id === 'tan') return 'atan(';
   if (shift && id === 'sqrt') return 'cbrt(';
+  if (shift && id === 'square') return '^3';
+  if (shift && id === 'hyp') return 'abs(';
+  if (shift && id === 'log') return '10^(';
+  if (shift && id === 'ln') return 'e^(';
+  if (shift && id === 'power') return 'root(';
   switch (id) {
     case 'dot': return '.';
     case 'neg': case 'subtract': return '-';
@@ -1474,10 +1479,12 @@ function simpleInputChar(id: string, shift: boolean, alpha: boolean): string | n
     case 'divide': case 'frac': return '÷';
     case 'square': return '^2';
     case 'cube': return '^3';
+    case 'inverse': return shift ? '!' : '^(-1)';
     case 'power': return '^';
     case 'open': return '(';
     case 'close': return ')';
     case 'sqrt': return 'sqrt(';
+    case 'abs': return 'abs(';
     case 'sin': return 'sin(';
     case 'cos': return 'cos(';
     case 'tan': return 'tan(';
@@ -1542,12 +1549,38 @@ function startSolveWorkflow(s: CalculatorState): CalculatorState {
 
 function handleSolvePrompt(s: CalculatorState, id: string, random?: number): CalculatorState {
   const sp = s.solvePrompt!;
+  if (sp.stage === 'solved') {
+    if (id === 'ac') {
+      return {
+        ...resetResultModifiers(s),
+        solvePrompt: null,
+        phase: 'editing',
+        expression: '',
+        cursor: 0,
+        result: null,
+        error: null,
+        shift: false,
+        alpha: false,
+      };
+    }
+    if (id === 'left' || id === 'right') {
+      return {
+        ...resetResultModifiers(s),
+        solvePrompt: null,
+        phase: 'editing',
+        expression: sp.sourceExpr,
+        cursor: id === 'left' ? sp.sourceExpr.length : 0,
+        result: null,
+        error: null,
+      };
+    }
+    if (id === 'equals') {
+      return { ...s, solvePrompt: { sourceExpr: sp.sourceExpr, stage: 'prompt-x', input: '' } };
+    }
+    return calculatorReducer({ ...s, solvePrompt: null }, { type: 'key', id, random });
+  }
   if (id === 'ac') {
     return { ...s, solvePrompt: null, phase: 'editing', expression: sp.sourceExpr, cursor: sp.sourceExpr.length, shift: false, alpha: false };
-  }
-  if (sp.stage === 'solved') {
-    if (id === 'equals') return { ...s, solvePrompt: { sourceExpr: sp.sourceExpr, stage: 'prompt-x', input: '' } };
-    return s;
   }
   if (id === 'del') return { ...s, solvePrompt: { ...sp, input: sp.input.slice(0, -1) } };
   if (id === 'equals') {
@@ -2369,8 +2402,10 @@ export function calculatorReducer(state: CalculatorState, action: CalculatorActi
 
   if (state.alpha) {
     const s = closeLatches(state);
-    if (id === 'exp') return insert(s, 'e');
-    if (id === 'cube') return insert(s, ':', 'continue');
+    if (id === 'exp' || id === 'ln') return insert(s, 'e');
+    if (id === 'cube' || id === 'integ') return insert(s, ':', 'continue');
+    if (id === 'logbase') return ternaryTemplate(s, 'prod');
+    if (id === 'eng' && s.mode === 'CMPLX') return insert(s, 'i');
     if (id === 'dot') return binaryTemplate(s, 'RanInt');
     if (id === 'calc') return insert(s, '=', 'continue');
     if (id === 'multiply') return binaryTemplate(s, 'GCD');
@@ -2414,10 +2449,13 @@ export function calculatorReducer(state: CalculatorState, action: CalculatorActi
       case 'mplus': return updateMemory(s, -1);
       case 'frac': return ternaryTemplate(s, 'mfrac');
       case 'inverse': return insert(s, '!', 'continue');
+      case 'logbase': return ternaryTemplate(s, 'sigma');
       case 'sqrt': return functionTemplate(s, 'cbrt');
+      case 'square': return insert(s, '^3', 'continue');
       case 'power': return binaryTemplate(s, 'root');
       case 'log': return powerTemplate(s, '10^');
       case 'ln': return powerTemplate(s, 'e^');
+      case 'hyp': return functionTemplate(s, 'abs');
       case 'neg':
         if (s.mode === 'CMPLX') return insert(s, '∠', 'continue');
         return insert(s, '-');

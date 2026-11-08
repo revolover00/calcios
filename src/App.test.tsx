@@ -217,4 +217,76 @@ describe('Calculator-Only Viewport & fx-991ES PLUS C Integration', () => {
     clickHardwareKey(c2, 'equals'); // ≈ -> 0,5 with Comma decimal mark!
     expect(screen.getByTestId('lcd-result').textContent).toBe('0,5');
   });
+
+  it('exposes physical CALC (SOLVE / =), ∫dx (d/dx / :), log_ab (∑ / ∏), x³ on x², Abs on hyp, and exact π INEQ roots', () => {
+    const { container } = render(<App />);
+
+    // Solve 2X + 1 = 9 using physical ALPHA + CALC (=) and SHIFT + CALC (SOLVE)
+    clickHardwareKey(container, '2');
+    clickHardwareKey(container, 'alpha');
+    clickHardwareKey(container, 'close'); // X
+    clickHardwareKey(container, 'add');
+    clickHardwareKey(container, '1');
+    clickHardwareKey(container, 'alpha');
+    clickHardwareKey(container, 'calc'); // '=' right on the physical CALC key!
+    clickHardwareKey(container, '9');
+    clickHardwareKey(container, 'shift');
+    clickHardwareKey(container, 'calc'); // SOLVE
+    clickHardwareKey(container, 'equals'); // accept initial guess -> solves X=4, L-R=0
+    expect(screen.getByTestId('lcd-result').textContent).toContain('X=4');
+
+    // SHIFT + x² -> x³ (2^3 = 8), SHIFT + hyp -> Abs (|-5| = 5), ALPHA + ∫dx -> ':'
+    clickHardwareKey(container, 'ac');
+    clickHardwareKey(container, '2');
+    clickHardwareKey(container, 'shift');
+    clickHardwareKey(container, 'square'); // ^3
+    clickHardwareKey(container, 'alpha');
+    clickHardwareKey(container, 'integ'); // ':'
+    clickHardwareKey(container, 'shift');
+    clickHardwareKey(container, 'hyp'); // Abs(
+    clickHardwareKey(container, 'neg');
+    clickHardwareKey(container, '5');
+    clickHardwareKey(container, 'equals');
+    expect(screen.getByTestId('lcd-result').textContent).toBe('8');
+    clickHardwareKey(container, 'equals');
+    expect(screen.getByTestId('lcd-result').textContent).toBe('5');
+
+    // SHIFT + log_ab -> ∑(X, 1, 4) = 10
+    clickHardwareKey(container, 'ac');
+    clickHardwareKey(container, 'shift');
+    clickHardwareKey(container, 'logbase');
+    clickHardwareKey(container, 'alpha');
+    clickHardwareKey(container, 'close'); // X
+    clickHardwareKey(container, 'right');
+    clickHardwareKey(container, '1');
+    clickHardwareKey(container, 'right');
+    clickHardwareKey(container, '4');
+    clickHardwareKey(container, 'equals');
+    expect(screen.getByTestId('lcd-result').textContent).toBe('10');
+
+    // INEQ: X^2 - (π/2)^2 > 0 -> X<A, B<X and X < -1/2 π, 1/2 π < X (exact photo match!)
+    clickHardwareKey(container, 'mode');
+    clickHardwareKey(container, 'down');
+    clickHardwareKey(container, '1'); // INEQ
+    clickHardwareKey(container, '1'); // aX^2+bX+c
+    clickHardwareKey(container, '1'); // > 0
+    clickHardwareKey(container, '1');
+    clickHardwareKey(container, 'equals');
+    clickHardwareKey(container, '0');
+    clickHardwareKey(container, 'equals');
+    clickHardwareKey(container, 'neg');
+    clickHardwareKey(container, 'open');
+    clickHardwareKey(container, 'shift');
+    clickHardwareKey(container, 'exp'); // π
+    clickHardwareKey(container, 'divide');
+    clickHardwareKey(container, '2');
+    clickHardwareKey(container, 'close');
+    clickHardwareKey(container, 'square');
+    clickHardwareKey(container, 'equals');
+
+    expect(screen.getByTestId('lcd-expression').textContent).toBe('X<A, B<X');
+    expect(screen.getByTestId('lcd-result').textContent).toContain('π');
+    expect(screen.getByTestId('lcd-result').textContent).toContain('1');
+    expect(screen.getByTestId('lcd-result').textContent).toContain('2');
+  });
 });

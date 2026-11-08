@@ -1,4 +1,4 @@
-import { solveCubic } from './eqn';
+import { snapExactScalar, solveCubic } from './eqn';
 import { mathError } from './errors';
 import {
   DEFAULT_NUMBER_FORMAT, formatDecimal, formatResult, formatSymbolicLinear,
@@ -37,13 +37,13 @@ function uniqueSortedRealRoots(degree: IneqDegree, coeffs: Scalar[]): Scalar[] {
     const [a, b, c] = coeffs;
     const disc = subtract(multiply(b, b), multiply(multiply(scalarFromInteger(4), a), c));
     if (disc.decimal.abs().lt('1e-24')) {
-      rawRoots = [divide(negate(b), multiply(scalarFromInteger(2), a))];
+      rawRoots = [snapExactScalar(divide(negate(b), multiply(scalarFromInteger(2), a)))];
     } else if (disc.decimal.gt(0)) {
       const sq = applyFunction('sqrt', [disc], 'DEG');
       const twoA = multiply(scalarFromInteger(2), a);
       rawRoots = [
-        divide(subtract(negate(b), sq), twoA),
-        divide(subtract(negate(b), negate(sq)), twoA),
+        snapExactScalar(divide(subtract(negate(b), sq), twoA)),
+        snapExactScalar(divide(subtract(negate(b), negate(sq)), twoA)),
       ];
     }
   } else {
