@@ -11,7 +11,7 @@ import {
   VARIABLES, add, applyFunction, applyUnitConversion, combinatoric, convertAngleToActive,
   deserialize, divide, dmsToScalar, factorial, makeScalar, multiply, negate, polarFromRect, power,
   quotientRemainder, rectFromPolar, scalarFromInteger, scalarFromLiteral, scalarFromRecurring, scalarPi,
-  serialize, subtract, D,
+  serialize, simplifyManualFraction, subtract, D,
   type AngleUnit, type Scalar, type StoredScalar, type VariableName,
 } from './value';
 
@@ -21,6 +21,7 @@ type TokenType =
   | 'identifier'
   | 'operator'
   | 'postfix'
+  | 'simp'
   | 'dms'
   | 'open'
   | 'close'
@@ -30,6 +31,7 @@ type TokenType =
 export interface Token {
   type: TokenType;
   text: string;
+  offset?: number;
   recurParts?: [string, string, string];
 }
 
@@ -109,38 +111,44 @@ export function tokenize(source: string): Token[] {
 
     const constMatch = rest.match(/^const(?:0[1-9]|[1-3]\d|40)/);
     if (constMatch) {
-      tokens.push({ type: 'identifier', text: constMatch[0] });
+      tokens.push({ type: 'identifier', text: constMatch[0], offset: i });
       i += constMatch[0].length;
       continue;
     }
 
     const convMatch = rest.match(/^▸conv(?:0[1-9]|[1-3]\d|40)/);
     if (convMatch) {
-      tokens.push({ type: 'postfix', text: convMatch[0] });
+      tokens.push({ type: 'postfix', text: convMatch[0], offset: i });
       i += convMatch[0].length;
       continue;
     }
 
+    if (rest.startsWith('▸Simp')) {
+      tokens.push({ type: 'simp', text: '▸Simp', offset: i });
+      i += 5;
+      continue;
+    }
+
     if (rest.startsWith('▸xhat2')) {
-      tokens.push({ type: 'postfix', text: '▸xhat2' });
+      tokens.push({ type: 'postfix', text: '▸xhat2', offset: i });
       i += 6;
       continue;
     }
 
     if (rest.startsWith('▸yhat') || rest.startsWith('▸xhat')) {
-      tokens.push({ type: 'postfix', text: rest.slice(0, 5) });
+      tokens.push({ type: 'postfix', text: rest.slice(0, 5), offset: i });
       i += 5;
       continue;
     }
 
     if (rest.startsWith('▸t')) {
-      tokens.push({ type: 'postfix', text: '▸t' });
+      tokens.push({ type: 'postfix', text: '▸t', offset: i });
       i += 2;
       continue;
     }
 
     if (rest.startsWith('÷R')) {
-      tokens.push({ type: 'operator', text: '÷R' });
+      tokens.push({ type: 'operator', text: '÷R', offset: i });
       i += 2;
       continue;
     }
@@ -149,7 +157,7 @@ export function tokenize(source: string): Token[] {
     const recMatch = rest.match(/^(?:(\d+)\.(\d*)|\.(\d*))r\((\d+)\)/);
     if (recMatch) {
       if (tokens[tokens.length - 1]?.type === 'number' || tokens[tokens.length - 1]?.type === 'recur') {
-        syntax('Adjacent numbers are invalid');
+        syntax('Adjacent numbers are invalid', i);
       }
       const intPart = recMatch[1] ?? '0';
       const nonRep = recMatch[1] !== undefined ? (recMatch[2] ?? '') : (recMatch[3] ?? '');
@@ -157,6 +165,7 @@ export function tokenize(source: string): Token[] {
       tokens.push({
         type: 'recur',
         text: recMatch[0],
+        offset: i,
         recurParts: [intPart, nonRep, rep],
       });
       i += recMatch[0].length;
@@ -166,46 +175,46 @@ export function tokenize(source: string): Token[] {
     const number = rest.match(/^(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?/);
     if (number) {
       if (tokens[tokens.length - 1]?.type === 'number' || tokens[tokens.length - 1]?.type === 'recur') {
-        syntax('Adjacent numbers are invalid');
+        syntax('Adjacent numbers are invalid', i);
       }
-      tokens.push({ type: 'number', text: number[0] });
+      tokens.push({ type: 'number', text: number[0], offset: i });
       i += number[0].length;
       continue;
     }
 
     const keyword = KEYWORDS.find((word) => rest.startsWith(word));
     if (keyword) {
-      tokens.push({ type: keyword === 'nCr' || keyword === 'nPr' ? 'operator' : 'identifier', text: keyword });
+      tokens.push({ type: keyword === 'nCr' || keyword === 'nPr' ? 'operator' : 'identifier', text: keyword, offset: i });
       i += keyword.length;
       continue;
     }
 
     if (VARIABLE_SET.has(char) || char === 'π' || char === 'e') {
-      tokens.push({ type: 'identifier', text: char });
+      tokens.push({ type: 'identifier', text: char, offset: i });
       i++;
       continue;
     }
     if (char === '°') {
-      tokens.push({ type: 'dms', text: char });
+      tokens.push({ type: 'dms', text: char, offset: i });
       i++;
       continue;
     }
     if (char === 'ᵈ' || char === 'ʳ' || char === 'ᵍ') {
-      tokens.push({ type: 'postfix', text: char });
+      tokens.push({ type: 'postfix', text: char, offset: i });
       i++;
       continue;
     }
     if ('+-−×÷*/^!%'.includes(char)) {
-      tokens.push({ type: 'operator', text: char === '−' ? '-' : char });
+      tokens.push({ type: 'operator', text: char === '−' ? '-' : char, offset: i });
       i++;
       continue;
     }
-    if (char === '(') { tokens.push({ type: 'open', text: char }); i++; continue; }
-    if (char === ')') { tokens.push({ type: 'close', text: char }); i++; continue; }
-    if (char === ',') { tokens.push({ type: 'comma', text: char }); i++; continue; }
-    return syntax(`Unexpected character: ${char}`);
+    if (char === '(') { tokens.push({ type: 'open', text: char, offset: i }); i++; continue; }
+    if (char === ')') { tokens.push({ type: 'close', text: char, offset: i }); i++; continue; }
+    if (char === ',') { tokens.push({ type: 'comma', text: char, offset: i }); i++; continue; }
+    return syntax(`Unexpected character: ${char}`, i);
   }
-  tokens.push({ type: 'end', text: '' });
+  tokens.push({ type: 'end', text: '', offset: source.length });
   return tokens;
 }
 
@@ -252,14 +261,14 @@ class Parser {
   private peek(): Token { return this.tokens[this.pos]; }
   private take(): Token { return this.tokens[this.pos++]; }
   private expect(type: TokenType): void {
-    if (this.peek().type !== type) syntax(`Expected ${type}`);
+    if (this.peek().type !== type) syntax(`Expected ${type}`, this.peek().offset);
     this.take();
   }
 
   parse(): Scalar {
-    if (this.peek().type === 'end') return syntax('Empty expression');
+    if (this.peek().type === 'end') return syntax('Empty expression', 0);
     const result = this.expression(0);
-    if (this.peek().type !== 'end') syntax('Unexpected token');
+    if (this.peek().type !== 'end') syntax('Unexpected token', this.peek().offset);
     return result;
   }
 
@@ -326,16 +335,30 @@ class Parser {
       else if (tok.type === 'close') nested--;
       slice.push(this.take());
     }
-    if (slice.length === 0) syntax('Empty argument');
-    slice.push({ type: 'end', text: '' });
+    if (slice.length === 0) syntax('Empty argument', this.peek().offset);
+    slice.push({ type: 'end', text: '', offset: this.peek().offset });
     return slice;
   }
 
   private expression(minBindingPower: number): Scalar {
-    if (++this.depth > 128) return syntax('Expression is too deeply nested');
+    if (++this.depth > 128) return syntax('Expression is too deeply nested', this.peek().offset);
     let left = this.prefix();
     for (;;) {
       const next = this.peek();
+      if (next.type === 'simp') {
+        if (15 < minBindingPower) break;
+        this.take();
+        const after = this.peek();
+        const canTakeFactor =
+          after.type === 'number' ||
+          after.type === 'identifier' ||
+          after.type === 'open' ||
+          (after.type === 'operator' && (after.text === '+' || after.text === '-'));
+        const factor = canTakeFactor ? this.expression(20) : undefined;
+        left = simplifyManualFraction(left, factor);
+        continue;
+      }
+
       if (next.type === 'dms') {
         if (45 < minBindingPower) break;
         this.take();
@@ -388,7 +411,7 @@ class Parser {
       let precedence = 0;
       let implicit = false;
       if (next.type === 'operator') {
-        if (next.text === '÷R') syntax('÷R can only be used as a top-level division');
+        if (next.text === '÷R') syntax('÷R can only be used as a top-level division', next.offset);
         operator = next.text;
         precedence = operator === '+' || operator === '-' ? 10
           : ['×', '÷', '*', '/'].includes(operator) ? 20
@@ -498,17 +521,18 @@ class Parser {
       if (token.text === 'PreAns') return deserialize(this.context.preAns ?? this.context.ans);
       if (VARIABLE_SET.has(token.text)) return deserialize(this.context.variables[token.text as VariableName]);
     }
-    return syntax('Expected a value');
+    return syntax('Expected a value', token.offset);
   }
 }
 
 export function completeParentheses(source: string): string {
   let open = 0;
-  for (const char of source) {
+  for (let idx = 0; idx < source.length; idx++) {
+    const char = source[idx];
     if (char === '(') open++;
     if (char === ')') {
       open--;
-      if (open < 0) syntax('Unexpected closing parenthesis');
+      if (open < 0) syntax('Unexpected closing parenthesis', idx);
     }
   }
   return source + ')'.repeat(open);

@@ -3,6 +3,7 @@ import { evaluateExpression, evaluateRichExpression } from './expression';
 import { createInitialState } from './calculator';
 import { formatDecimal, formatResult } from './format';
 import { CalculatorError } from './errors';
+import { serialize } from './value';
 
 const state = createInitialState();
 const ctx = { angle: state.angle, variables: state.variables, ans: state.ans } as const;
@@ -249,5 +250,49 @@ describe('expression engine', () => {
       numerator: '1',
       denominator: '7',
     });
+  });
+
+  it('supports manual step-by-step fraction simplification (▸Simp) and exact syntax error offsets', () => {
+    // 12 ÷ 18 ▸Simp -> 6/9 (÷2)
+    const step1 = solve('12÷18▸Simp');
+    expect(formatResult(step1, 'exact')).toEqual({
+      type: 'fraction',
+      sign: '',
+      numerator: '6',
+      denominator: '9',
+      simpFactor: '2',
+    });
+
+    // Chaining Ans▸Simp -> 2/3 (÷3)
+    const step2 = evaluateExpression('Ans▸Simp', { ...ctx, ans: serialize(step1) });
+    expect(formatResult(step2, 'exact')).toEqual({
+      type: 'fraction',
+      sign: '',
+      numerator: '2',
+      denominator: '3',
+      simpFactor: '3',
+    });
+
+    // Explicit factor: 12 ÷ 18 ▸Simp 3 -> 4/6 (÷3)
+    const explicitStep = solve('12÷18▸Simp3');
+    expect(formatResult(explicitStep, 'exact')).toEqual({
+      type: 'fraction',
+      sign: '',
+      numerator: '4',
+      denominator: '6',
+      simpFactor: '3',
+    });
+
+    // Non-divisor factor throws Math ERROR
+    expect(() => solve('12÷18▸Simp5')).toThrowError(/Math ERROR|does not divide/i);
+
+    // Syntax error carries exact character offset for [◀][▶]:Goto
+    let caughtOffset: number | undefined;
+    try {
+      solve('12+×5');
+    } catch (err) {
+      if (err instanceof CalculatorError) caughtOffset = err.offset;
+    }
+    expect(caughtOffset).toBe(3);
   });
 });

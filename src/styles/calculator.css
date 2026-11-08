@@ -1161,6 +1161,53 @@ button {
   background: var(--casio-gold);
 }
 
+/* ▸Simp divisor badge & 2D CMPLX Natural-V.P.A.M. layout */
+.math-simp-factor {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 6px;
+  padding: 0 3px;
+  font-size: 0.72em;
+  font-weight: 700;
+  border: 1px solid rgba(18, 28, 20, 0.55);
+  border-radius: 2px;
+  line-height: 1.15;
+}
+
+.lcd-complex-2d {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  flex-wrap: wrap;
+}
+
+.lcd-cmplx-op,
+.lcd-phasor-sym {
+  padding: 0 2px;
+  font-weight: 700;
+}
+
+.lcd-imag-unit {
+  font-style: italic;
+  font-weight: 700;
+  margin-left: 1px;
+}
+
+.lcd-cmplx-part-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 6px;
+}
+
+.lcd-cmplx-part-label {
+  font-size: 0.82rem;
+  font-weight: 700;
+  opacity: 0.9;
+}
+
 @media (max-width: 400px) {
   .casio-casing {
     width: 100%;

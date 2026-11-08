@@ -19,6 +19,9 @@ export interface Rational { n: bigint; d: bigint }
 export interface Scalar {
   decimal: Decimal;
   exact?: Rational;
+  rawUnreduced?: Rational;
+  simpUnreduced?: Rational;
+  simpFactor?: bigint;
   symbolic?: SymbolicValue;
   preferDecimal: boolean;
 }
@@ -32,6 +35,9 @@ export interface StoredScalar {
   decimal: string;
   numerator?: string;
   denominator?: string;
+  unreducedN?: string;
+  unreducedD?: string;
+  simpFactor?: string;
   symbolic?: StoredSymbolic;
   preferDecimal: boolean;
 }
@@ -119,6 +125,9 @@ export function serialize(value: Scalar): StoredScalar {
     decimal: value.decimal.toString(),
     numerator: value.exact?.n.toString(),
     denominator: value.exact?.d.toString(),
+    unreducedN: value.simpUnreduced?.n.toString(),
+    unreducedD: value.simpUnreduced?.d.toString(),
+    simpFactor: value.simpFactor?.toString(),
     symbolic: sym,
     preferDecimal: value.preferDecimal,
   };
@@ -145,7 +154,14 @@ export function deserialize(value: StoredScalar): Scalar {
       d: BigInt(value.symbolic.d),
     };
   }
-  return makeScalar(value.decimal, exact, value.preferDecimal, sym);
+  const s = makeScalar(value.decimal, exact, value.preferDecimal, sym);
+  if (value.unreducedN !== undefined && value.unreducedD !== undefined) {
+    s.simpUnreduced = { n: BigInt(value.unreducedN), d: BigInt(value.unreducedD) };
+  }
+  if (value.simpFactor !== undefined) {
+    s.simpFactor = BigInt(value.simpFactor);
+  }
+  return s;
 }
 
 export function zeroStored(): StoredScalar { return serialize(scalarFromInteger(0)); }
@@ -187,12 +203,63 @@ export function divide(a: Scalar, b: Scalar): Scalar {
   if (b.decimal.isZero()) mathError('Division by zero');
   const pref = a.preferDecimal || b.preferDecimal;
   if (a.exact && b.exact) {
-    const r = rational(a.exact.n * b.exact.d, a.exact.d * b.exact.n);
-    return makeScalar(a.decimal.dividedBy(b.decimal), r, pref);
+    let rawN = a.exact.n * b.exact.d;
+    let rawD = a.exact.d * b.exact.n;
+    if (rawD < ZERO) { rawN = -rawN; rawD = -rawD; }
+    const r = rational(rawN, rawD);
+    const out = makeScalar(a.decimal.dividedBy(b.decimal), r, pref);
+    if (absBig(rawN).toString().length <= 40 && rawD.toString().length <= 40) {
+      out.rawUnreduced = { n: rawN, d: rawD };
+    }
+    return out;
   }
   const sym = divideSymbolic(a, b);
   const ex = sym.exact && rational(sym.exact.n, sym.exact.d);
   return makeScalar(a.decimal.dividedBy(b.decimal), ex, pref, sym.symbolic);
+}
+
+/** Manual step-by-step fraction simplification (▸Simp [factor]) matching Casio fx-991ES PLUS C. */
+export function simplifyManualFraction(s: Scalar, factor?: Scalar): Scalar {
+  const source = s.simpUnreduced ?? s.rawUnreduced ?? s.exact;
+  if (!source) mathError('▸Simp requires an exact fraction');
+  let { n, d } = source;
+  if (d < ZERO) { n = -n; d = -d; }
+
+  if (factor !== undefined) {
+    if (!factor.decimal.isInteger() || factor.decimal.lt(2) || factor.decimal.gte('1e15')) {
+      mathError('Invalid simplification factor');
+    }
+    const k = BigInt(factor.decimal.toFixed(0));
+    if (absBig(n) % k !== ZERO || d % k !== ZERO) {
+      mathError('Factor does not divide numerator and denominator');
+    }
+    const out = makeScalar(s.decimal, s.exact, false);
+    out.simpUnreduced = { n: n / k, d: d / k };
+    out.simpFactor = k;
+    return out;
+  }
+
+  const g = gcd(n, d);
+  if (g <= ONE) {
+    return makeScalar(s.decimal, s.exact, false);
+  }
+
+  let smallestPrime = g;
+  if (g % 2n === ZERO) {
+    smallestPrime = 2n;
+  } else {
+    for (let f = 3n; f * f <= g; f += 2n) {
+      if (g % f === ZERO) {
+        smallestPrime = f;
+        break;
+      }
+    }
+  }
+
+  const out = makeScalar(s.decimal, s.exact, false);
+  out.simpUnreduced = { n: n / smallestPrime, d: d / smallestPrime };
+  out.simpFactor = smallestPrime;
+  return out;
 }
 
 export function power(a: Scalar, b: Scalar): Scalar {

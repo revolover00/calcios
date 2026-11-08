@@ -154,6 +154,12 @@ function MathRange({
       continue;
     }
 
+    if (rest.startsWith('▸Simp')) {
+      nodes.push(<span key={`k-${keyCounter++}`} className="math-const">▸Simp</span>);
+      pos += 5;
+      continue;
+    }
+
     if (rest.startsWith('÷R')) {
       nodes.push(<span key={`k-${keyCounter++}`} className="math-const">÷R</span>);
       pos += 2;
@@ -652,6 +658,49 @@ export function NaturalResult({
   display: DisplayValue;
   lineMode?: boolean;
 }): React.ReactElement {
+  if (display.type === 'complex-2d') {
+    if (display.form === 'polar') {
+      return (
+        <div className="lcd-result-frac lcd-complex-2d" dir="ltr">
+          {display.r && <InlineDisplayAtom display={display.r} lineMode={lineMode} />}
+          <span className="lcd-phasor-sym">∠</span>
+          {display.theta && <InlineDisplayAtom display={display.theta} lineMode={lineMode} />}
+        </div>
+      );
+    }
+
+    const imDisp = display.im;
+    const isUnitIm = imDisp?.type === 'text' && imDisp.text === '1';
+    const needsParens =
+      (imDisp?.type === 'symbolic-surd' && imDisp.d === '1' && imDisp.a !== '0') ||
+      (imDisp?.type === 'symbolic-multisurd' && imDisp.d === '1' && imDisp.terms.length > 1);
+
+    return (
+      <div className="lcd-result-frac lcd-complex-2d" dir="ltr">
+        {display.re ? (
+          <>
+            <InlineDisplayAtom display={display.re} lineMode={lineMode} />
+            <span className="lcd-cmplx-op">{display.imSign ?? '+'}</span>
+          </>
+        ) : (
+          display.imSign === '−' && <span className="lcd-frac-sign">−</span>
+        )}
+        {!isUnitIm && imDisp && (
+          needsParens ? (
+            <span className="math-seq">
+              (
+              <InlineDisplayAtom display={imDisp} lineMode={lineMode} />
+              )
+            </span>
+          ) : (
+            <InlineDisplayAtom display={imDisp} lineMode={lineMode} />
+          )
+        )}
+        <span className="lcd-imag-unit">i</span>
+      </div>
+    );
+  }
+
   if (display.type === 'ineq-2d') {
     return (
       <div className="lcd-result-frac lcd-ineq-2d" dir="ltr">
@@ -773,12 +822,14 @@ export function NaturalResult({
     if (lineMode) {
       return (
         <div className="lcd-result-text" dir="ltr">
+          {display.simpFactor && <span className="math-simp-factor">÷{display.simpFactor} </span>}
           {display.sign}{display.whole}⌟{display.numerator}⌟{display.denominator}
         </div>
       );
     }
     return (
       <div className="lcd-result-frac" dir="ltr">
+        {display.simpFactor && <span className="math-simp-factor">÷{display.simpFactor}</span>}
         {display.sign && <span className="lcd-frac-sign">{display.sign}</span>}
         <span className="lcd-mfrac-whole">{display.whole}</span>
         <span className="math-frac math-frac-result">
@@ -794,12 +845,14 @@ export function NaturalResult({
     if (lineMode) {
       return (
         <div className="lcd-result-text" dir="ltr">
+          {display.simpFactor && <span className="math-simp-factor">÷{display.simpFactor} </span>}
           {display.sign}{display.numerator}⌟{display.denominator}
         </div>
       );
     }
     return (
       <div className="lcd-result-frac" dir="ltr">
+        {display.simpFactor && <span className="math-simp-factor">÷{display.simpFactor}</span>}
         {display.sign && <span className="lcd-frac-sign">{display.sign}</span>}
         <span className="math-frac math-frac-result">
           <span className="math-frac-num">{display.numerator}</span>

@@ -4,13 +4,13 @@ import { completeParentheses } from './expression';
 export type BaseMode = 'DEC' | 'HEX' | 'BIN' | 'OCT';
 
 type BaseToken =
-  | { type: 'literal'; text: string }
-  | { type: 'ans' }
-  | { type: 'unary'; op: 'Not' | 'Neg' }
-  | { type: 'binary'; op: '+' | '-' | '×' | '÷' | 'and' | 'or' | 'xor' | 'xnor' }
-  | { type: 'open' }
-  | { type: 'close' }
-  | { type: 'end' };
+  | { type: 'literal'; text: string; offset: number }
+  | { type: 'ans'; offset: number }
+  | { type: 'unary'; op: 'Not' | 'Neg'; offset: number }
+  | { type: 'binary'; op: '+' | '-' | '×' | '÷' | 'and' | 'or' | 'xor' | 'xnor'; offset: number }
+  | { type: 'open'; offset: number }
+  | { type: 'close'; offset: number }
+  | { type: 'end'; offset: number };
 
 const INT32_MIN = -2147483648n;
 const INT32_MAX = 2147483647n;
@@ -68,13 +68,13 @@ function tokenizeBaseN(source: string, base: BaseMode): BaseToken[] {
     if (/\s/.test(ch)) { i++; continue; }
     const rest = source.slice(i);
 
-    if (rest.startsWith('Ans')) { tokens.push({ type: 'ans' }); i += 3; continue; }
-    if (rest.startsWith('xnor')) { tokens.push({ type: 'binary', op: 'xnor' }); i += 4; continue; }
-    if (rest.startsWith('and')) { tokens.push({ type: 'binary', op: 'and' }); i += 3; continue; }
-    if (rest.startsWith('xor')) { tokens.push({ type: 'binary', op: 'xor' }); i += 3; continue; }
-    if (rest.startsWith('or')) { tokens.push({ type: 'binary', op: 'or' }); i += 2; continue; }
-    if (rest.startsWith('Not(')) { tokens.push({ type: 'unary', op: 'Not' }); tokens.push({ type: 'open' }); i += 4; continue; }
-    if (rest.startsWith('Neg(')) { tokens.push({ type: 'unary', op: 'Neg' }); tokens.push({ type: 'open' }); i += 4; continue; }
+    if (rest.startsWith('Ans')) { tokens.push({ type: 'ans', offset: i }); i += 3; continue; }
+    if (rest.startsWith('xnor')) { tokens.push({ type: 'binary', op: 'xnor', offset: i }); i += 4; continue; }
+    if (rest.startsWith('and')) { tokens.push({ type: 'binary', op: 'and', offset: i }); i += 3; continue; }
+    if (rest.startsWith('xor')) { tokens.push({ type: 'binary', op: 'xor', offset: i }); i += 3; continue; }
+    if (rest.startsWith('or')) { tokens.push({ type: 'binary', op: 'or', offset: i }); i += 2; continue; }
+    if (rest.startsWith('Not(')) { tokens.push({ type: 'unary', op: 'Not', offset: i }); tokens.push({ type: 'open', offset: i + 3 }); i += 4; continue; }
+    if (rest.startsWith('Neg(')) { tokens.push({ type: 'unary', op: 'Neg', offset: i }); tokens.push({ type: 'open', offset: i + 3 }); i += 4; continue; }
 
     // Explicit base prefixes (SHIFT+3 Page 2: d, h, b, o)
     const prefMatch = rest.match(/^([dhbo])([0-9A-F]+)/);
@@ -84,29 +84,29 @@ function tokenizeBaseN(source: string, base: BaseMode): BaseToken[] {
       const pBase: BaseMode = p === 'd' ? 'DEC' : p === 'h' ? 'HEX' : p === 'b' ? 'BIN' : 'OCT';
       const parsed = parseBaseLiteral(body, pBase);
       // Store as canonical decimal prefixed literal marker
-      tokens.push({ type: 'literal', text: `@${parsed.toString(10)}` });
+      tokens.push({ type: 'literal', text: `@${parsed.toString(10)}`, offset: i });
       i += prefMatch[0].length;
       continue;
     }
 
     const lit = rest.match(digitRegex);
     if (lit) {
-      tokens.push({ type: 'literal', text: lit[0] });
+      tokens.push({ type: 'literal', text: lit[0], offset: i });
       i += lit[0].length;
       continue;
     }
 
     if (ch === '+' || ch === '-' || ch === '−' || ch === '×' || ch === '*' || ch === '÷' || ch === '/') {
       const norm = ch === '−' ? '-' : ch === '*' ? '×' : ch === '/' ? '÷' : ch;
-      tokens.push({ type: 'binary', op: norm });
+      tokens.push({ type: 'binary', op: norm, offset: i });
       i++;
       continue;
     }
-    if (ch === '(') { tokens.push({ type: 'open' }); i++; continue; }
-    if (ch === ')') { tokens.push({ type: 'close' }); i++; continue; }
-    syntax(`Invalid character '${ch}' in ${base} mode`);
+    if (ch === '(') { tokens.push({ type: 'open', offset: i }); i++; continue; }
+    if (ch === ')') { tokens.push({ type: 'close', offset: i }); i++; continue; }
+    syntax(`Invalid character '${ch}' in ${base} mode`, i);
   }
-  tokens.push({ type: 'end' });
+  tokens.push({ type: 'end', offset: source.length });
   return tokens;
 }
 
@@ -169,16 +169,16 @@ export function evaluateBaseN(source: string, base: BaseMode, ans: bigint): bigi
       return tok.op === '-' ? toInt32(-v) : v;
     }
     if (tok.type === 'unary') {
-      if (peek().type !== 'open') syntax('Expected (');
+      if (peek().type !== 'open') syntax('Expected (', peek().offset);
       take();
       const v = parseExpr(0);
-      if (peek().type !== 'close') syntax('Expected )');
+      if (peek().type !== 'close') syntax('Expected )', peek().offset);
       take();
       return tok.op === 'Not' ? toInt32(~v) : toInt32(-v);
     }
     if (tok.type === 'open') {
       const v = parseExpr(0);
-      if (peek().type !== 'close') syntax('Expected )');
+      if (peek().type !== 'close') syntax('Expected )', peek().offset);
       take();
       return v;
     }
@@ -187,11 +187,11 @@ export function evaluateBaseN(source: string, base: BaseMode, ans: bigint): bigi
       return parseBaseLiteral(tok.text, base);
     }
     if (tok.type === 'ans') return toInt32(ans);
-    return syntax('Expected value in BASE-N');
+    return syntax('Expected value in BASE-N', tok.offset);
   }
 
-  if (peek().type === 'end') syntax('Empty expression');
+  if (peek().type === 'end') syntax('Empty expression', 0);
   const out = parseExpr(0);
-  if (peek().type !== 'end') syntax('Unexpected token in BASE-N');
+  if (peek().type !== 'end') syntax('Unexpected token in BASE-N', peek().offset);
   return out;
 }

@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+  formatActiveComplexDisplay, formatActiveEqnItemDisplay,
   formatActiveInequalityDisplay, formatActiveResult,
   type CalculatorState,
 } from '../core/calculator';
@@ -40,6 +41,7 @@ function LcdStatusBar({ state }: { state: CalculatorState }): React.ReactElement
   const isMath = state.ioMode === 'Math';
   const isFix = state.numberFormat.mode === 'Fix';
   const isSci = state.numberFormat.mode === 'Sci';
+  const showReIm = state.mode === 'CMPLX' && state.phase === 'result' && state.cmplx.result !== null;
 
   return (
     <div className="lcd-status" data-testid="lcd-status" dir="ltr">
@@ -57,6 +59,7 @@ function LcdStatusBar({ state }: { state: CalculatorState }): React.ReactElement
       <span className={isFix ? 'ind on' : 'ind'}>FIX</span>
       <span className={isSci ? 'ind on' : 'ind'}>SCI</span>
       <span className={isMath ? 'ind on' : 'ind'}>Math</span>
+      {showReIm && <span className="ind on">Re⇔Im</span>}
       <span className="ind-spacer" />
       <span className="ind-mode">
         {state.mode === 'BASE-N' ? state.baseN.base : state.mode !== 'COMP' ? state.mode : ''}
@@ -780,13 +783,7 @@ function renderNormalInteractiveBody(state: CalculatorState): React.ReactElement
         );
       }
       const item = eqn.outcome.items[eqn.solutionIndex];
-      const disp = item?.scalar
-        ? formatResult(item.scalar, state.resultFormat, {
-            fractionStyle: state.fractionStyle,
-            numberFormat: state.numberFormat,
-            decimalMark: state.decimalMark,
-          })
-        : { type: 'text' as const, text: item?.complexText ?? '0' };
+      const disp = item ? formatActiveEqnItemDisplay(state, item) : { type: 'text' as const, text: '0' };
       return (
         <div className="lcd-home" dir="ltr">
           <div className="lcd-expr-area">
@@ -880,10 +877,15 @@ function renderNormalInteractiveBody(state: CalculatorState): React.ReactElement
     );
   }
 
-  // DIST Mode Parameter Editor & Probability Result (supports both Var and List!)
+  // DIST Mode Parameter Editor & Probability Result (supports both Var and dynamic List!)
   if (state.mode === 'DIST' && state.dist) {
     const ds = state.dist;
     if (ds.listResults) {
+      const startRow = Math.max(0, Math.min(ds.listRowIdx - 1, Math.max(0, ds.listResults.length - 3)));
+      const visibleIndices = Array.from(
+        { length: Math.min(3, ds.listResults.length - startRow) },
+        (_, i) => startRow + i,
+      );
       return (
         <div className="lcd-table-view" data-testid="lcd-result" dir="ltr">
           <div className="lcd-table-head">
@@ -891,13 +893,16 @@ function renderNormalInteractiveBody(state: CalculatorState): React.ReactElement
             <span>x</span>
             <span>P</span>
           </div>
-          {ds.listResults.map((row, idx) => (
-            <div key={idx} className={idx === ds.listRowIdx ? 'lcd-table-row active' : 'lcd-table-row'}>
-              <span>{idx + 1}</span>
-              <span>{row.x}</span>
-              <span>{row.p}</span>
-            </div>
-          ))}
+          {visibleIndices.map((idx) => {
+            const row = ds.listResults![idx];
+            return (
+              <div key={idx} className={idx === ds.listRowIdx ? 'lcd-table-row active' : 'lcd-table-row'}>
+                <span>{idx + 1}</span>
+                <span>{row.x}</span>
+                <span>{row.p}</span>
+              </div>
+            );
+          })}
         </div>
       );
     }
@@ -918,26 +923,38 @@ function renderNormalInteractiveBody(state: CalculatorState): React.ReactElement
         </div>
       );
     }
+    if (ds.listMode && ds.editingListTable) {
+      const totalSlots = Math.min(40, ds.listX.length + 1);
+      const startRow = Math.max(0, Math.min(ds.paramIdx - 1, Math.max(0, totalSlots - 3)));
+      const visibleIndices = Array.from({ length: Math.min(3, totalSlots - startRow) }, (_, i) => startRow + i);
+      return (
+        <div className="lcd-table-view" data-testid="lcd-dist-editor" dir="ltr">
+          <div className="lcd-table-head">
+            <span>#</span>
+            <span>x ({DIST_TITLES[ds.subMode]} · List)</span>
+          </div>
+          {visibleIndices.map((rIdx) => {
+            const val = ds.listX[rIdx];
+            const active = rIdx === ds.paramIdx;
+            return (
+              <div key={`dlx-${rIdx}`} className={active ? 'lcd-table-row active' : 'lcd-table-row'}>
+                <span>{rIdx + 1}</span>
+                <span className={active ? 'cell-focus' : undefined}>
+                  {active && ds.editingParam ? ds.input : val !== undefined ? val : '—'}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
     return (
       <div className="lcd-table-view" data-testid="lcd-dist-editor" dir="ltr">
         <div className="lcd-prompt-title">
           {DIST_TITLES[ds.subMode]} [{ds.listMode ? 'List' : 'Var'}]
         </div>
-        {ds.listMode &&
-          ds.listX.map((xVal, idx) => {
-            const active = idx === ds.paramIdx;
-            return (
-              <div key={`lx-${idx}`} className={active ? 'lcd-table-row active' : 'lcd-table-row'}>
-                <span>x{idx + 1}</span>
-                <span className={active ? 'cell-focus' : undefined}>
-                  {active && ds.editingParam ? ds.input : xVal}
-                </span>
-              </div>
-            );
-          })}
         {ds.params.map((p, i) => {
-          const slotIdx = (ds.listMode ? ds.listX.length : 0) + i;
-          const active = slotIdx === ds.paramIdx;
+          const active = i === ds.paramIdx;
           return (
             <div key={p.name} className={active ? 'lcd-table-row active' : 'lcd-table-row'}>
               <span>{p.name}</span>
@@ -1073,7 +1090,8 @@ export function LcdScreen({ state }: { state: CalculatorState }): React.ReactEle
     );
   }
 
-  const display = formatActiveResult(state) ?? { type: 'text' as const, text: '' };
+  const cmplxRich = state.mode === 'CMPLX' ? formatActiveComplexDisplay(state) : null;
+  const display = cmplxRich ? cmplxRich.value : formatActiveResult(state) ?? { type: 'text' as const, text: '' };
   const lineMode = state.ioMode === 'Line' || state.mode === 'BASE-N';
 
   return (
@@ -1095,7 +1113,12 @@ export function LcdScreen({ state }: { state: CalculatorState }): React.ReactEle
             </div>
           )}
           <div className="lcd-result-area" data-testid="lcd-result">
-            {display.type === 'text' && display.text === '' ? null : (
+            {display.type === 'text' && display.text === '' ? null : cmplxRich?.partLabel ? (
+              <div className="lcd-cmplx-part-row" dir="ltr">
+                <span className="lcd-cmplx-part-label">{cmplxRich.partLabel}</span>
+                <NaturalResult display={display} lineMode={lineMode} />
+              </div>
+            ) : (
               <NaturalResult display={display} lineMode={lineMode} />
             )}
           </div>

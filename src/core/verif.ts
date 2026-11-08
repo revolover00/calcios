@@ -41,26 +41,27 @@ export function evaluateVerification(source: string, ctx: EvaluationContext): bo
     }
   }
 
-  if (ops.length === 0) syntax('Expected relational operator (=, ≠, >, <, ≥, ≤)');
+  if (ops.length === 0) syntax('Expected relational operator (=, ≠, >, <, ≥, ≤)', source.length);
 
   // Validate Casio chaining rules: ≠ cannot be chained; mixed < and > cannot be chained
   if (ops.length > 1) {
-    if (ops.some((o) => o.op === '≠')) syntax('Cannot chain ≠ in VERIF');
+    const neqItem = ops.find((o) => o.op === '≠');
+    if (neqItem) syntax('Cannot chain ≠ in VERIF', neqItem.index);
     const hasLess = ops.some((o) => o.op === '<' || o.op === '≤');
     const hasGreater = ops.some((o) => o.op === '>' || o.op === '≥');
-    if (hasLess && hasGreater) syntax('Cannot mix < and > directions in VERIF chain');
+    if (hasLess && hasGreater) syntax('Cannot mix < and > directions in VERIF chain', ops[1].index);
   }
 
   const parts: string[] = [];
   let prev = 0;
   for (const item of ops) {
     const seg = source.slice(prev, item.index).trim();
-    if (!seg) syntax('Incomplete verification statement');
+    if (!seg) syntax('Incomplete verification statement', item.index);
     parts.push(seg);
     prev = item.index + item.op.length;
   }
   const tail = source.slice(prev).trim();
-  if (!tail) syntax('Incomplete verification statement');
+  if (!tail) syntax('Incomplete verification statement', prev);
   parts.push(tail);
 
   for (let i = 0; i < ops.length; i++) {

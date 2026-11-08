@@ -167,4 +167,54 @@ describe('Calculator-Only Viewport & fx-991ES PLUS C Integration', () => {
     expect(screen.getByTestId('lcd-result').textContent).toContain('X<−√2');
     expect(screen.getByTestId('lcd-result').textContent).toContain('√2<X');
   });
+
+  it('renders ▸Simp divisor badge, 2D CMPLX with Re⇔Im indicator, and persists Page-2 SETUP settings', () => {
+    const { container, unmount } = render(<App />);
+
+    // 12 ÷ 18 ▸Simp = -> ÷2 badge + 6/9 fraction
+    clickHardwareKey(container, '1');
+    clickHardwareKey(container, '2');
+    clickHardwareKey(container, 'divide');
+    clickHardwareKey(container, '1');
+    clickHardwareKey(container, '8');
+    fireEvent.click(screen.getByTestId('fn-tray-toggle'));
+    fireEvent.click(screen.getByTestId('fn-simp'));
+    clickHardwareKey(container, 'equals');
+
+    const simpBadge = container.querySelector('.math-simp-factor');
+    expect(simpBadge?.textContent).toBe('÷2');
+    expect(screen.getByTestId('lcd-result').textContent).toContain('6');
+    expect(screen.getByTestId('lcd-result').textContent).toContain('9');
+
+    // CMPLX 2D stacked fraction + Re⇔Im indicator in LCD status bar
+    clickHardwareKey(container, 'mode');
+    clickHardwareKey(container, '2'); // CMPLX
+    clickHardwareKey(container, 'open');
+    clickHardwareKey(container, '1');
+    clickHardwareKey(container, 'add');
+    clickHardwareKey(container, 'eng'); // i
+    clickHardwareKey(container, 'close');
+    clickHardwareKey(container, 'divide');
+    clickHardwareKey(container, '2');
+    clickHardwareKey(container, 'equals');
+
+    expect(screen.getByTestId('lcd-status').textContent).toContain('Re⇔Im');
+    expect(container.querySelector('.lcd-complex-2d')).not.toBeNull();
+
+    // SETUP Page 2 -> 5:Disp -> 2:Comma persists to localStorage across remount
+    clickHardwareKey(container, 'shift');
+    clickHardwareKey(container, 'mode');
+    clickHardwareKey(container, 'down');
+    clickHardwareKey(container, '5'); // Disp
+    clickHardwareKey(container, '2'); // Comma
+    unmount();
+
+    const { container: c2 } = render(<App />);
+    clickHardwareKey(c2, '1');
+    clickHardwareKey(c2, 'divide');
+    clickHardwareKey(c2, '2');
+    clickHardwareKey(c2, 'shift');
+    clickHardwareKey(c2, 'equals'); // ≈ -> 0,5 with Comma decimal mark!
+    expect(screen.getByTestId('lcd-result').textContent).toBe('0,5');
+  });
 });

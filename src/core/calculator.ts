@@ -1,7 +1,8 @@
 import { evaluateBaseN, formatBaseN, type BaseMode } from './basen';
 import { solveRoot } from './calculus';
 import {
-  deserializeComplex, evaluateComplex, formatComplexDisplay, serializeComplex, zeroStoredComplex,
+  argComplex, absComplex, deserializeComplex, evaluateComplex, formatComplex2D, formatComplexDisplay,
+  serializeComplex, zeroStoredComplex,
   type ComplexFormat, type StoredComplex,
 } from './cmplx';
 import { CONSTANT_BY_CODE, CONVERSION_BY_CODE, SCIENTIFIC_CONSTANTS, UNIT_CONVERSIONS } from './constants';
@@ -158,6 +159,7 @@ export interface CmplxModeState {
   ans: StoredComplex;
   result: StoredComplex | null;
   format: ComplexFormat;
+  partView: 'both' | 'first' | 'second';
 }
 
 export interface StatModeState {
@@ -197,6 +199,7 @@ export interface VectorModeState {
 export interface DistModeState {
   subMode: DistSubMode;
   listMode: boolean;
+  editingListTable: boolean;
   listX: string[];
   listResults: Array<{ x: string; p: string }> | null;
   listRowIdx: number;
@@ -231,6 +234,7 @@ export interface CalculatorState {
   numberFormat: NumberFormatSetting;
   tableUseG: boolean;
   error: CalculatorError['kind'] | null;
+  errorCursor: number | null;
   angle: AngleUnit;
   shift: boolean;
   alpha: boolean;
@@ -277,7 +281,7 @@ function createDefaultBaseN(): BaseNState {
 }
 
 function createDefaultCmplx(format: ComplexFormat = 'rect'): CmplxModeState {
-  return { ans: zeroStoredComplex(), result: null, format };
+  return { ans: zeroStoredComplex(), result: null, format, partView: 'both' };
 }
 
 function createDefaultStat(subMode: StatSubMode = '1-VAR', useFreq = false): StatModeState {
@@ -375,7 +379,8 @@ function createDistState(subMode: DistSubMode, listMode = false): DistModeState 
   return {
     subMode,
     listMode: useList,
-    listX: ['0', '1', '2'],
+    editingListTable: useList,
+    listX: [],
     listResults: null,
     listRowIdx: 0,
     params: useList ? paramDefs[subMode].slice(1) : paramDefs[subMode],
@@ -411,6 +416,7 @@ export function createInitialState(): CalculatorState {
     numberFormat: DEFAULT_NUMBER_FORMAT,
     tableUseG: true,
     error: null,
+    errorCursor: null,
     angle: 'DEG',
     shift: false,
     alpha: false,
@@ -457,7 +463,7 @@ const ATOMIC_TOKENS = [
   'MatAns', 'MatA', 'MatB', 'MatC', 'VctAns', 'VctA', 'VctB', 'VctC',
   'Conjg(', 'Angle(', 'Rref(', 'Ref(', 'arg(', 'det(', 'Trn(',
   'StatP(', 'StatQ(', 'StatR(', 'Intg(', 'GCD(', 'LCM(', 'Int(',
-  '▸xhat2', '▸r∠θ', '▸a+bi', '▸yhat', '▸xhat', '▸t', '÷R',
+  '▸xhat2', '▸Simp', '▸r∠θ', '▸a+bi', '▸yhat', '▸xhat', '▸t', '÷R',
   'RanInt(', 'mfrac(', 'deriv(', 'integ(', 'sigma(', 'prod(',
   'asinh(', 'acosh(', 'atanh(', 'logb(', 'sqrt(', 'cbrt(', 'frac(', 'root(',
   'sinh(', 'cosh(', 'tanh(', 'asin(', 'acos(', 'atan(',
@@ -536,8 +542,9 @@ function resetResultModifiers(s: CalculatorState): CalculatorState {
     displayOverride: 'none',
     engExponent: null,
     factoredText: null,
+    errorCursor: null,
     statementRun: null,
-    cmplx: { ...s.cmplx, result: null },
+    cmplx: { ...s.cmplx, result: null, partView: 'both' },
     matrix: { ...s.matrix, showingMatrixResult: false },
     vector: { ...s.vector, showingVectorResult: false },
   };
@@ -619,11 +626,16 @@ function effectiveResultFormat(s: CalculatorState, naturalFormat: ResultFormat):
 
 function errorState(s: CalculatorState, error: unknown): CalculatorState {
   if (!(error instanceof CalculatorError)) throw error;
+  const boundedOffset =
+    typeof error.offset === 'number'
+      ? Math.max(0, Math.min(s.expression.length, error.offset))
+      : null;
   return {
     ...resetResultModifiers(s),
     phase: 'error',
     result: null,
     error: error.kind,
+    errorCursor: boundedOffset,
     pending: null,
     shift: false,
     alpha: false,
@@ -748,6 +760,7 @@ function calculate(s: CalculatorState, random?: number): CalculatorState {
           ans: storedZ,
           result: storedZ,
           format: out.preferredFormat ?? s.defaultCmplxFormat,
+          partView: 'both',
         },
         error: null,
         shift: false,
@@ -887,11 +900,18 @@ function currentValue(s: CalculatorState): StoredScalar {
 
 function updateMemory(s: CalculatorState, direction: 1 | -1): CalculatorState {
   try {
-    const current = deserialize(currentValue(s));
+    const storedCurrent = currentValue(s);
+    const current = deserialize(storedCurrent);
     const memory = deserialize(s.variables.M);
     const updated = direction === 1 ? add(memory, current) : subtract(memory, current);
+    const wasEditing = s.phase === 'editing' && s.expression.trim().length > 0;
     return {
       ...s,
+      phase: wasEditing ? 'result' : s.phase,
+      result: wasEditing ? storedCurrent : s.result,
+      resultFormat: wasEditing ? effectiveResultFormat(s, defaultResultFormat(current)) : s.resultFormat,
+      preAns: wasEditing ? s.ans : s.preAns,
+      ans: wasEditing ? storedCurrent : s.ans,
       variables: { ...s.variables, M: serialize(updated) },
       pending: null,
       shift: false,
@@ -1602,7 +1622,7 @@ function handleEqnMode(s: CalculatorState, id: string, random?: number): Calcula
           eqn: { ...eqn, solutionIndex: prevIdx },
         };
       }
-      if (id === 'sd' && s.result) {
+      if (id === 'sd') {
         return { ...s, resultFormat: s.resultFormat === 'exact' ? 'decimal' : 'exact' };
       }
     }
@@ -1916,7 +1936,11 @@ function handleDistMode(s: CalculatorState, id: string, random?: number): Calcul
 
   if (ds.listResults) {
     if (id === 'ac') {
-      return { ...s, phase: 'editing', dist: { ...ds, listResults: null, paramIdx: 0, input: '', editingParam: false } };
+      return {
+        ...s,
+        phase: 'editing',
+        dist: { ...ds, listResults: null, editingListTable: true, paramIdx: 0, input: '', editingParam: false },
+      };
     }
     if (id === 'up') return { ...s, dist: { ...ds, listRowIdx: Math.max(0, ds.listRowIdx - 1) } };
     if (id === 'down' || id === 'equals') {
@@ -1932,8 +1956,75 @@ function handleDistMode(s: CalculatorState, id: string, random?: number): Calcul
     return s;
   }
 
+  // Dynamic List x-table editor (insert/edit/delete up to 40 x values, like STAT)
+  if (ds.listMode && ds.editingListTable) {
+    if (id === 'ac') {
+      if (ds.editingParam) return { ...s, dist: { ...ds, input: '', editingParam: false } };
+      if (ds.listX.length > 0) {
+        return { ...s, dist: { ...ds, editingListTable: false, paramIdx: 0, input: '', editingParam: false } };
+      }
+      return { ...s, screen: 'dist-menu' };
+    }
+    if (id === 'del') {
+      if (ds.editingParam) {
+        const next = ds.input.slice(0, -1);
+        return { ...s, dist: { ...ds, input: next, editingParam: next.length > 0 } };
+      }
+      if (ds.paramIdx < ds.listX.length) {
+        const nextListX = ds.listX.filter((_, idx) => idx !== ds.paramIdx);
+        return { ...s, dist: { ...ds, listX: nextListX, paramIdx: Math.min(ds.paramIdx, nextListX.length) } };
+      }
+      return s;
+    }
+    if (!ds.editingParam && (id === 'left' || id === 'right')) {
+      return { ...s, dist: createDistState(ds.subMode, false) };
+    }
+    if (!ds.editingParam) {
+      const maxSlot = Math.min(40, ds.listX.length);
+      if (id === 'up') return { ...s, dist: { ...ds, paramIdx: Math.max(0, ds.paramIdx - 1) } };
+      if (id === 'down') return { ...s, dist: { ...ds, paramIdx: Math.min(maxSlot, ds.paramIdx + 1) } };
+    }
+    if (id === 'equals') {
+      try {
+        if (ds.editingParam && ds.input.trim()) {
+          const sc = evaluateExpression(ds.input, evalContext(s, random));
+          const nextListX = [...ds.listX];
+          if (ds.paramIdx < nextListX.length) {
+            nextListX[ds.paramIdx] = sc.decimal.toString();
+          } else if (nextListX.length < 40) {
+            nextListX.push(sc.decimal.toString());
+          }
+          const nextRow = Math.min(40, ds.paramIdx + 1);
+          return { ...s, dist: { ...ds, listX: nextListX, paramIdx: nextRow, input: '', editingParam: false } };
+        }
+        if (ds.paramIdx >= ds.listX.length && ds.listX.length > 0) {
+          return { ...s, dist: { ...ds, editingListTable: false, paramIdx: 0, input: '', editingParam: false } };
+        }
+        if (ds.paramIdx < ds.listX.length) {
+          return { ...s, dist: { ...ds, paramIdx: ds.paramIdx + 1 } };
+        }
+        return s;
+      } catch (err) {
+        return errorState(s, err);
+      }
+    }
+    const ch = simpleInputChar(id, s.shift, s.alpha);
+    if (ch !== null) {
+      return {
+        ...s,
+        shift: false,
+        alpha: false,
+        dist: { ...ds, input: (ds.editingParam ? ds.input : '') + ch, editingParam: true },
+      };
+    }
+    return s;
+  }
+
   if (id === 'ac') {
     if (ds.editingParam) return { ...s, dist: { ...ds, input: '', editingParam: false } };
+    if (ds.listMode) {
+      return { ...s, dist: { ...ds, editingListTable: true, paramIdx: 0, input: '', editingParam: false } };
+    }
     return { ...s, screen: 'dist-menu' };
   }
   if (id === 'del' && ds.editingParam) {
@@ -1941,12 +2032,12 @@ function handleDistMode(s: CalculatorState, id: string, random?: number): Calcul
     return { ...s, dist: { ...ds, input: next, editingParam: next.length > 0 } };
   }
 
-  // Toggle Var / List mode with left/right when on first row and not editing
+  // Toggle Var / List mode with left/right when not editing
   if (!ds.editingParam && (id === 'left' || id === 'right') && ds.subMode !== 'norm-cd' && ds.subMode !== 'inv-norm') {
     return { ...s, dist: createDistState(ds.subMode, !ds.listMode) };
   }
 
-  const totalSlots = (ds.listMode ? ds.listX.length : 0) + ds.params.length;
+  const totalSlots = ds.params.length;
   if (!ds.editingParam) {
     if (id === 'up') return { ...s, dist: { ...ds, paramIdx: Math.max(0, ds.paramIdx - 1) } };
     if (id === 'down') return { ...s, dist: { ...ds, paramIdx: Math.min(totalSlots - 1, ds.paramIdx + 1) } };
@@ -1954,24 +2045,18 @@ function handleDistMode(s: CalculatorState, id: string, random?: number): Calcul
 
   if (id === 'equals') {
     try {
-      const nextListX = [...ds.listX];
       const nextParams = ds.params.map((p) => ({ ...p }));
       if (ds.editingParam && ds.input.trim()) {
         const sc = evaluateExpression(ds.input, evalContext(s, random));
-        if (ds.listMode && ds.paramIdx < nextListX.length) {
-          nextListX[ds.paramIdx] = sc.decimal.toString();
-        } else {
-          const pIdx = ds.listMode ? ds.paramIdx - nextListX.length : ds.paramIdx;
-          nextParams[pIdx].value = sc.decimal.toString();
-        }
+        nextParams[ds.paramIdx].value = sc.decimal.toString();
       }
       if (ds.paramIdx + 1 < totalSlots) {
-        return { ...s, dist: { ...ds, listX: nextListX, params: nextParams, paramIdx: ds.paramIdx + 1, input: '', editingParam: false } };
+        return { ...s, dist: { ...ds, params: nextParams, paramIdx: ds.paramIdx + 1, input: '', editingParam: false } };
       }
 
       if (ds.listMode) {
         const restVals = nextParams.map((p) => evaluateExpression(p.value, evalContext(s, random)));
-        const listResults = nextListX.map((xStr) => {
+        const listResults = ds.listX.map((xStr) => {
           const xVal = evaluateExpression(xStr, evalContext(s, random));
           const pVal = evalSingleDistScalar(ds.subMode, xVal, restVals);
           return { x: formatDecimal(xVal, s.numberFormat, s.decimalMark), p: formatDecimal(pVal, s.numberFormat, s.decimalMark) };
@@ -1979,7 +2064,7 @@ function handleDistMode(s: CalculatorState, id: string, random?: number): Calcul
         return {
           ...s,
           phase: 'result',
-          dist: { ...ds, listX: nextListX, params: nextParams, input: '', editingParam: false, listResults, listRowIdx: 0 },
+          dist: { ...ds, params: nextParams, input: '', editingParam: false, listResults, listRowIdx: 0 },
         };
       }
 
@@ -2150,12 +2235,23 @@ export function calculatorReducer(state: CalculatorState, action: CalculatorActi
     }
     if (state.pending === 'recall') return insert({ ...state, pending: null }, name);
     try {
+      const storedVal = currentValue(state);
+      const valScalar = deserialize(storedVal);
+      const baseExpr = state.expression.trim() || 'Ans';
+      const stoExpr = baseExpr.endsWith(`→${name}`) ? baseExpr : `${baseExpr}→${name}`;
       return {
-        ...state,
+        ...resetResultModifiers(state),
+        expression: stoExpr,
+        cursor: stoExpr.length,
+        phase: 'result',
+        result: storedVal,
+        resultFormat: effectiveResultFormat(state, defaultResultFormat(valScalar)),
+        preAns: state.ans,
+        ans: storedVal,
         pending: null,
         shift: false,
         alpha: false,
-        variables: { ...state.variables, [name]: currentValue(state) },
+        variables: { ...state.variables, [name]: storedVal },
       };
     } catch (error) {
       return errorState(state, error);
@@ -2184,7 +2280,12 @@ export function calculatorReducer(state: CalculatorState, action: CalculatorActi
 
   if (id === 'left' || id === 'right') {
     if (state.phase !== 'editing') {
-      const nextCursor = id === 'left' ? state.expression.length : 0;
+      const nextCursor =
+        state.phase === 'error' && state.errorCursor !== null
+          ? state.errorCursor
+          : id === 'left'
+            ? state.expression.length
+            : 0;
       return { ...resetResultModifiers(state), phase: 'editing', result: null, error: null, cursor: nextCursor, notice: null };
     }
     const nextCursor = stepCursor(state.expression, state.cursor, id === 'left' ? -1 : 1);
@@ -2214,7 +2315,25 @@ export function calculatorReducer(state: CalculatorState, action: CalculatorActi
     };
   }
 
-  if (id === 'equals') return calculate(closeLatches(state), action.random);
+  // SHIFT + = in CMPLX result phase toggles Re⇔Im (or r⇔∠θ in polar)
+  if (state.shift && id === 'equals' && state.mode === 'CMPLX' && state.phase === 'result' && state.cmplx.result) {
+    const nextView =
+      state.cmplx.partView === 'both'
+        ? 'first'
+        : state.cmplx.partView === 'first'
+          ? 'second'
+          : 'both';
+    return { ...closeLatches(state), cmplx: { ...state.cmplx, partView: nextView } };
+  }
+
+  if (id === 'equals') {
+    const forceApprox = state.shift;
+    const evaluated = calculate(closeLatches(state), action.random);
+    if (forceApprox && evaluated.phase === 'result') {
+      return { ...evaluated, resultFormat: 'decimal', displayOverride: 'none' };
+    }
+    return evaluated;
+  }
 
   // BASE-N specific physical shortcuts
   if (state.mode === 'BASE-N' && !state.shift && !state.alpha) {
@@ -2452,6 +2571,7 @@ export function calculatorReducer(state: CalculatorState, action: CalculatorActi
     case 'imag-i': return insert(s, 'i');
     case 'phasor': return insert(s, '∠', 'continue');
     case 'divr': return insert(s, '÷R', 'continue');
+    case 'simp': return insert(s, '▸Simp', 'continue');
     case 'recur': return insertRecurringTemplate(s);
     case 'gcd': return binaryTemplate(s, 'GCD');
     case 'lcm': return binaryTemplate(s, 'LCM');
@@ -2554,13 +2674,111 @@ export function hydrateState(raw: string | null): CalculatorState {
 export function formatActiveInequalityDisplay(state: CalculatorState): DisplayValue | null {
   if (state.mode !== 'INEQ' || !state.ineq?.solved) return null;
   const res = solveInequality(state.ineq.degree, state.ineq.relation, state.ineq.coeffs.map(deserialize));
-  if (state.ioMode === 'Line') {
+  if (state.ioMode === 'Line' || state.mathOutputMode === 'LineO') {
     return {
       type: 'text',
       text: formatInequalityResult(res, state.resultFormat === 'exact', state.numberFormat, state.decimalMark),
     };
   }
   return formatInequalityDisplay(res, state.resultFormat === 'exact', state.numberFormat, state.decimalMark);
+}
+
+export function formatActiveComplexDisplay(state: CalculatorState): {
+  partLabel: string | null;
+  value: DisplayValue;
+} | null {
+  if (state.mode !== 'CMPLX' || !state.cmplx.result) return null;
+  const z = deserializeComplex(state.cmplx.result);
+  const preferExact = state.resultFormat === 'exact' && state.ioMode === 'Math' && state.mathOutputMode === 'MathO';
+  const fmt: ResultFormat = preferExact ? 'exact' : 'decimal';
+
+  if (state.cmplx.partView !== 'both') {
+    if (state.cmplx.format === 'polar') {
+      const reZero = z.re.decimal.abs().lt('1e-24');
+      const imZero = z.im.decimal.abs().lt('1e-24');
+      if (state.cmplx.partView === 'first') {
+        const r = absComplex(z, state.angle).re;
+        return {
+          partLabel: 'r=',
+          value: formatResult(r, fmt, { numberFormat: state.numberFormat, decimalMark: state.decimalMark }),
+        };
+      }
+      const theta = reZero && imZero ? scalarFromInteger(0) : argComplex(z, state.angle).re;
+      return {
+        partLabel: '∠θ=',
+        value: formatResult(theta, fmt, { numberFormat: state.numberFormat, decimalMark: state.decimalMark }),
+      };
+    }
+
+    if (state.cmplx.partView === 'first') {
+      return {
+        partLabel: 'Re=',
+        value: formatResult(z.re, fmt, { numberFormat: state.numberFormat, decimalMark: state.decimalMark }),
+      };
+    }
+    return {
+      partLabel: 'Im=',
+      value: formatComplex2D(
+        { re: scalarFromInteger(0), im: z.im },
+        'rect',
+        state.angle,
+        preferExact,
+        state.numberFormat,
+        state.decimalMark,
+      ),
+    };
+  }
+
+  if (state.ioMode === 'Line' || state.mathOutputMode === 'LineO') {
+    const lin = formatActiveResult(state);
+    return lin ? { partLabel: null, value: lin } : null;
+  }
+
+  return {
+    partLabel: null,
+    value: formatComplex2D(
+      z,
+      state.cmplx.format,
+      state.angle,
+      state.resultFormat === 'exact',
+      state.numberFormat,
+      state.decimalMark,
+    ),
+  };
+}
+
+export function formatActiveEqnItemDisplay(
+  state: CalculatorState,
+  item: { scalar?: ReturnType<typeof deserialize>; complexText?: string; complexParts?: { re: ReturnType<typeof deserialize>; im: ReturnType<typeof deserialize> } },
+): DisplayValue {
+  if (item.complexParts) {
+    if (state.ioMode === 'Math' && state.mathOutputMode === 'MathO') {
+      return formatComplex2D(
+        item.complexParts,
+        'rect',
+        state.angle,
+        state.resultFormat === 'exact',
+        state.numberFormat,
+        state.decimalMark,
+      );
+    }
+    if (state.resultFormat === 'decimal') {
+      const decText = formatComplexDisplay(item.complexParts, 'rect', state.angle, false, state.numberFormat);
+      return { type: 'text', text: state.decimalMark === 'Comma' ? decText.replace(/\./g, ',') : decText };
+    }
+  }
+  if (item.complexText !== undefined) {
+    return { type: 'text', text: item.complexText };
+  }
+  if (item.scalar) {
+    const fmt = state.ioMode === 'Line' || state.mathOutputMode === 'LineO' ? 'decimal' : state.resultFormat;
+    return formatResult(item.scalar, fmt, {
+      fractionStyle: state.fractionStyle,
+      numberFormat: state.numberFormat,
+      decimalMark: state.decimalMark,
+    });
+  }
+  return { type: 'text', text: '0' };
 }
 
 export function formatActiveResult(state: CalculatorState): DisplayValue | null {

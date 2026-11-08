@@ -61,7 +61,18 @@ export function App(): React.ReactElement {
     } catch {
       // Ignore storage quota or privacy-mode restrictions
     }
-  }, [state.angle, state.ioMode, state.numberFormat, state.defaultFractionStyle, state.variables]);
+  }, [
+    state.angle,
+    state.ioMode,
+    state.mathOutputMode,
+    state.decimalMark,
+    state.defaultCmplxFormat,
+    state.recurEnabled,
+    state.contrast,
+    state.numberFormat,
+    state.defaultFractionStyle,
+    state.variables,
+  ]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
