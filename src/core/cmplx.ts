@@ -6,7 +6,7 @@ import {
 } from './format';
 import {
   D, VARIABLES, add, applyFunction, deserialize, divide, factorial, fromRadians, makeScalar,
-  multiply, negate, scalarFromInteger, scalarFromLiteral, scalarPi, serialize, subtract, zeroStored,
+  multiply, negate, power, scalarFromInteger, scalarFromLiteral, scalarPi, serialize, subtract, zeroStored,
   type AngleUnit, type Scalar, type StoredScalar, type VariableName,
 } from './value';
 
@@ -160,7 +160,8 @@ type CmplxToken =
 
 const CMPLX_FUNCS = [
   'Conjg', 'mfrac', 'cbrt', 'root', 'logb', 'arg', 'abs', 'sqrt', 'frac',
-  'sin', 'cos', 'tan', 'asin', 'acos', 'atan', 'ln', 'log',
+  'asinh', 'acosh', 'atanh', 'sinh', 'cosh', 'tanh',
+  'asin', 'acos', 'atan', 'sin', 'cos', 'tan', 'ln', 'log',
 ];
 const VAR_SET = new Set<string>(VARIABLES);
 
@@ -192,7 +193,7 @@ function tokenizeCmplx(source: string): CmplxToken[] {
     if (ch === 'i') { tokens.push({ type: 'i', offset: i }); i++; continue; }
     if (VAR_SET.has(ch) || charIsPiOrE(ch)) { tokens.push({ type: 'id', text: ch, offset: i }); i++; continue; }
     if (ch === '!' || ch === '%') { tokens.push({ type: 'postfix', text: ch, offset: i }); i++; continue; }
-    if ('+-−×÷*/^∠'.includes(ch)) {
+    if ('+-−×÷*/^∠⏨'.includes(ch)) {
       tokens.push({ type: 'op', text: ch === '−' ? '-' : ch, offset: i });
       i++;
       continue;
@@ -251,25 +252,41 @@ export function evaluateComplex(
           prec = op === '+' || op === '-' ? 10
             : ['×', '÷', '*', '/'].includes(op) ? 20
             : op === '^' ? 30
+            : op === '⏨' ? 32
             : op === '∠' ? 35 : 0;
         } else if (next.type === 'number' || next.type === 'i' || next.type === 'id' || next.type === 'open') {
           op = '×';
-          prec = 25;
+          prec = 23;
           implicit = true;
         }
         if (!op || prec < minPrec || prec === 0) break;
         if (!implicit) take();
-        const right = parseExpr(op === '^' ? prec : prec + 1);
+        const right = op === '⏨' ? parseSciExp() : parseExpr(op === '^' ? prec : prec + 1);
         switch (op) {
           case '+': left = addComplex(left, right); break;
           case '-': left = subComplex(left, right); break;
           case '×': case '*': left = mulComplex(left, right); break;
           case '÷': case '/': left = divComplex(left, right); break;
           case '^': left = powComplex(left, right, ctx.angle); break;
+          case '⏨': {
+            if (!right.im.decimal.isZero()) mathError('Scientific exponent must be real');
+            left = mulComplex(left, realToComplex(power(scalarFromInteger(10), right.re)));
+            break;
+          }
           case '∠': left = polarPhasor(left, right, ctx.angle); break;
         }
       }
       return left;
+    }
+
+    function parseSciExp(): Complex {
+      const next = peek();
+      if (next.type === 'op' && (next.text === '+' || next.text === '-')) {
+        take();
+        const mag = parseSciExp();
+        return next.text === '-' ? negComplex(mag) : mag;
+      }
+      return parseExpr(33);
     }
 
     function parsePrefix(): Complex {
@@ -277,6 +294,11 @@ export function evaluateComplex(
       if (tok.type === 'op' && (tok.text === '+' || tok.text === '-')) {
         const v = parseExpr(30);
         return tok.text === '-' ? negComplex(v) : v;
+      }
+      if (tok.type === 'op' && tok.text === '⏨') {
+        const exp = parseSciExp();
+        if (!exp.im.decimal.isZero()) mathError('Scientific exponent must be real');
+        return realToComplex(power(scalarFromInteger(10), exp.re));
       }
       if (tok.type === 'number') return realToComplex(scalarFromLiteral(tok.text));
       if (tok.type === 'i') return { re: scalarFromInteger(0), im: scalarFromInteger(1) };
