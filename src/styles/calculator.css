@@ -1,0 +1,1868 @@
+@font-face {
+  font-family: 'CalciosLCDLarge';
+  src: url('../assets/calcios-lcd-large.ttf') format('truetype');
+  font-weight: 400 800;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'CalciosLCDSmall';
+  src: url('../assets/calcios-lcd-small.ttf') format('truetype');
+  font-weight: 400 800;
+  font-style: normal;
+  font-display: block;
+}
+
+:root {
+  --calcios-gold: #dcb464;
+  --calcios-pink: #d86e86;
+  --lcd-bg: #cfe3e6;
+  --lcd-ink: #020405;
+}
+
+/* ==========================================================================
+   3 Unified Calcios Injection-Molded Color Themes (Black, Pink, Ice Blue)
+   Identical 3D sculpted chassis, solar bezel, spun-metal controls & key hierarchy
+   ========================================================================== */
+.calcios-casing.theme-black {
+  --calcios-gold: #d9b25f;
+  --calcios-pink: #d96c86;
+  --legend-basen: #8fa3b3;
+  --legend-cmplx: #b694e8;
+  --brand-ink: #f4f7f9;
+  --mode-on-ink: #eceff2;
+  --shell-lip: #16181c;
+  --shell-rail-hi: #585e68;
+  --shell-mid: #2a2d33;
+  --shell-bot: #1f2227;
+  --face-top: #3a3e45;
+  --face-mid: #30343a;
+  --face-bot: #282b31;
+  --face-seam: rgba(255, 255, 255, 0.16);
+  --bezel-bg:
+    linear-gradient(90deg, #272a30 0%, #31353c 4%, #31353c 96%, #272a30 100%),
+    linear-gradient(180deg, #212429 0%, #4a4f58 100%);
+  --bezel-top-bdr: #181a1f;
+  --bezel-side-bdr: #24282e;
+  --bezel-bot-bdr: rgba(255, 255, 255, 0.28);
+  --lcd-frame-bdr: #14171b;
+  --groove-bg: linear-gradient(180deg, #23262c 0%, #383c43 100%);
+  --well-bg: #131519;
+  --metal-hi: #969ca6;
+  --metal-mid: #3a3e46;
+  --metal-lo: #22252b;
+  --metal-bdr: #14161a;
+  --dpad-knurl-a: rgba(24, 27, 32, 0.78);
+  --dpad-knurl-b: rgba(62, 67, 75, 0.85);
+  --dpad-base: radial-gradient(circle, #383c44 0%, #202328 100%);
+  --dpad-bdr: #1a1d22;
+  --dpad-arrow: rgba(15, 18, 22, 0.72);
+  --sci-top: #4b4f57;
+  --sci-bot: #3e4249;
+  --sci-shadow: #17191d;
+  --sci-well: #15171b;
+  --sci-ink: #f8fafc;
+  --num-top: #373a41;
+  --num-bot: #2b2e34;
+  --num-shadow: #121418;
+  --num-well: #101216;
+  --num-ink: #ffffff;
+  --acc-top: #d6beaf;
+  --acc-bot: #c4ab9c;
+  --acc-shadow: #29221e;
+  --acc-well: #1d1815;
+  --acc-ink: #2b2421;
+}
+
+.calcios-casing.theme-pink {
+  --calcios-gold: #9d6f18;
+  --calcios-pink: #9f2244;
+  --legend-basen: #433a3d;
+  --legend-cmplx: #7b3564;
+  --brand-ink: #fdf9fa;
+  --mode-on-ink: #fcf7f8;
+  --shell-lip: #a57f84;
+  --shell-rail-hi: #f5dde0;
+  --shell-mid: #d9bcc0;
+  --shell-bot: #c8a6ab;
+  --face-top: #e3ccce;
+  --face-mid: #dabec1;
+  --face-bot: #d3b4b8;
+  --face-seam: rgba(255, 255, 255, 0.42);
+  --bezel-bg:
+    linear-gradient(90deg, #c3a3a7 0%, #cfb1b5 4%, #cfb1b5 96%, #c3a3a7 100%),
+    linear-gradient(180deg, #b8989c 0%, #e7cfd2 100%);
+  --bezel-top-bdr: #9e7d82;
+  --bezel-side-bdr: #b19095;
+  --bezel-bot-bdr: rgba(255, 255, 255, 0.65);
+  --lcd-frame-bdr: #6d585b;
+  --groove-bg: linear-gradient(180deg, #ccaeb2 0%, #e3cacd 100%);
+  --well-bg: #704e54;
+  --metal-hi: #ead0d5;
+  --metal-mid: #be919b;
+  --metal-lo: #9d707a;
+  --metal-bdr: #69464d;
+  --dpad-knurl-a: rgba(188, 152, 158, 0.72);
+  --dpad-knurl-b: rgba(238, 214, 218, 0.85);
+  --dpad-base: radial-gradient(circle, #e5cdd0 0%, #c6a5aa 100%);
+  --dpad-bdr: #ab888e;
+  --dpad-arrow: rgba(112, 72, 80, 0.55);
+  --sci-top: #e5ced1;
+  --sci-bot: #d7bbbf;
+  --sci-shadow: #6e4c52;
+  --sci-well: #5c3d42;
+  --sci-ink: #ffffff;
+  --num-top: #c7a1a8;
+  --num-bot: #b68f97;
+  --num-shadow: #5b3b41;
+  --num-well: #4f3237;
+  --num-ink: #ffffff;
+  --acc-top: #dec6b7;
+  --acc-bot: #ceb3a3;
+  --acc-shadow: #5e493f;
+  --acc-well: #4f3c34;
+  --acc-ink: #473a36;
+}
+
+.calcios-casing.theme-blue {
+  --calcios-gold: #c99935;
+  --calcios-pink: #9c2446;
+  --legend-basen: #2d3840;
+  --legend-cmplx: #5d387a;
+  --brand-ink: #f8fbfd;
+  --mode-on-ink: #f6fafc;
+  --shell-lip: #6f8091;
+  --shell-rail-hi: #d3e3ef;
+  --shell-mid: #a8b9c6;
+  --shell-bot: #94a6b4;
+  --face-top: #bccbd5;
+  --face-mid: #acbdca;
+  --face-bot: #a0b2c0;
+  --face-seam: rgba(255, 255, 255, 0.42);
+  --bezel-bg:
+    linear-gradient(90deg, #8e9fad 0%, #9cb0bd 4%, #9cb0bd 96%, #8e9fad 100%),
+    linear-gradient(180deg, #8395a3 0%, #c4d5e1 100%);
+  --bezel-top-bdr: #6d7f8d;
+  --bezel-side-bdr: #8294a2;
+  --bezel-bot-bdr: rgba(255, 255, 255, 0.62);
+  --lcd-frame-bdr: #4e5d68;
+  --groove-bg: linear-gradient(180deg, #98a9b6 0%, #b9cad5 100%);
+  --well-bg: #45535f;
+  --metal-hi: #c8d6e2;
+  --metal-mid: #8e9dae;
+  --metal-lo: #728193;
+  --metal-bdr: #43505c;
+  --dpad-knurl-a: rgba(140, 156, 170, 0.72);
+  --dpad-knurl-b: rgba(206, 220, 232, 0.85);
+  --dpad-base: radial-gradient(circle, #c2d1dd 0%, #98a8b6 100%);
+  --dpad-bdr: #7d8e9c;
+  --dpad-arrow: rgba(65, 78, 92, 0.55);
+  --sci-top: #bacad4;
+  --sci-bot: #a9bac6;
+  --sci-shadow: #44535f;
+  --sci-well: #374550;
+  --sci-ink: #ffffff;
+  --num-top: #97a6b2;
+  --num-bot: #8696a3;
+  --num-shadow: #384550;
+  --num-well: #2d3943;
+  --num-ink: #ffffff;
+  --acc-top: #e4c8b8;
+  --acc-bot: #d3b6a6;
+  --acc-shadow: #4f453f;
+  --acc-well: #3f3733;
+  --acc-ink: #3e3836;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100dvh;
+  overflow: hidden;
+  background: radial-gradient(circle at 50% 35%, #1d2128 0%, #101317 100%);
+  color: #f0f3f6;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ==========================================================================
+   Centered Handheld Viewport Across ALL Devices (Never Stretched Full-Screen)
+   ========================================================================== */
+.calc-viewport {
+  width: 100vw;
+  height: 100dvh;
+  margin: 0;
+  padding: 16px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+/* ==========================================================================
+   3D Cylindrical Molded Calcios Handheld Shell (Real Physical Proportions)
+   ========================================================================== */
+.calcios-casing {
+  width: 356px;
+  flex-shrink: 0;
+  padding: 7px;
+  border-radius: 30px 30px 34px 34px;
+  transform: scale(var(--calc-scale, 1));
+  transform-origin: center center;
+  background:
+    linear-gradient(
+      90deg,
+      var(--shell-lip) 0%,
+      var(--shell-rail-hi) 3.2%,
+      transparent 9%,
+      transparent 91%,
+      var(--shell-rail-hi) 96.8%,
+      var(--shell-lip) 100%
+    ),
+    linear-gradient(180deg, var(--face-top) 0%, var(--shell-mid) 50%, var(--shell-bot) 100%);
+  box-shadow:
+    0 24px 56px rgba(0, 0, 0, 0.68),
+    inset 0 1.5px 1px rgba(255, 255, 255, 0.35),
+    inset 0 -3px 5px rgba(0, 0, 0, 0.45);
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  transition: background 0.18s ease;
+}
+
+.calcios-inner-rim {
+  padding: 13px 15px 16px;
+  border-radius: 24px 24px 28px 28px;
+  background:
+    linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.14) 0%,
+      transparent 5%,
+      transparent 95%,
+      rgba(255, 255, 255, 0.14) 100%
+    ),
+    linear-gradient(180deg, var(--face-top) 0%, var(--face-mid) 52%, var(--face-bot) 100%);
+  border: 1px solid var(--face-seam);
+  box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.18);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+/* Clean Minimalist Calcios Header: Wordmark + 3 Color Edition Dots */
+.calcios-header {
+  padding: 3px 4px 8px;
+  flex-shrink: 0;
+}
+
+.calcios-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.calcios-logo {
+  font-family: 'Arial Black', system-ui, -apple-system, sans-serif;
+  font-weight: 900;
+  font-size: 1.2rem;
+  letter-spacing: 0.1em;
+  line-height: 1;
+  color: var(--brand-ink);
+}
+
+.calcios-header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.calcios-scan-lens {
+  width: 19px;
+  height: 19px;
+  padding: 0;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.2px solid rgba(0, 0, 0, 0.42);
+  background: radial-gradient(circle at 35% 32%, rgba(255, 255, 255, 0.24) 0%, rgba(16, 20, 25, 0.46) 100%);
+  color: var(--brand-ink);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.35);
+  opacity: 0.85;
+  transition: transform 0.12s ease, opacity 0.12s ease, box-shadow 0.12s ease;
+}
+
+.calcios-scan-lens:hover,
+.calcios-scan-lens.active {
+  opacity: 1;
+  transform: scale(1.12);
+  box-shadow:
+    0 0 0 1.5px rgba(255, 255, 255, 0.88),
+    inset 0 1px 1px rgba(255, 255, 255, 0.45);
+}
+
+.calcios-hidden-file {
+  display: none;
+}
+
+.calcios-theme-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.theme-dot {
+  width: 11px;
+  height: 11px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1.2px solid rgba(0, 0, 0, 0.45);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.45);
+  opacity: 0.8;
+  transition: transform 0.12s ease, opacity 0.12s ease;
+}
+
+.theme-dot:hover,
+.theme-dot.active {
+  opacity: 1;
+  transform: scale(1.2);
+  box-shadow:
+    0 0 0 1.5px rgba(255, 255, 255, 0.85),
+    inset 0 1px 1px rgba(255, 255, 255, 0.5);
+}
+
+.dot-black {
+  background: radial-gradient(circle at 35% 35%, #4c5057 0%, #17191c 100%);
+}
+
+.dot-pink {
+  background: radial-gradient(circle at 35% 35%, #f3d6da 0%, #bf919a 100%);
+}
+
+.dot-blue {
+  background: radial-gradient(circle at 35% 35%, #d2e3f0 0%, #8597a7 100%);
+}
+
+.calcios-lcd-wrap {
+  position: relative;
+}
+
+/* Inside-LCD FSTN Dot-Matrix Vision Scanner Overlay */
+.calcios-scan-lcd {
+  position: absolute;
+  inset: 9px 4px 8px;
+  z-index: 15;
+  border-radius: 3px;
+  background: #cfe3e6;
+  color: #020405;
+  padding: 7px 10px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  font-family: 'CalciosLCDLarge', 'IBM Plex Mono', monospace;
+}
+
+.scan-lcd-center {
+  margin: auto;
+  text-align: center;
+}
+
+.scan-lcd-title {
+  font-size: 1.05rem;
+  letter-spacing: 0.04em;
+}
+
+.scan-lcd-sub {
+  margin-top: 4px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.68rem;
+  font-weight: 700;
+  opacity: 0.78;
+}
+
+.scan-lcd-menu,
+.scan-lcd-form {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  justify-content: space-between;
+  gap: 3px;
+}
+
+.scan-lcd-hdr {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.88rem;
+  border-bottom: 1.5px solid rgba(2, 4, 5, 0.35);
+  padding-bottom: 2px;
+}
+
+.scan-lcd-close {
+  padding: 0 3px;
+  background: #020405;
+  color: #cfe3e6;
+  border: none;
+  border-radius: 2px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.62rem;
+  font-weight: 700;
+}
+
+.scan-lcd-err {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.62rem;
+  font-weight: 700;
+  background: rgba(2, 4, 5, 0.1);
+  padding: 2px 4px;
+  border-radius: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.scan-lcd-actions {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 5px;
+  margin: auto 0;
+}
+
+.scan-lcd-item {
+  padding: 6px 4px;
+  border: 1.4px solid #020405;
+  border-radius: 3px;
+  background: rgba(2, 4, 5, 0.04);
+  color: #020405;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.scan-lcd-item:hover {
+  background: #020405;
+  color: #cfe3e6;
+}
+
+.scan-lcd-hint {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.6rem;
+  font-weight: 600;
+  opacity: 0.72;
+  text-align: center;
+}
+
+.scan-lcd-input {
+  width: 100%;
+  padding: 2px 5px;
+  border: 1.2px solid rgba(2, 4, 5, 0.65);
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.45);
+  color: #020405;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.65rem;
+  font-weight: 600;
+  outline: none;
+}
+
+.scan-lcd-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 5px;
+}
+
+.scan-lcd-save {
+  padding: 2px 8px;
+  border: 1.2px solid #020405;
+  border-radius: 2px;
+  background: #020405;
+  color: #cfe3e6;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.65rem;
+  font-weight: 700;
+}
+
+/* ==========================================================================
+   Recessed 3D Molded Bezel & 96×31 Dot-Matrix LCD Panel (#cfe3e6)
+   ========================================================================== */
+.lcd-bezel {
+  margin: 2px -4px 0;
+  padding: 5px 6px 6px;
+  border-radius: 7px;
+  background: var(--bezel-bg);
+  border-top: 1.5px solid var(--bezel-top-bdr);
+  border-left: 1.5px solid var(--bezel-side-bdr);
+  border-right: 1.5px solid var(--bezel-side-bdr);
+  border-bottom: 1.5px solid var(--bezel-bot-bdr);
+  box-shadow:
+    inset 0 2px 5px rgba(0, 0, 0, 0.35),
+    0 1px 0 rgba(255, 255, 255, 0.14);
+}
+
+.lcd-glass {
+  position: relative;
+  height: 126px;
+  padding: 5px 10px 7px;
+  border-radius: 3.5px;
+  border: 1.5px solid var(--lcd-frame-bdr);
+  background: var(--lcd-bg);
+  color: var(--lcd-ink);
+  font-family: 'CalciosLCDLarge', 'IBM Plex Mono', monospace;
+  font-weight: 400;
+  -webkit-font-smoothing: none;
+  font-smooth: never;
+  box-shadow:
+    inset 0 2px 3px rgba(8, 22, 26, 0.2),
+    inset 1.5px 0 2.5px rgba(8, 22, 26, 0.12),
+    inset -1.5px 0 2.5px rgba(8, 22, 26, 0.12);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  overflow: hidden;
+}
+
+.lcd-off {
+  background: linear-gradient(180deg, #8b9a9e 0%, #808f93 100%);
+  box-shadow:
+    inset 0 3px 7px rgba(0, 0, 0, 0.36),
+    inset 2px 0 4px rgba(0, 0, 0, 0.2);
+}
+
+/* Lithographic Fixed-Slot Top LCD Annunciator Strip */
+.lcd-status {
+  position: relative;
+  height: 13px;
+  display: grid;
+  grid-template-columns: 42% 18% 24% 16%;
+  align-items: center;
+  font-family: Arial, Helvetica, system-ui, sans-serif;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1;
+  flex-shrink: 0;
+  -webkit-font-smoothing: antialiased;
+}
+
+.lcd-status-zone {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.lcd-status-zone.zone-left {
+  justify-content: flex-start;
+}
+
+.lcd-status-zone.zone-center {
+  justify-content: center;
+}
+
+.lcd-status-zone.zone-math {
+  justify-content: center;
+}
+
+.lcd-status-zone.zone-right {
+  justify-content: flex-end;
+}
+
+.lcd-glass > * {
+  opacity: var(--lcd-contrast-alpha, 1);
+}
+
+.ind {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.ind.on {
+  opacity: 1;
+}
+
+.ind-boxed.on {
+  background: var(--lcd-ink);
+  color: var(--lcd-bg);
+  padding: 1px 2px 0.5px;
+  border-radius: 1.5px;
+  font-size: 0.56rem;
+  font-weight: 800;
+  line-height: 1.05;
+}
+
+/* Home Expression & Result Areas — Exact 5×9 & 5×6 Calcios Dot-Matrix Proportions */
+.lcd-home {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding-top: 2px;
+}
+
+.lcd-expr-area {
+  flex: 1;
+  min-height: 44px;
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
+  padding-top: 2px;
+  font-family: 'CalciosLCDLarge', 'IBM Plex Mono', monospace;
+  font-size: 28px;
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: 1.08;
+  overflow-x: auto;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.lcd-expr-area::-webkit-scrollbar {
+  display: none;
+}
+
+.math-sci-ten {
+  font-family: 'CalciosLCDSmall', 'CalciosLCDLarge', monospace;
+  font-size: 18px;
+  margin: 0 1px;
+  vertical-align: 0;
+}
+
+.lcd-expr-inner {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  white-space: nowrap;
+}
+
+.lcd-prompt-prefix {
+  font-size: 26px;
+  flex-shrink: 0;
+  align-self: flex-start;
+}
+
+.lcd-notice {
+  font-size: 16px;
+  opacity: 0.9;
+}
+
+.lcd-result-area {
+  min-height: 48px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 4px;
+  padding-bottom: 1px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.lcd-result-area::-webkit-scrollbar {
+  display: none;
+}
+
+.lcd-result-text {
+  font-family: 'CalciosLCDLarge', 'IBM Plex Mono', monospace;
+  font-size: 29px;
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: 1.04;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.lcd-pi-sym {
+  font-family: 'CalciosLCDLarge', 'IBM Plex Mono', monospace;
+  font-size: 29px;
+  margin-left: 1px;
+}
+
+.lcd-ten-pow {
+  font-family: 'CalciosLCDSmall', 'CalciosLCDLarge', monospace;
+  font-size: 18.5px;
+  margin-left: 1px;
+}
+
+.lcd-exp {
+  font-family: 'CalciosLCDSmall', 'CalciosLCDLarge', monospace;
+  font-size: 18.5px;
+  vertical-align: super;
+}
+
+/* Visually Hidden Screen-Reader / Test Text Inside SVG & Geometric Boxes */
+.lcd-sr-text {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Blinking 2-Dot-Wide Calcios LCD Caret & 5×7 Geometric Calcios ■ / □ Template Boxes */
+@keyframes lcd-blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+
+.lcd-caret {
+  display: inline-block;
+  width: 4.5px;
+  height: 0.86em;
+  background: var(--lcd-ink);
+  vertical-align: -0.06em;
+  margin: 0 1px;
+  animation: lcd-blink 1s steps(1, end) infinite;
+}
+
+.lcd-caret-overwrite {
+  width: 0.52em;
+  height: 3px;
+  vertical-align: -0.1em;
+}
+
+/* 2D 2D Natural Textbook Math Nodes (using authentic 5×6 CalciosLCDSmall at identical dot pitch!) */
+.math-seq {
+  display: inline-flex;
+  align-items: center;
+}
+
+.math-box-placeholder {
+  position: relative;
+  display: inline-block;
+  width: 0.48em;
+  height: 0.68em;
+  border: 2.3px solid var(--lcd-ink);
+  margin: 0 1.5px;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+.math-box-active {
+  position: relative;
+  display: inline-block;
+  width: 0.48em;
+  height: 0.68em;
+  background: var(--lcd-ink);
+  margin: 0 1.5px;
+  vertical-align: middle;
+  flex-shrink: 0;
+  animation: lcd-blink 1s steps(1, end) infinite;
+}
+
+.math-box-overwrite {
+  background: transparent;
+  border: 2.3px solid var(--lcd-ink);
+  border-bottom-width: 4.6px;
+}
+
+.math-frac {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  vertical-align: middle;
+  margin: 0 2px;
+  font-family: 'CalciosLCDSmall', 'CalciosLCDLarge', monospace;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.math-frac-result {
+  font-family: 'CalciosLCDSmall', 'CalciosLCDLarge', monospace;
+  font-size: 18.8px;
+  font-weight: 400;
+  line-height: 1;
+}
+
+.math-frac-mini {
+  font-family: 'CalciosLCDSmall', monospace;
+  font-size: 15px;
+  margin-right: 2px;
+}
+
+.math-frac-mini-res {
+  font-family: 'CalciosLCDSmall', monospace;
+  font-size: 18.5px;
+  font-weight: 400;
+  margin: 0 2px;
+}
+
+.math-overbar {
+  display: inline-flex;
+  align-items: center;
+  border-top: 2.5px solid var(--lcd-ink);
+  padding-top: 2px;
+  line-height: 1;
+}
+
+.lcd-ineq-2d {
+  font-family: 'CalciosLCDLarge', monospace;
+  font-size: 28px;
+  font-weight: 400;
+  gap: 1px;
+}
+
+.lcd-ineq-sep {
+  margin-right: 2px;
+}
+
+.lcd-divr-rem {
+  font-size: 24px;
+  margin-left: 4px;
+}
+
+.lcd-contrast-bar {
+  font-size: 17px;
+  text-align: center;
+}
+
+.lcd-cell-readout {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  min-height: 24px;
+  padding-top: 2px;
+  border-top: 1.5px solid rgba(2, 4, 5, 0.28);
+  font-size: 21px;
+}
+
+.math-frac-num,
+.math-frac-den {
+  padding: 0 2.5px;
+  min-width: 14px;
+  text-align: center;
+}
+
+.math-frac-bar {
+  width: 100%;
+  height: 2.6px;
+  background: var(--lcd-ink);
+  margin: 2px 0;
+}
+
+.math-mfrac,
+.lcd-result-frac {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.lcd-mfrac-whole,
+.lcd-frac-sign {
+  font-family: 'CalciosLCDLarge', monospace;
+  font-size: 29px;
+  font-weight: 400;
+}
+
+/* Seamless Vector Radical Sign + Connected Vinculum Roof */
+.math-sqrt {
+  display: inline-flex;
+  align-items: stretch;
+  vertical-align: middle;
+  margin: 0 1.5px;
+}
+
+.math-root-idx {
+  font-family: 'CalciosLCDSmall', monospace;
+  font-size: 16px;
+  margin-right: -2px;
+  align-self: flex-start;
+  line-height: 1;
+}
+
+.math-sqrt-glyph {
+  position: relative;
+  display: inline-flex;
+  width: 0.44em;
+  min-width: 10px;
+  align-self: stretch;
+  flex-shrink: 0;
+}
+
+.math-sqrt-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  overflow: visible;
+}
+
+.math-sqrt-body {
+  display: inline-flex;
+  align-items: center;
+  border-top: 2.5px solid var(--lcd-ink);
+  padding: 2px 3px 0 2px;
+}
+
+.math-sup {
+  font-family: 'CalciosLCDSmall', monospace;
+  font-size: 17.5px;
+  line-height: 1;
+  align-self: flex-start;
+  margin-top: -0.25em;
+}
+
+.math-sub {
+  font-family: 'CalciosLCDSmall', monospace;
+  font-size: 16.5px;
+  line-height: 1;
+  align-self: flex-end;
+  margin-bottom: -0.18em;
+}
+
+.math-abs {
+  display: inline-flex;
+  align-items: center;
+}
+
+.math-abs-bar {
+  padding: 0 1px;
+}
+
+/* Authentic Tall Dot-Matrix Definite Integral (∫_0^(π/2) cos(X)dx) */
+.math-integ {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  vertical-align: middle;
+}
+
+.math-integ-op {
+  display: inline-flex;
+  align-items: stretch;
+  gap: 1.5px;
+}
+
+.math-integ-glyph {
+  position: relative;
+  display: inline-flex;
+  width: 9px;
+  min-height: 44px;
+  align-self: stretch;
+  flex-shrink: 0;
+}
+
+.math-integ-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.math-integ-limits {
+  display: inline-flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 3px;
+  padding: 1px 0;
+}
+
+.math-integ-body {
+  display: inline-flex;
+  align-items: center;
+  align-self: center;
+}
+
+.math-integ-dx {
+  margin-left: 1px;
+}
+
+.math-bigop {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.math-bigop-limits {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 0.96;
+}
+
+.math-limit-top,
+.math-limit-bot {
+  font-family: 'CalciosLCDSmall', monospace;
+  font-size: 15.5px;
+}
+
+.math-bigop-sym {
+  font-size: 1.08em;
+}
+
+.math-const {
+  font-style: normal;
+  padding: 0 1px;
+}
+
+.math-conv {
+  font-family: 'CalciosLCDSmall', monospace;
+  font-size: 17px;
+  padding: 0 3px;
+  margin-left: 2px;
+  border: 1.5px solid rgba(2, 4, 5, 0.35);
+}
+
+/* ==========================================================================
+   LCD Firmware Menus, Prompts, Tables, Matrices & Equations (CalciosLCDLarge)
+   ========================================================================== */
+.lcd-menu,
+.lcd-prompt-screen,
+.lcd-table-view,
+.lcd-eqn-editor,
+.lcd-error {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding-top: 3px;
+  font-family: 'CalciosLCDLarge', 'IBM Plex Mono', monospace;
+  font-size: 19.5px;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+.lcd-menu-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-content: space-evenly;
+  gap: 2px 10px;
+  font-size: 20px;
+}
+
+.lcd-menu-grid-3 {
+  grid-template-columns: repeat(3, 1fr);
+  font-size: 17.5px;
+}
+
+.lcd-menu-list {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-evenly;
+  gap: 2px;
+  font-size: 21px;
+}
+
+.menu-item-active {
+  background: var(--lcd-ink);
+  color: var(--lcd-bg);
+  padding: 1px 3px;
+}
+
+.lcd-menu-hint {
+  font-size: 15px;
+  opacity: 0.82;
+  text-align: right;
+}
+
+.lcd-prompt-title {
+  font-size: 19.5px;
+  padding-bottom: 1px;
+  border-bottom: 1.5px solid rgba(2, 4, 5, 0.24);
+}
+
+.lcd-error {
+  justify-content: space-around;
+}
+
+.lcd-error-title {
+  font-size: 25px;
+  text-align: center;
+}
+
+.lcd-error-hint {
+  font-size: 19px;
+  line-height: 1.28;
+}
+
+/* Pair Result (Pol / Rec / SOLVE) */
+.lcd-pair-result {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.lcd-pair-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 24px;
+}
+
+/* Firmware Pixel-Bordered Tables: STAT, DIST, MATRIX, VECTOR, TABLE */
+.lcd-table-head,
+.lcd-table-row {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 0;
+  font-size: 17.5px;
+}
+
+.lcd-table-head {
+  background: var(--lcd-ink);
+  color: var(--lcd-bg);
+  padding: 1px 4px;
+}
+
+.lcd-table-head > span,
+.lcd-table-row > span {
+  padding: 1px 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lcd-table-row {
+  border-bottom: 1px solid rgba(2, 4, 5, 0.24);
+}
+
+.lcd-table-row > span + span {
+  border-left: 1px solid rgba(2, 4, 5, 0.24);
+}
+
+.lcd-table-row.active {
+  background: rgba(2, 4, 5, 0.12);
+}
+
+.cell-focus {
+  background: var(--lcd-ink);
+  color: var(--lcd-bg);
+}
+
+.lcd-mat-row {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 3px;
+}
+
+.lcd-mat-cell {
+  text-align: right;
+  padding: 1px 4px;
+  border: 1px solid rgba(2, 4, 5, 0.3);
+  background: rgba(2, 4, 5, 0.04);
+  font-size: 18px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lcd-mat-cell.focused {
+  background: var(--lcd-ink);
+  color: var(--lcd-bg);
+  border-color: var(--lcd-ink);
+}
+
+/* EQN & INEQ Editors */
+.lcd-eqn-header {
+  font-size: 18px;
+  border-bottom: 1.5px solid rgba(2, 4, 5, 0.24);
+  padding-bottom: 1px;
+}
+
+.lcd-eqn-coeffs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px 6px;
+  font-size: 16.5px;
+}
+
+.eqn-chip {
+  padding: 0.5px 4px;
+  border: 1px solid rgba(2, 4, 5, 0.28);
+}
+
+.eqn-chip.active {
+  background: var(--lcd-ink);
+  color: var(--lcd-bg);
+  border-color: var(--lcd-ink);
+}
+
+.lcd-eqn-res-label {
+  font-family: 'CalciosLCDLarge', monospace;
+  font-size: 28px;
+}
+
+.lcd-eqn-nav {
+  margin-left: auto;
+  font-size: 0.66rem;
+  opacity: 0.75;
+}
+
+/* ==========================================================================
+   Upper Deck: Spun-Metal Round Keys + Central Diamond-Checkered D-Pad
+   ========================================================================== */
+.calcios-upper-deck {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 106px 1fr;
+  align-items: start;
+  margin-top: 12px;
+  margin-bottom: 4px;
+}
+
+.calcios-round-side {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.calcios-round-labels {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  text-align: center;
+  align-items: baseline;
+}
+
+.round-lbl {
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  line-height: 1;
+}
+
+.round-lbl-shift,
+.round-lbl-setup {
+  color: var(--calcios-gold);
+}
+
+.round-lbl-alpha {
+  color: var(--calcios-pink);
+}
+
+.round-lbl-mode,
+.round-lbl-on {
+  color: var(--mode-on-ink);
+}
+
+.round-lbl.active {
+  text-shadow: 0 0 8px currentColor;
+}
+
+.round-lbl-mode-group {
+  display: inline-flex;
+  justify-content: center;
+  gap: 3px;
+  font-size: 0.55rem;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.calcios-round-groove {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding: 3px 5px;
+  border-radius: 999px;
+  background: var(--groove-bg);
+  box-shadow:
+    inset 0 1.5px 3px rgba(0, 0, 0, 0.25),
+    0 1px 0 rgba(255, 255, 255, 0.22);
+}
+
+.calcios-round-well {
+  width: 31px;
+  height: 31px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--well-bg);
+  box-shadow: inset 0 2px 3px rgba(0, 0, 0, 0.65);
+}
+
+/* Exact vertical 12/6-o'clock spun-metal bowtie reflection across Black, Pink & Blue */
+.calcios-metal-btn {
+  width: 27px;
+  height: 27px;
+  border-radius: 50%;
+  border: 1px solid var(--metal-bdr);
+  background: conic-gradient(
+    from 0deg,
+    var(--metal-hi) 0deg,
+    var(--metal-mid) 34deg,
+    var(--metal-lo) 90deg,
+    var(--metal-mid) 146deg,
+    var(--metal-hi) 180deg,
+    var(--metal-mid) 214deg,
+    var(--metal-lo) 270deg,
+    var(--metal-mid) 326deg,
+    var(--metal-hi) 360deg
+  );
+  box-shadow:
+    0 2px 2.5px rgba(0, 0, 0, 0.48),
+    inset 0 1px 1px rgba(255, 255, 255, 0.36);
+  transition: transform 0.07s ease;
+}
+
+.calcios-metal-btn:active,
+.calcios-metal-btn.active {
+  transform: translateY(1.5px);
+  box-shadow:
+    0 1px 1px rgba(0, 0, 0, 0.55),
+    0 0 0 2px rgba(220, 180, 100, 0.55);
+}
+
+/* Central Sculpted 4-Way D-Pad */
+.calcios-dpad-zone {
+  display: flex;
+  justify-content: center;
+  z-index: 3;
+  margin-top: 6px;
+  margin-bottom: -38px;
+}
+
+.calcios-dpad-ring {
+  position: relative;
+  width: 100px;
+  height: 84px;
+  border-radius: 42px;
+  background:
+    repeating-linear-gradient(45deg, var(--dpad-knurl-a) 0 2.5px, var(--dpad-knurl-b) 2.5px 5px),
+    repeating-linear-gradient(-45deg, var(--dpad-knurl-a) 0 2.5px, var(--dpad-knurl-b) 2.5px 5px),
+    var(--dpad-base);
+  border: 1.5px solid var(--dpad-bdr);
+  box-shadow:
+    0 3px 8px rgba(0, 0, 0, 0.32),
+    inset 0 1.5px 3px rgba(0, 0, 0, 0.35),
+    0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+.dpad-center-knurl {
+  position: absolute;
+  inset: 31% 32%;
+  border-radius: 50%;
+  background:
+    repeating-linear-gradient(45deg, var(--dpad-knurl-a) 0 2px, var(--dpad-knurl-b) 2px 4px),
+    repeating-linear-gradient(-45deg, var(--dpad-knurl-a) 0 2px, var(--dpad-knurl-b) 2px 4px);
+  opacity: 0.85;
+  pointer-events: none;
+}
+
+.dpad-lobe {
+  position: absolute;
+  border: 1px solid var(--metal-bdr);
+  background: conic-gradient(
+    from 0deg,
+    var(--metal-hi) 0deg,
+    var(--metal-mid) 36deg,
+    var(--metal-lo) 90deg,
+    var(--metal-mid) 144deg,
+    var(--metal-hi) 180deg,
+    var(--metal-mid) 216deg,
+    var(--metal-lo) 270deg,
+    var(--metal-mid) 324deg,
+    var(--metal-hi) 360deg
+  );
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow:
+    0 2px 2.5px rgba(0, 0, 0, 0.45),
+    inset 0 1px 1px rgba(255, 255, 255, 0.34);
+  padding: 0;
+  transition: transform 0.06s ease;
+}
+
+.dpad-lobe:active {
+  transform: scale(0.95);
+}
+
+.dpad-up {
+  top: 3.5%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 28%;
+  height: 30%;
+  border-radius: 12px 12px 8px 8px;
+}
+
+.dpad-down {
+  bottom: 3.5%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 28%;
+  height: 30%;
+  border-radius: 8px 8px 12px 12px;
+}
+
+.dpad-up:active,
+.dpad-down:active {
+  transform: translateX(-50%) scale(0.95);
+}
+
+.dpad-left {
+  left: 3%;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 27%;
+  height: 29%;
+  border-radius: 12px 8px 8px 12px;
+}
+
+.dpad-right {
+  right: 3%;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 27%;
+  height: 29%;
+  border-radius: 8px 12px 12px 8px;
+}
+
+.dpad-left:active,
+.dpad-right:active {
+  transform: translateY(-50%) scale(0.95);
+}
+
+.dpad-arrow {
+  font-size: 0.44rem;
+  line-height: 1;
+  color: var(--dpad-arrow);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+
+/* ==========================================================================
+   Scientific 6-Column Key Grid & Lower 5-Column Key Grid
+   ========================================================================== */
+.calcios-sci-section {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 6px;
+}
+
+.calcios-sci-row {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
+  align-items: end;
+}
+
+.calcios-num-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.calcios-num-row {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+  align-items: end;
+}
+
+.calc-key-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.calc-key-legends {
+  min-height: 13px;
+  display: flex;
+  align-items: center;
+  padding: 0 1.5px;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-size: 0.56rem;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.legends-center {
+  justify-content: center;
+  gap: 4px;
+}
+
+.legends-right {
+  justify-content: flex-end;
+}
+
+.legends-split {
+  justify-content: space-between;
+  gap: 2px;
+}
+
+.legend-shift {
+  color: var(--calcios-gold);
+  display: inline-flex;
+  align-items: center;
+}
+
+.legend-alpha {
+  color: var(--calcios-pink);
+  display: inline-flex;
+  align-items: center;
+}
+
+.legend-basen {
+  color: var(--legend-basen);
+  font-size: 0.52rem;
+  letter-spacing: 0.01em;
+}
+
+.legend-basen.active {
+  text-decoration: underline;
+  font-weight: 800;
+}
+
+.legend-cmplx {
+  color: var(--legend-cmplx);
+  font-size: 0.56rem;
+  font-weight: 700;
+}
+
+.legend-cmplx i {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-style: italic;
+  font-size: 0.66rem;
+}
+
+.legend-cmplx.active {
+  text-decoration: underline;
+}
+
+/* Authentic Calcios top-corner bracketed mode legend: ┌STAT┐, ┌MATRIX┐, etc. */
+.legend-mode-tag {
+  position: relative;
+  display: inline-block;
+  padding: 1.5px 3.5px 0;
+  font-size: 0.5rem;
+  letter-spacing: 0.02em;
+  border-top: 1px solid var(--calcios-gold);
+}
+
+.legend-mode-tag::before,
+.legend-mode-tag::after {
+  content: '';
+  position: absolute;
+  top: -1px;
+  width: 1px;
+  height: 3.5px;
+  background: var(--calcios-gold);
+}
+
+.legend-mode-tag::before {
+  left: 0;
+}
+
+.legend-mode-tag::after {
+  right: 0;
+}
+
+/* Physical Keycap Variants (Black, Pink & Ice Blue) */
+.calc-btn {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  transition: transform 0.06s ease, filter 0.1s ease;
+  padding: 0 2px;
+}
+
+.calc-btn:hover {
+  filter: brightness(1.05);
+}
+
+.calc-btn:active {
+  transform: translateY(1.8px);
+}
+
+/* Scientific Keys (4×6 Upper Grid) */
+.calc-btn-sci {
+  height: 28px;
+  border-radius: 6.5px 6.5px 9px 9px;
+  border: 1px solid var(--sci-well);
+  font-size: 0.81rem;
+  font-weight: 500;
+  color: var(--sci-ink);
+  text-shadow: 0 0.5px 0.5px rgba(0, 0, 0, 0.16);
+  background: linear-gradient(180deg, var(--sci-top) 0%, var(--sci-bot) 100%);
+  box-shadow:
+    0 2.2px 0 var(--sci-shadow),
+    0 0 0 1px var(--sci-well),
+    inset 0 1px 0 rgba(255, 255, 255, 0.34);
+}
+
+/* Lower Numeric & Operator Keys (4×5 Lower Grid) */
+.calc-btn-num,
+.calc-btn-op {
+  height: 35px;
+  border-radius: 7px 7px 10px 10px;
+  border: 1px solid var(--num-well);
+  color: var(--num-ink);
+  text-shadow: 0 0.5px 0.5px rgba(0, 0, 0, 0.16);
+  background: linear-gradient(180deg, var(--num-top) 0%, var(--num-bot) 100%);
+  box-shadow:
+    0 2.6px 0 var(--num-shadow),
+    0 0 0 1px var(--num-well),
+    inset 0 1px 0 rgba(255, 255, 255, 0.32);
+}
+
+.calc-btn-num {
+  font-size: 1.42rem;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+
+.calc-btn-op {
+  font-size: 1.12rem;
+  font-weight: 400;
+}
+
+/* Accent DEL / AC Keys (Olive on Black, Warm Champagne-Sand on Pink & Blue) */
+.calc-btn-accent {
+  height: 35px;
+  border-radius: 7px 7px 10px 10px;
+  border: 1px solid var(--acc-well);
+  font-size: 1.05rem;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  color: var(--acc-ink);
+  background: linear-gradient(180deg, var(--acc-top) 0%, var(--acc-bot) 100%);
+  box-shadow:
+    0 2.6px 0 var(--acc-shadow),
+    0 0 0 1px var(--acc-well),
+    inset 0 1px 0 rgba(255, 255, 255, 0.42);
+}
+
+/* Keycap Math Glyphs */
+.key-glyph-integ {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+}
+
+.glyph-int-sym {
+  font-size: 1.04rem;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.glyph-int-limits {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-right: 1px;
+}
+
+.glyph-box-2xs {
+  width: 3.5px !important;
+  height: 3.5px !important;
+}
+
+.key-glyph-dms {
+  font-size: 0.82rem;
+  letter-spacing: -0.02em;
+  font-weight: 700;
+}
+
+.key-glyph-frac {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5px;
+}
+
+.glyph-box {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 1px;
+}
+
+.glyph-box-solid {
+  background: currentColor;
+}
+
+.glyph-box-hollow {
+  border: 1.3px solid currentColor;
+}
+
+.glyph-frac-line {
+  width: 11px;
+  height: 1.3px;
+  background: currentColor;
+}
+
+.key-glyph-inline {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.84rem;
+}
+
+.glyph-overbar {
+  border-top: 1.3px solid currentColor;
+  padding: 1px 1px 0 1px;
+  display: inline-flex;
+}
+
+.key-glyph-math i,
+.legend-math-italic i,
+.legend-italic-e {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-style: italic;
+}
+
+.key-glyph-math sup,
+.key-glyph-exp sup {
+  font-size: 0.65em;
+  margin-left: 1px;
+}
+
+.key-glyph-logb {
+  display: inline-flex;
+  align-items: baseline;
+  font-size: 0.74rem;
+  gap: 1px;
+}
+
+.glyph-sub-box .glyph-box {
+  width: 5px;
+  height: 5px;
+}
+
+.legend-mfrac,
+.legend-deriv,
+.legend-inline-glyph,
+.legend-sd-frac {
+  display: inline-flex;
+  align-items: center;
+  gap: 1.5px;
+}
+
+.legend-mini-ch {
+  font-size: 0.44rem;
+  line-height: 0.9;
+}
+
+.legend-sup-num {
+  font-size: 0.45rem;
+  margin-right: -1px;
+  transform: translateY(-2px);
+}
+
+.legend-sup-box {
+  display: inline-flex;
+  transform: translateY(-2.5px);
+}
+
+.legend-overbar-gold {
+  border-top: 1px solid var(--calcios-gold);
+  padding-top: 1px;
+  display: inline-flex;
+}
+
+.legend-box-pink {
+  display: inline-block;
+  width: 4.5px;
+  height: 4.5px;
+  background: var(--calcios-pink);
+}
+
+.legend-overbar-pink {
+  border-top: 1.2px solid var(--calcios-pink);
+  padding-top: 1px;
+  display: inline-flex;
+}
+
+.legend-box-solid {
+  display: inline-block;
+  width: 4px;
+  height: 4px;
+  background: var(--calcios-gold);
+}
+
+.legend-frac-stack {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.8px;
+}
+
+.legend-box-hollow {
+  display: inline-block;
+  width: 4px;
+  height: 3.5px;
+  border: 1px solid var(--calcios-gold);
+}
+
+.legend-frac-bar {
+  width: 6px;
+  height: 1px;
+  background: var(--calcios-gold);
+}
+
+/* ▸Simp divisor badge & 2D CMPLX 2D Natural Textbook layout */
+.math-simp-factor {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 6px;
+  padding: 0 3px;
+  font-size: 0.72em;
+  font-weight: 700;
+  border: 1px solid rgba(18, 28, 20, 0.55);
+  border-radius: 2px;
+  line-height: 1.15;
+}
+
+.lcd-complex-2d {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  flex-wrap: wrap;
+}
+
+.lcd-cmplx-op,
+.lcd-phasor-sym {
+  padding: 0 2px;
+  font-weight: 700;
+}
+
+.lcd-imag-unit {
+  font-style: italic;
+  font-weight: 700;
+  margin-left: 1px;
+}
+
+.lcd-cmplx-part-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 6px;
+}
+
+.lcd-cmplx-part-label {
+  font-size: 0.82rem;
+  font-weight: 700;
+  opacity: 0.9;
+}
