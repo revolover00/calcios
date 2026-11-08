@@ -406,13 +406,56 @@ function MathRange({
         }
       }
 
-      if (rest.startsWith('integ(') || rest.startsWith('sigma(') || rest.startsWith('prod(')) {
-        const kind = rest.startsWith('integ(') ? 'integ' : rest.startsWith('sigma(') ? 'sigma' : 'prod';
+      if (rest.startsWith('integ(')) {
+        const parsed = parseCallSpans(source, pos + 5, 3);
+        if (parsed && parsed.afterIndex <= end) {
+          const [body, lower, upper] = parsed.args;
+          nodes.push(
+            <span key={`k-${keyCounter++}`} className="math-integ">
+              <span className="math-integ-op">
+                <span className="math-integ-glyph">
+                  <span className="lcd-sr-text">∫</span>
+                  <svg
+                    className="math-integ-svg"
+                    viewBox="0 0 6 28"
+                    preserveAspectRatio="none"
+                    shapeRendering="crispEdges"
+                    aria-hidden="true"
+                  >
+                    <rect x="3" y="0" width="2" height="1.6" fill="currentColor" />
+                    <rect x="5" y="1.4" width="1" height="1.8" fill="currentColor" />
+                    <rect x="2" y="1.4" width="1.2" height="25.2" fill="currentColor" />
+                    <rect x="0" y="24.8" width="1" height="1.8" fill="currentColor" />
+                    <rect x="1" y="26.4" width="2" height="1.6" fill="currentColor" />
+                  </svg>
+                </span>
+                <span className="math-integ-limits">
+                  <span className="math-limit-top">
+                    <MathRange source={source} start={upper.start} end={upper.end} cursor={cursor} overwrite={overwrite} lineMode={false} showEmptyPlaceholder />
+                  </span>
+                  <span className="math-limit-bot">
+                    <MathRange source={source} start={lower.start} end={lower.end} cursor={cursor} overwrite={overwrite} lineMode={false} showEmptyPlaceholder />
+                  </span>
+                </span>
+              </span>
+              <span className="math-integ-body">
+                <MathRange source={source} start={body.start} end={body.end} cursor={cursor} overwrite={overwrite} lineMode={false} showEmptyPlaceholder />
+                <span className="math-integ-dx">dx</span>
+              </span>
+            </span>,
+          );
+          pos = parsed.afterIndex;
+          continue;
+        }
+      }
+
+      if (rest.startsWith('sigma(') || rest.startsWith('prod(')) {
+        const kind = rest.startsWith('sigma(') ? 'sigma' : 'prod';
         const prefixLen = kind === 'prod' ? 4 : 5;
         const parsed = parseCallSpans(source, pos + prefixLen, 3);
         if (parsed && parsed.afterIndex <= end) {
           const [body, lower, upper] = parsed.args;
-          const symbol = kind === 'integ' ? '∫' : kind === 'sigma' ? '∑' : '∏';
+          const symbol = kind === 'sigma' ? '∑' : '∏';
           nodes.push(
             <span key={`k-${keyCounter++}`} className="math-bigop">
               <span className="math-bigop-limits">
@@ -421,13 +464,13 @@ function MathRange({
                 </span>
                 <span className="math-bigop-sym">{symbol}</span>
                 <span className="math-limit-bot">
-                  {kind !== 'integ' && 'x='}
+                  x=
                   <MathRange source={source} start={lower.start} end={lower.end} cursor={cursor} overwrite={overwrite} lineMode={false} showEmptyPlaceholder />
                 </span>
               </span>
               <span>(</span>
               <MathRange source={source} start={body.start} end={body.end} cursor={cursor} overwrite={overwrite} lineMode={false} showEmptyPlaceholder />
-              <span>){kind === 'integ' ? 'dx' : ''}</span>
+              <span>)</span>
             </span>,
           );
           pos = parsed.afterIndex;

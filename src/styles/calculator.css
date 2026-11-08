@@ -17,10 +17,165 @@
 :root {
   --casio-gold: #dcb464;
   --casio-pink: #d86e86;
-  --casio-lime-top: #8ca547;
-  --casio-lime-bot: #7a9338;
-  --lcd-bg: #d0e3e7;
+  --lcd-bg: #cfe3e6;
   --lcd-ink: #020405;
+}
+
+/* ==========================================================================
+   3 Authentic Casio ES PLUS (2nd edition) Injection-Molded Color Themes
+   Sampled directly from Casio hardware photography (Black, Pink, Ice Blue)
+   ========================================================================== */
+.casio-casing.theme-black {
+  --casio-gold: #dcb464;
+  --casio-pink: #dc7088;
+  --legend-basen: #6dc4d6;
+  --legend-cmplx: #b990f4;
+  --brand-ink: #edf1f4;
+  --vpam-ink: #d4e2e6;
+  --mode-on-ink: #e8ecef;
+  --shell-lip: #111315;
+  --shell-rail-hi: #3f4348;
+  --shell-mid: #222427;
+  --shell-bot: #16181a;
+  --face-top: #2f3033;
+  --face-mid: #28292c;
+  --face-bot: #222326;
+  --face-seam: rgba(255, 255, 255, 0.08);
+  --bezel-bg:
+    linear-gradient(90deg, #3c4045 0%, #0b0d0f 3.5%, #090b0d 96.5%, #3c4045 100%),
+    linear-gradient(180deg, #060709 0%, #15181b 100%);
+  --bezel-top-bdr: #050608;
+  --bezel-side-bdr: #121518;
+  --bezel-bot-bdr: rgba(255, 255, 255, 0.16);
+  --lcd-frame-bdr: #080b0d;
+  --groove-bg: linear-gradient(180deg, #1b1d20 0%, #26282b 100%);
+  --well-bg: #0c0e10;
+  --metal-hi: #8c9096;
+  --metal-mid: #26282b;
+  --metal-lo: #17191b;
+  --metal-bdr: #0d0f11;
+  --dpad-knurl-a: rgba(10, 12, 14, 0.8);
+  --dpad-knurl-b: rgba(39, 43, 48, 0.8);
+  --dpad-base: radial-gradient(circle, #202328 0%, #0e1013 100%);
+  --dpad-bdr: #0b0d0f;
+  --dpad-arrow: rgba(12, 14, 17, 0.78);
+  --sci-top: #474749;
+  --sci-bot: #3a3a3c;
+  --sci-shadow: #111214;
+  --sci-well: #111214;
+  --sci-ink: #f4f6f8;
+  --num-top: #676765;
+  --num-bot: #595957;
+  --num-shadow: #161719;
+  --num-well: #141517;
+  --num-ink: #f6f8fa;
+  --acc-top: #8ea748;
+  --acc-bot: #7a9338;
+  --acc-shadow: #252e11;
+  --acc-well: #181e0b;
+  --acc-ink: #f7faef;
+}
+
+.casio-casing.theme-pink {
+  --casio-gold: #9d6f18;
+  --casio-pink: #9f2244;
+  --legend-basen: #433a3d;
+  --legend-cmplx: #7b3564;
+  --brand-ink: #fdf9fa;
+  --vpam-ink: #fbf6f7;
+  --mode-on-ink: #fcf7f8;
+  --shell-lip: #a57f84;
+  --shell-rail-hi: #f5dde0;
+  --shell-mid: #d9bcc0;
+  --shell-bot: #c8a6ab;
+  --face-top: #e3ccce;
+  --face-mid: #dabec1;
+  --face-bot: #d3b4b8;
+  --face-seam: rgba(255, 255, 255, 0.42);
+  --bezel-bg:
+    linear-gradient(90deg, #c3a3a7 0%, #cfb1b5 4%, #cfb1b5 96%, #c3a3a7 100%),
+    linear-gradient(180deg, #b8989c 0%, #e7cfd2 100%);
+  --bezel-top-bdr: #9e7d82;
+  --bezel-side-bdr: #b19095;
+  --bezel-bot-bdr: rgba(255, 255, 255, 0.65);
+  --lcd-frame-bdr: #6d585b;
+  --groove-bg: linear-gradient(180deg, #ccaeb2 0%, #e3cacd 100%);
+  --well-bg: #704e54;
+  --metal-hi: #ead0d5;
+  --metal-mid: #be919b;
+  --metal-lo: #9d707a;
+  --metal-bdr: #69464d;
+  --dpad-knurl-a: rgba(188, 152, 158, 0.72);
+  --dpad-knurl-b: rgba(238, 214, 218, 0.85);
+  --dpad-base: radial-gradient(circle, #e5cdd0 0%, #c6a5aa 100%);
+  --dpad-bdr: #ab888e;
+  --dpad-arrow: rgba(112, 72, 80, 0.55);
+  --sci-top: #e5ced1;
+  --sci-bot: #d7bbbf;
+  --sci-shadow: #6e4c52;
+  --sci-well: #5c3d42;
+  --sci-ink: #ffffff;
+  --num-top: #c7a1a8;
+  --num-bot: #b68f97;
+  --num-shadow: #5b3b41;
+  --num-well: #4f3237;
+  --num-ink: #ffffff;
+  --acc-top: #dec6b7;
+  --acc-bot: #ceb3a3;
+  --acc-shadow: #5e493f;
+  --acc-well: #4f3c34;
+  --acc-ink: #473a36;
+}
+
+.casio-casing.theme-blue {
+  --casio-gold: #c99935;
+  --casio-pink: #9c2446;
+  --legend-basen: #2d3840;
+  --legend-cmplx: #5d387a;
+  --brand-ink: #f8fbfd;
+  --vpam-ink: #f3f8fb;
+  --mode-on-ink: #f6fafc;
+  --shell-lip: #6f8091;
+  --shell-rail-hi: #d3e3ef;
+  --shell-mid: #a8b9c6;
+  --shell-bot: #94a6b4;
+  --face-top: #bccbd5;
+  --face-mid: #acbdca;
+  --face-bot: #a0b2c0;
+  --face-seam: rgba(255, 255, 255, 0.42);
+  --bezel-bg:
+    linear-gradient(90deg, #8e9fad 0%, #9cb0bd 4%, #9cb0bd 96%, #8e9fad 100%),
+    linear-gradient(180deg, #8395a3 0%, #c4d5e1 100%);
+  --bezel-top-bdr: #6d7f8d;
+  --bezel-side-bdr: #8294a2;
+  --bezel-bot-bdr: rgba(255, 255, 255, 0.62);
+  --lcd-frame-bdr: #4e5d68;
+  --groove-bg: linear-gradient(180deg, #98a9b6 0%, #b9cad5 100%);
+  --well-bg: #45535f;
+  --metal-hi: #c8d6e2;
+  --metal-mid: #8e9dae;
+  --metal-lo: #728193;
+  --metal-bdr: #43505c;
+  --dpad-knurl-a: rgba(140, 156, 170, 0.72);
+  --dpad-knurl-b: rgba(206, 220, 232, 0.85);
+  --dpad-base: radial-gradient(circle, #c2d1dd 0%, #98a8b6 100%);
+  --dpad-bdr: #7d8e9c;
+  --dpad-arrow: rgba(65, 78, 92, 0.55);
+  --sci-top: #bacad4;
+  --sci-bot: #a9bac6;
+  --sci-shadow: #44535f;
+  --sci-well: #374550;
+  --sci-ink: #ffffff;
+  --num-top: #97a6b2;
+  --num-bot: #8696a3;
+  --num-shadow: #384550;
+  --num-well: #2d3943;
+  --num-ink: #ffffff;
+  --acc-top: #e4c8b8;
+  --acc-bot: #d3b6a6;
+  --acc-shadow: #4f453f;
+  --acc-well: #3f3733;
+  --acc-ink: #3e3836;
 }
 
 *,
@@ -34,8 +189,10 @@ body,
 #root {
   margin: 0;
   padding: 0;
-  min-height: 100dvh;
-  background: radial-gradient(circle at 50% 28%, #1d2229 0%, #0e1115 100%);
+  width: 100%;
+  height: 100dvh;
+  overflow: hidden;
+  background: #14171b;
   color: #f0f3f6;
   font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -49,45 +206,71 @@ button {
 }
 
 /* ==========================================================================
-   Calculator-Only Viewport
+   Frameless Orientation-Adaptive Viewport:
+   - Portrait (height > width): edge-to-edge full screen (100vw × 100dvh), zero frame
+   - Landscape (width >= height): original physical Casio size centered cleanly
    ========================================================================== */
 .calc-viewport {
-  min-height: 100dvh;
-  width: 100%;
+  width: 100vw;
+  height: 100dvh;
+  margin: 0;
+  padding: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 10px;
+  overflow: hidden;
 }
 
 /* ==========================================================================
-   Code-Drawn Casio fx-95ES PLUS (2nd edition) Hardware Shell
+   3D Cylindrical Molded Casio Hardware Shell
    ========================================================================== */
 .casio-casing {
-  width: 368px;
+  width: 366px;
   max-width: 100%;
-  padding: 8px;
-  border-radius: 34px 34px 38px 38px;
-  background: linear-gradient(180deg, #27292c 0%, #1d1f21 48%, #151719 100%);
+  padding: 7px;
+  border-radius: 30px 30px 34px 34px;
+  background:
+    linear-gradient(
+      90deg,
+      var(--shell-lip) 0%,
+      var(--shell-rail-hi) 3.2%,
+      transparent 9%,
+      transparent 91%,
+      var(--shell-rail-hi) 96.8%,
+      var(--shell-lip) 100%
+    ),
+    linear-gradient(180deg, var(--face-top) 0%, var(--shell-mid) 50%, var(--shell-bot) 100%);
   box-shadow:
-    0 28px 64px rgba(0, 0, 0, 0.75),
-    0 6px 16px rgba(0, 0, 0, 0.52),
-    inset 0 1.5px 1px rgba(255, 255, 255, 0.24),
-    inset 0 -3px 6px rgba(0, 0, 0, 0.88);
+    0 22px 52px rgba(0, 0, 0, 0.65),
+    inset 0 1.5px 1px rgba(255, 255, 255, 0.35),
+    inset 0 -3px 5px rgba(0, 0, 0, 0.45);
   font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  transition: background 0.18s ease;
 }
 
 .casio-inner-rim {
-  padding: 14px 15px 18px;
-  border-radius: 27px 27px 31px 31px;
-  background: linear-gradient(180deg, #2d2e30 0%, #27282a 52%, #222325 100%);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: inset 0 2px 7px rgba(0, 0, 0, 0.5);
+  padding: 13px 15px 16px;
+  border-radius: 24px 24px 28px 28px;
+  background:
+    linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.14) 0%,
+      transparent 5%,
+      transparent 95%,
+      rgba(255, 255, 255, 0.14) 100%
+    ),
+    linear-gradient(180deg, var(--face-top) 0%, var(--face-mid) 52%, var(--face-bot) 100%);
+  border: 1px solid var(--face-seam);
+  box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.18);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
 }
 
-/* Branding Header */
+/* Branding & Solar Panel Header */
 .casio-header {
-  padding: 2px 3px 6px;
+  padding: 1px 3px 5px;
+  flex-shrink: 0;
 }
 
 .casio-brand-row {
@@ -96,53 +279,136 @@ button {
   justify-content: space-between;
 }
 
+.casio-solar-top {
+  display: grid;
+  grid-template-columns: 1fr 144px;
+  align-items: center;
+  gap: 8px;
+}
+
+.casio-brand-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5px;
+}
+
+.casio-solar-bezel {
+  height: 40px;
+  padding: 3px;
+  border-radius: 6px;
+  background: linear-gradient(180deg, var(--bezel-top-bdr) 0%, rgba(255, 255, 255, 0.55) 100%);
+  box-shadow: inset 0 1.5px 3px rgba(0, 0, 0, 0.38);
+}
+
+.casio-solar-cell {
+  width: 100%;
+  height: 100%;
+  border-radius: 4px;
+  border: 1px solid #1a0e0d;
+  background:
+    repeating-linear-gradient(
+      90deg,
+      transparent 0 33px,
+      rgba(255, 210, 185, 0.09) 33px 34px
+    ),
+    linear-gradient(180deg, #271615 0%, #351f1d 52%, #241413 100%);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.72);
+}
+
 .casio-logo {
   font-family: 'Arial Black', system-ui, -apple-system, sans-serif;
   font-weight: 900;
-  font-size: 1.24rem;
+  font-size: 1.18rem;
   letter-spacing: 0.08em;
-  color: #e9edf0;
+  line-height: 1.05;
+  color: var(--brand-ink);
 }
 
 .casio-model {
   font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
   font-style: normal;
   font-weight: 600;
-  font-size: 0.88rem;
+  font-size: 0.82rem;
   letter-spacing: 0.02em;
-  color: #e4e8ec;
+  line-height: 1.15;
+  color: var(--brand-ink);
 }
 
 .casio-vpam-row {
   display: flex;
   justify-content: center;
-  margin-top: 5px;
+  margin-top: 4px;
 }
 
 .casio-vpam {
   font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
   font-style: italic;
   font-weight: 800;
-  font-size: 0.78rem;
-  letter-spacing: 0.055em;
-  color: #d2e0e4;
+  font-size: 0.72rem;
+  letter-spacing: 0.05em;
+  line-height: 1.1;
+  color: var(--vpam-ink);
 }
 
 .casio-edition-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-top: 2px;
+  margin-top: 3px;
   padding: 0 2px;
-  min-height: 16px;
+  min-height: 15px;
+}
+
+.casio-edition-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.casio-theme-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.theme-dot {
+  width: 10px;
+  height: 10px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1.2px solid rgba(0, 0, 0, 0.45);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.45);
+  opacity: 0.78;
+  transition: transform 0.12s ease, opacity 0.12s ease;
+}
+
+.theme-dot:hover,
+.theme-dot.active {
+  opacity: 1;
+  transform: scale(1.18);
+  box-shadow:
+    0 0 0 1.5px rgba(255, 255, 255, 0.85),
+    inset 0 1px 1px rgba(255, 255, 255, 0.5);
+}
+
+.dot-black {
+  background: radial-gradient(circle at 35% 35%, #4c5057 0%, #17191c 100%);
+}
+
+.dot-pink {
+  background: radial-gradient(circle at 35% 35%, #f3d6da 0%, #bf919a 100%);
+}
+
+.dot-blue {
+  background: radial-gradient(circle at 35% 35%, #d2e3f0 0%, #8597a7 100%);
 }
 
 .casio-edition {
   font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
-  font-size: 0.69rem;
+  font-size: 0.67rem;
   font-weight: 700;
   letter-spacing: 0.01em;
-  color: #e2e7eb;
+  color: var(--brand-ink);
 }
 
 /* Subtle Flush Micro-Switch for fx-991ES PLUS C Quick Tray */
@@ -204,30 +470,28 @@ button {
 }
 
 /* ==========================================================================
-   Authentic Recessed Casio Bezel & 96×31 FSTN Dot-Matrix LCD Panel (#d0e3e7)
+   Authentic Recessed Casio Bezel & 96×31 FSTN Dot-Matrix LCD Panel (#cfe3e6)
    ========================================================================== */
 .lcd-bezel {
-  margin: 3px -4px 0;
+  margin: 2px -4px 0;
   padding: 5px 6px 6px;
-  border-radius: 6px;
-  background:
-    linear-gradient(90deg, #3c4045 0%, #0a0c0e 3.2%, #080a0c 96.8%, #3c4045 100%),
-    linear-gradient(180deg, #060709 0%, #15181b 100%);
-  border-top: 1.5px solid #040507;
-  border-left: 1.5px solid #121518;
-  border-right: 1.5px solid #121518;
-  border-bottom: 1.5px solid rgba(255, 255, 255, 0.16);
+  border-radius: 7px;
+  background: var(--bezel-bg);
+  border-top: 1.5px solid var(--bezel-top-bdr);
+  border-left: 1.5px solid var(--bezel-side-bdr);
+  border-right: 1.5px solid var(--bezel-side-bdr);
+  border-bottom: 1.5px solid var(--bezel-bot-bdr);
   box-shadow:
-    inset 0 3px 6px rgba(0, 0, 0, 0.95),
-    0 1px 0 rgba(255, 255, 255, 0.08);
+    inset 0 2px 5px rgba(0, 0, 0, 0.35),
+    0 1px 0 rgba(255, 255, 255, 0.14);
 }
 
 .lcd-glass {
   position: relative;
-  height: 128px;
+  height: 126px;
   padding: 5px 10px 7px;
-  border-radius: 2.5px;
-  border: 1.5px solid #080b0d;
+  border-radius: 3.5px;
+  border: 1.5px solid var(--lcd-frame-bdr);
   background: var(--lcd-bg);
   color: var(--lcd-ink);
   font-family: 'CasioESLarge', 'IBM Plex Mono', monospace;
@@ -235,9 +499,9 @@ button {
   -webkit-font-smoothing: none;
   font-smooth: never;
   box-shadow:
-    inset 0 2px 3px rgba(8, 22, 26, 0.22),
-    inset 1.5px 0 2.5px rgba(8, 22, 26, 0.14),
-    inset -1.5px 0 2.5px rgba(8, 22, 26, 0.14);
+    inset 0 2px 3px rgba(8, 22, 26, 0.2),
+    inset 1.5px 0 2.5px rgba(8, 22, 26, 0.12),
+    inset -1.5px 0 2.5px rgba(8, 22, 26, 0.12);
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -646,6 +910,54 @@ button {
   padding: 0 1px;
 }
 
+/* Authentic Tall Dot-Matrix Definite Integral (∫_0^(π/2) cos(X)dx) */
+.math-integ {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  vertical-align: middle;
+}
+
+.math-integ-op {
+  display: inline-flex;
+  align-items: stretch;
+  gap: 1.5px;
+}
+
+.math-integ-glyph {
+  position: relative;
+  display: inline-flex;
+  width: 9px;
+  min-height: 44px;
+  align-self: stretch;
+  flex-shrink: 0;
+}
+
+.math-integ-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.math-integ-limits {
+  display: inline-flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 3px;
+  padding: 1px 0;
+}
+
+.math-integ-body {
+  display: inline-flex;
+  align-items: center;
+  align-self: center;
+}
+
+.math-integ-dx {
+  margin-left: 1px;
+}
+
 .math-bigop {
   display: inline-flex;
   align-items: center;
@@ -916,7 +1228,7 @@ button {
 
 .round-lbl-mode,
 .round-lbl-on {
-  color: #e6eaee;
+  color: var(--mode-on-ink);
 }
 
 .round-lbl.active {
@@ -938,44 +1250,44 @@ button {
   justify-content: space-around;
   padding: 3px 5px;
   border-radius: 999px;
-  background: linear-gradient(180deg, #1b1d20 0%, #26282b 100%);
+  background: var(--groove-bg);
   box-shadow:
-    inset 0 2px 4px rgba(0, 0, 0, 0.68),
-    0 1px 0 rgba(255, 255, 255, 0.07);
+    inset 0 1.5px 3px rgba(0, 0, 0, 0.25),
+    0 1px 0 rgba(255, 255, 255, 0.22);
 }
 
 .casio-round-well {
-  width: 32px;
-  height: 32px;
+  width: 31px;
+  height: 31px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #0d0f11;
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.95);
+  background: var(--well-bg);
+  box-shadow: inset 0 2px 3px rgba(0, 0, 0, 0.65);
 }
 
-/* Exact vertical 12/6-o'clock spun-metal bowtie reflection from reference photo */
+/* Exact vertical 12/6-o'clock spun-metal bowtie reflection across Black, Pink & Blue */
 .casio-metal-btn {
   width: 27px;
   height: 27px;
   border-radius: 50%;
-  border: 1px solid #0e1012;
+  border: 1px solid var(--metal-bdr);
   background: conic-gradient(
     from 0deg,
-    #888c91 0deg,
-    #25272a 32deg,
-    #181a1c 90deg,
-    #25272a 148deg,
-    #888c91 180deg,
-    #25272a 212deg,
-    #181a1c 270deg,
-    #25272a 328deg,
-    #888c91 360deg
+    var(--metal-hi) 0deg,
+    var(--metal-mid) 34deg,
+    var(--metal-lo) 90deg,
+    var(--metal-mid) 146deg,
+    var(--metal-hi) 180deg,
+    var(--metal-mid) 214deg,
+    var(--metal-lo) 270deg,
+    var(--metal-mid) 326deg,
+    var(--metal-hi) 360deg
   );
   box-shadow:
-    0 2px 3px rgba(0, 0, 0, 0.9),
-    inset 0 1px 1px rgba(255, 255, 255, 0.28);
+    0 2px 2.5px rgba(0, 0, 0, 0.48),
+    inset 0 1px 1px rgba(255, 255, 255, 0.36);
   transition: transform 0.07s ease;
 }
 
@@ -983,8 +1295,8 @@ button {
 .casio-metal-btn.active {
   transform: translateY(1.5px);
   box-shadow:
-    0 1px 1px rgba(0, 0, 0, 0.9),
-    0 0 0 2px rgba(220, 180, 100, 0.5);
+    0 1px 1px rgba(0, 0, 0, 0.55),
+    0 0 0 2px rgba(220, 180, 100, 0.55);
 }
 
 /* Central Sculpted 4-Way D-Pad */
@@ -1000,50 +1312,50 @@ button {
   position: relative;
   width: 100px;
   height: 84px;
-  border-radius: 44px;
+  border-radius: 42px;
   background:
-    repeating-linear-gradient(45deg, rgba(10, 12, 14, 0.78) 0 2.5px, rgba(38, 41, 46, 0.78) 2.5px 5px),
-    repeating-linear-gradient(-45deg, rgba(10, 12, 14, 0.78) 0 2.5px, rgba(38, 41, 46, 0.78) 2.5px 5px),
-    radial-gradient(circle, #1f2226 0%, #0e1013 100%);
-  border: 2px solid #0b0d0f;
+    repeating-linear-gradient(45deg, var(--dpad-knurl-a) 0 2.5px, var(--dpad-knurl-b) 2.5px 5px),
+    repeating-linear-gradient(-45deg, var(--dpad-knurl-a) 0 2.5px, var(--dpad-knurl-b) 2.5px 5px),
+    var(--dpad-base);
+  border: 1.5px solid var(--dpad-bdr);
   box-shadow:
-    0 5px 10px rgba(0, 0, 0, 0.78),
-    inset 0 2px 4px rgba(0, 0, 0, 0.85),
-    0 1px 0 rgba(255, 255, 255, 0.07);
+    0 3px 8px rgba(0, 0, 0, 0.32),
+    inset 0 1.5px 3px rgba(0, 0, 0, 0.35),
+    0 1px 0 rgba(255, 255, 255, 0.25);
 }
 
 .dpad-center-knurl {
   position: absolute;
-  inset: 26px 32px;
+  inset: 31% 32%;
   border-radius: 50%;
   background:
-    repeating-linear-gradient(45deg, #121417 0 2px, #272b30 2px 4px),
-    repeating-linear-gradient(-45deg, #121417 0 2px, #272b30 2px 4px);
-  opacity: 0.82;
+    repeating-linear-gradient(45deg, var(--dpad-knurl-a) 0 2px, var(--dpad-knurl-b) 2px 4px),
+    repeating-linear-gradient(-45deg, var(--dpad-knurl-a) 0 2px, var(--dpad-knurl-b) 2px 4px);
+  opacity: 0.85;
   pointer-events: none;
 }
 
 .dpad-lobe {
   position: absolute;
-  border: 1px solid #0d0f12;
+  border: 1px solid var(--metal-bdr);
   background: conic-gradient(
     from 0deg,
-    #82868b 0deg,
-    #242629 34deg,
-    #181a1c 90deg,
-    #242629 146deg,
-    #82868b 180deg,
-    #242629 214deg,
-    #181a1c 270deg,
-    #242629 326deg,
-    #82868b 360deg
+    var(--metal-hi) 0deg,
+    var(--metal-mid) 36deg,
+    var(--metal-lo) 90deg,
+    var(--metal-mid) 144deg,
+    var(--metal-hi) 180deg,
+    var(--metal-mid) 216deg,
+    var(--metal-lo) 270deg,
+    var(--metal-mid) 324deg,
+    var(--metal-hi) 360deg
   );
   display: flex;
   align-items: center;
   justify-content: center;
   box-shadow:
-    0 2px 3px rgba(0, 0, 0, 0.88),
-    inset 0 1px 1px rgba(255, 255, 255, 0.25);
+    0 2px 2.5px rgba(0, 0, 0, 0.45),
+    inset 0 1px 1px rgba(255, 255, 255, 0.34);
   padding: 0;
   transition: transform 0.06s ease;
 }
@@ -1053,20 +1365,20 @@ button {
 }
 
 .dpad-up {
-  top: 3px;
+  top: 3.5%;
   left: 50%;
   transform: translateX(-50%);
-  width: 28px;
-  height: 25px;
+  width: 28%;
+  height: 30%;
   border-radius: 12px 12px 8px 8px;
 }
 
 .dpad-down {
-  bottom: 3px;
+  bottom: 3.5%;
   left: 50%;
   transform: translateX(-50%);
-  width: 28px;
-  height: 25px;
+  width: 28%;
+  height: 30%;
   border-radius: 8px 8px 12px 12px;
 }
 
@@ -1076,20 +1388,20 @@ button {
 }
 
 .dpad-left {
-  left: 3px;
+  left: 3%;
   top: 50%;
   transform: translateY(-50%);
-  width: 27px;
-  height: 24px;
+  width: 27%;
+  height: 29%;
   border-radius: 12px 8px 8px 12px;
 }
 
 .dpad-right {
-  right: 3px;
+  right: 3%;
   top: 50%;
   transform: translateY(-50%);
-  width: 27px;
-  height: 24px;
+  width: 27%;
+  height: 29%;
   border-radius: 8px 12px 12px 8px;
 }
 
@@ -1101,8 +1413,8 @@ button {
 .dpad-arrow {
   font-size: 0.44rem;
   line-height: 1;
-  color: rgba(15, 18, 22, 0.72);
-  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.16);
+  color: var(--dpad-arrow);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.22);
 }
 
 /* ==========================================================================
@@ -1181,18 +1493,18 @@ button {
 }
 
 .legend-basen {
-  color: #6bc2d4;
+  color: var(--legend-basen);
   font-size: 0.52rem;
   letter-spacing: 0.01em;
 }
 
 .legend-basen.active {
-  color: #4ef0b8;
   text-decoration: underline;
+  font-weight: 800;
 }
 
 .legend-cmplx {
-  color: #b78ef2;
+  color: var(--legend-cmplx);
   font-size: 0.56rem;
   font-weight: 700;
 }
@@ -1204,7 +1516,7 @@ button {
 }
 
 .legend-cmplx.active {
-  color: #d6b8ff;
+  text-decoration: underline;
 }
 
 /* Authentic Casio top-corner bracketed mode legend: ┌STAT┐, ┌MATRIX┐, etc. */
@@ -1235,54 +1547,58 @@ button {
   right: 0;
 }
 
-/* Physical Keycap Variants */
+/* Physical Keycap Variants (Black, Pink & Ice Blue) */
 .calc-btn {
   width: 100%;
-  border: 1px solid #0d0f11;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: #f4f6f8;
   font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
   transition: transform 0.06s ease, filter 0.1s ease;
   padding: 0 2px;
 }
 
 .calc-btn:hover {
-  filter: brightness(1.08);
+  filter: brightness(1.05);
 }
 
 .calc-btn:active {
-  transform: translateY(2px);
+  transform: translateY(1.8px);
 }
 
-/* Dark Charcoal Scientific Keys (#424242 face measured from reference photo) */
+/* Scientific Keys (4×6 Upper Grid) */
 .calc-btn-sci {
-  height: 29px;
-  border-radius: 7px 7px 9px 9px;
-  font-size: 0.82rem;
+  height: 28px;
+  border-radius: 6.5px 6.5px 9px 9px;
+  border: 1px solid var(--sci-well);
+  font-size: 0.81rem;
   font-weight: 500;
-  background: linear-gradient(180deg, #454547 0%, #3a3a3c 100%);
+  color: var(--sci-ink);
+  text-shadow: 0 0.5px 0.5px rgba(0, 0, 0, 0.16);
+  background: linear-gradient(180deg, var(--sci-top) 0%, var(--sci-bot) 100%);
   box-shadow:
-    0 2.5px 0 #111214,
-    0 0 0 1px #141517,
-    inset 0 1px 0 rgba(255, 255, 255, 0.24);
+    0 2.2px 0 var(--sci-shadow),
+    0 0 0 1px var(--sci-well),
+    inset 0 1px 0 rgba(255, 255, 255, 0.34);
 }
 
-/* Lower Warm-Grey Numeric & Operator Keys (#636361 face + slender sans numerals) */
+/* Lower Numeric & Operator Keys (4×5 Lower Grid) */
 .calc-btn-num,
 .calc-btn-op {
-  height: 36px;
+  height: 35px;
   border-radius: 7px 7px 10px 10px;
-  background: linear-gradient(180deg, #666664 0%, #5a5a58 100%);
+  border: 1px solid var(--num-well);
+  color: var(--num-ink);
+  text-shadow: 0 0.5px 0.5px rgba(0, 0, 0, 0.16);
+  background: linear-gradient(180deg, var(--num-top) 0%, var(--num-bot) 100%);
   box-shadow:
-    0 3px 0 #17181a,
-    0 0 0 1px #161719,
-    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+    0 2.6px 0 var(--num-shadow),
+    0 0 0 1px var(--num-well),
+    inset 0 1px 0 rgba(255, 255, 255, 0.32);
 }
 
 .calc-btn-num {
-  font-size: 1.44rem;
+  font-size: 1.42rem;
   font-weight: 400;
   letter-spacing: -0.01em;
 }
@@ -1292,19 +1608,20 @@ button {
   font-weight: 400;
 }
 
-/* Iconic Casio Olive-Chartreuse DEL / AC Keys (#859d43 face) */
+/* Accent DEL / AC Keys (Olive on Black, Warm Champagne-Sand on Pink & Blue) */
 .calc-btn-accent {
-  height: 36px;
+  height: 35px;
   border-radius: 7px 7px 10px 10px;
-  font-size: 1.06rem;
+  border: 1px solid var(--acc-well);
+  font-size: 1.05rem;
   font-weight: 400;
   letter-spacing: 0.02em;
-  color: #f4f8eb;
-  background: linear-gradient(180deg, var(--casio-lime-top) 0%, var(--casio-lime-bot) 100%);
+  color: var(--acc-ink);
+  background: linear-gradient(180deg, var(--acc-top) 0%, var(--acc-bot) 100%);
   box-shadow:
-    0 3px 0 #262f12,
-    0 0 0 1px #1a200d,
-    inset 0 1px 0 rgba(255, 255, 255, 0.34);
+    0 2.6px 0 var(--acc-shadow),
+    0 0 0 1px var(--acc-well),
+    inset 0 1px 0 rgba(255, 255, 255, 0.42);
 }
 
 /* Keycap Math Glyphs */
@@ -1353,17 +1670,17 @@ button {
 }
 
 .glyph-box-solid {
-  background: #f2f4f7;
+  background: currentColor;
 }
 
 .glyph-box-hollow {
-  border: 1.3px solid #f2f4f7;
+  border: 1.3px solid currentColor;
 }
 
 .glyph-frac-line {
   width: 11px;
   height: 1.3px;
-  background: #f2f4f7;
+  background: currentColor;
 }
 
 .key-glyph-inline {
@@ -1373,7 +1690,7 @@ button {
 }
 
 .glyph-overbar {
-  border-top: 1.3px solid #f2f4f7;
+  border-top: 1.3px solid currentColor;
   padding: 1px 1px 0 1px;
   display: inline-flex;
 }
@@ -1521,13 +1838,159 @@ button {
   opacity: 0.9;
 }
 
-@media (max-width: 400px) {
+/* ==========================================================================
+   Orientation Layout Rules:
+   1. Portrait (height > width): Zero outer frame — fills 100vw × 100dvh
+      edge-to-edge while preserving authentic Casio hardware proportions.
+   2. Landscape (width >= height): Original physical Casio size centered cleanly,
+      scaling smoothly only if viewport height is shorter than the body.
+   ========================================================================== */
+@media (orientation: portrait) {
+  .calc-viewport {
+    align-items: stretch;
+    justify-content: stretch;
+  }
+
   .casio-casing {
-    width: 100%;
-    padding: 6px;
+    width: 100vw;
+    height: 100dvh;
+    max-width: none;
+    padding: 0;
+    border-radius: 0;
+    box-shadow: none;
   }
 
   .casio-inner-rim {
-    padding: 11px 10px 14px;
+    width: 100%;
+    height: 100%;
+    border-radius: 0;
+    border: none;
+    box-shadow: none;
+    /* Keeps edge-to-edge full screen while constraining inner column on near-square portrait tablets */
+    padding:
+      clamp(8px, 1.5dvh, 18px)
+      max(3.8vw, calc((100vw - 55dvh) / 2))
+      clamp(10px, 1.9dvh, 22px);
+  }
+
+  .lcd-bezel {
+    margin: 2px 0 0;
+  }
+
+  .lcd-glass {
+    height: clamp(108px, 18.2dvh, 196px);
+  }
+
+  .lcd-expr-area {
+    font-size: clamp(25px, 3.6dvh, 36px);
+  }
+
+  .lcd-result-text,
+  .lcd-pi-sym,
+  .lcd-ineq-2d,
+  .lcd-mfrac-whole,
+  .lcd-frac-sign {
+    font-size: clamp(26px, 3.75dvh, 38px);
+  }
+
+  .math-frac,
+  .math-frac-result,
+  .math-sup,
+  .math-sub,
+  .lcd-ten-pow,
+  .lcd-exp,
+  .math-sci-ten {
+    font-size: clamp(16.5px, 2.38dvh, 24px);
+  }
+
+  .casio-upper-deck {
+    margin-top: clamp(6px, 1.2dvh, 14px);
+    margin-bottom: clamp(2px, 0.5dvh, 6px);
+    grid-template-columns: 1fr clamp(98px, 13.8dvh, 128px) 1fr;
+  }
+
+  .casio-round-well {
+    width: clamp(29px, 4.2dvh, 38px);
+    height: clamp(29px, 4.2dvh, 38px);
+  }
+
+  .casio-metal-btn {
+    width: clamp(25px, 3.6dvh, 33px);
+    height: clamp(25px, 3.6dvh, 33px);
+  }
+
+  .casio-dpad-ring {
+    width: clamp(94px, 13.2dvh, 124px);
+    height: clamp(78px, 10.8dvh, 104px);
+  }
+
+  .casio-dpad-zone {
+    margin-bottom: calc(clamp(78px, 10.8dvh, 104px) * -0.45);
+  }
+
+  .casio-sci-section {
+    flex: 1;
+    justify-content: space-evenly;
+    gap: clamp(2px, 0.55dvh, 7px);
+    margin-top: clamp(4px, 0.7dvh, 10px);
+  }
+
+  .casio-sci-row {
+    gap: clamp(5px, 1.5vw, 9px);
+  }
+
+  .calc-btn-sci {
+    height: clamp(25px, 3.85dvh, 40px);
+    font-size: clamp(0.76rem, 1.65dvh, 1rem);
+  }
+
+  .casio-num-section {
+    flex: 1.22;
+    justify-content: space-evenly;
+    gap: clamp(3px, 0.7dvh, 9px);
+    margin-top: clamp(6px, 1.2dvh, 14px);
+  }
+
+  .casio-num-row {
+    gap: clamp(6px, 2vw, 11px);
+  }
+
+  .calc-btn-num,
+  .calc-btn-op,
+  .calc-btn-accent {
+    height: clamp(31px, 5dvh, 52px);
+  }
+
+  .calc-btn-num {
+    font-size: clamp(1.28rem, 2.65dvh, 1.85rem);
+  }
+
+  .calc-btn-op {
+    font-size: clamp(1.04rem, 2.15dvh, 1.45rem);
+  }
+
+  .calc-btn-accent {
+    font-size: clamp(0.96rem, 2dvh, 1.35rem);
+  }
+}
+
+@media (orientation: landscape) and (max-height: 735px) {
+  .casio-casing {
+    transform: scale(0.91);
+    transform-origin: center center;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 665px) {
+  .casio-casing {
+    transform: scale(0.82);
+    transform-origin: center center;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 595px) {
+  .casio-casing {
+    transform: scale(0.73);
+    transform-origin: center center;
   }
 }
