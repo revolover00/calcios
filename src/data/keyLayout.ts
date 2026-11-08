@@ -15,7 +15,7 @@ export interface KeySpec {
 export const SCIENTIFIC_ROW_1: readonly KeySpec[] = [
   {
     id: 'calc',
-    ariaLabel: 'CALC تعويض المتغيرات أو SOLVE حل المعادلة أو علامة يساوي =',
+    ariaLabel: 'CALC evaluate expression, SOLVE equation, or equals =',
     primary: 'CALC',
     shiftLabel: 'SOLVE',
     alphaLabel: '=',
@@ -24,7 +24,7 @@ export const SCIENTIFIC_ROW_1: readonly KeySpec[] = [
   },
   {
     id: 'integ',
-    ariaLabel: 'تكامل محدد ∫dx أو تفاضل d/dx أو نقطتان :',
+    ariaLabel: 'Definite integral ∫dx, derivative d/dx, or colon :',
     primary: '∫dx',
     shiftLabel: 'd/dx',
     alphaLabel: ':',
@@ -33,7 +33,7 @@ export const SCIENTIFIC_ROW_1: readonly KeySpec[] = [
   },
   {
     id: 'inverse',
-    ariaLabel: 'x⁻¹ مقلوب أو مضروب x!',
+    ariaLabel: 'Reciprocal x⁻¹ or factorial x!',
     primary: 'x⁻¹',
     shiftLabel: 'x!',
     col: 5,
@@ -41,7 +41,7 @@ export const SCIENTIFIC_ROW_1: readonly KeySpec[] = [
   },
   {
     id: 'logbase',
-    ariaLabel: 'log_a b لوغاريتم لأساس عام أو مجموع ∑ أو ضرب متسلسل ∏',
+    ariaLabel: 'Logarithm base a, summation ∑, or product ∏',
     primary: 'log■□',
     shiftLabel: '∑(',
     alphaLabel: '∏(',
@@ -54,7 +54,7 @@ export const SCIENTIFIC_ROWS_2_TO_4: readonly (readonly KeySpec[])[] = [
   [
     {
       id: 'frac',
-      ariaLabel: 'كسر اعتيادي أو عدد كسري أو قسمة مع الباقي ÷R',
+      ariaLabel: 'Fraction, mixed fraction, or quotient with remainder ÷R',
       primary: '■/□',
       shiftLabel: '■ □/□',
       alphaLabel: '÷R',
@@ -62,7 +62,7 @@ export const SCIENTIFIC_ROWS_2_TO_4: readonly (readonly KeySpec[])[] = [
     },
     {
       id: 'sqrt',
-      ariaLabel: 'جذر تربيعي أو جذر تكعيبي أو عدد عشري دوري',
+      ariaLabel: 'Square root, cube root, or recurring decimal',
       primary: '√■',
       shiftLabel: '³√■',
       alphaLabel: '■̅',
@@ -70,7 +70,7 @@ export const SCIENTIFIC_ROWS_2_TO_4: readonly (readonly KeySpec[])[] = [
     },
     {
       id: 'square',
-      ariaLabel: 'x² تربيع أو x³ تكعيب أو النظام العشري DEC',
+      ariaLabel: 'Square x², cube x³, or decimal DEC',
       primary: 'x²',
       shiftLabel: 'x³',
       baseNLabel: 'DEC',
@@ -78,7 +78,7 @@ export const SCIENTIFIC_ROWS_2_TO_4: readonly (readonly KeySpec[])[] = [
     },
     {
       id: 'power',
-      ariaLabel: 'أس عام أو جذر نوني أو النظام الست عشري HEX',
+      ariaLabel: 'Power xⁿ, nth root, or hexadecimal HEX',
       primary: 'x■',
       shiftLabel: 'ⁿ√■',
       baseNLabel: 'HEX',
@@ -86,7 +86,7 @@ export const SCIENTIFIC_ROWS_2_TO_4: readonly (readonly KeySpec[])[] = [
     },
     {
       id: 'log',
-      ariaLabel: 'log لوغاريتم عشري أو 10^x أو النظام الثنائي BIN',
+      ariaLabel: 'Common logarithm log, 10^x, or binary BIN',
       primary: 'log',
       shiftLabel: '10■',
       baseNLabel: 'BIN',
@@ -94,7 +94,7 @@ export const SCIENTIFIC_ROWS_2_TO_4: readonly (readonly KeySpec[])[] = [
     },
     {
       id: 'ln',
-      ariaLabel: 'ln لوغاريتم طبيعي أو e^x أو النظام الثماني OCT',
+      ariaLabel: 'Natural logarithm ln, e^x, or octal OCT',
       primary: 'ln',
       shiftLabel: 'e■',
       baseNLabel: 'OCT',
@@ -104,7 +104,7 @@ export const SCIENTIFIC_ROWS_2_TO_4: readonly (readonly KeySpec[])[] = [
   [
     {
       id: 'neg',
-      ariaLabel: 'إشارة سالبة (−) أو زاوية قطبية ∠ أو المتغير A',
+      ariaLabel: 'Negative (−), polar angle ∠, or variable A',
       primary: '(−)',
       cmplxLeftLabel: '∠',
       alphaLabel: 'A',
@@ -112,7 +112,7 @@ export const SCIENTIFIC_ROWS_2_TO_4: readonly (readonly KeySpec[])[] = [
     },
     {
       id: 'dms',
-      ariaLabel: 'درجات ودقائق وثواني أو تحليل لعوامل أولية FACT أو المتغير B',
+      ariaLabel: 'Degrees-minutes-seconds, prime factorization FACT, or variable B',
       primary: '° ’ ”',
       shiftLabel: 'FACT',
       alphaLabel: 'B',
@@ -120,7 +120,7 @@ export const SCIENTIFIC_ROWS_2_TO_4: readonly (readonly KeySpec[])[] = [
     },
     {
       id: 'hyp',
-      ariaLabel: 'دوال زائدية hyp أو القيمة المطلقة Abs أو المتغير C',
+      ariaLabel: 'Hyperbolic hyp, absolute value Abs, or variable C',
       primary: 'hyp',
       shiftLabel: 'Abs',
       alphaLabel: 'C',
@@ -128,7 +128,7 @@ export const SCIENTIFIC_ROWS_2_TO_4: readonly (readonly KeySpec[])[] = [
     },
     {
       id: 'sin',
-      ariaLabel: 'sin جيب الزاوية أو sin⁻¹ أو المتغير D',
+      ariaLabel: 'Sine sin, arcsin sin⁻¹, or variable D',
       primary: 'sin',
       shiftLabel: 'sin⁻¹',
       alphaLabel: 'D',
@@ -136,7 +136,7 @@ export const SCIENTIFIC_ROWS_2_TO_4: readonly (readonly KeySpec[])[] = [
     },
     {
       id: 'cos',
-      ariaLabel: 'cos جيب تمام الزاوية أو cos⁻¹ أو المتغير E',
+      ariaLabel: 'Cosine cos, arccos cos⁻¹, or variable E',
       primary: 'cos',
       shiftLabel: 'cos⁻¹',
       alphaLabel: 'E',
@@ -144,7 +144,7 @@ export const SCIENTIFIC_ROWS_2_TO_4: readonly (readonly KeySpec[])[] = [
     },
     {
       id: 'tan',
-      ariaLabel: 'tan ظل الزاوية أو tan⁻¹ أو المتغير F',
+      ariaLabel: 'Tangent tan, arctan tan⁻¹, or variable F',
       primary: 'tan',
       shiftLabel: 'tan⁻¹',
       alphaLabel: 'F',
@@ -154,14 +154,14 @@ export const SCIENTIFIC_ROWS_2_TO_4: readonly (readonly KeySpec[])[] = [
   [
     {
       id: 'rcl',
-      ariaLabel: 'RCL استدعاء متغير أو STO تخزين في متغير',
+      ariaLabel: 'RCL recall variable or STO store variable',
       primary: 'RCL',
       shiftLabel: 'STO',
       variant: 'sci',
     },
     {
       id: 'eng',
-      ariaLabel: 'ENG الصيغة الهندسية أو ← أو الوحدة التخيلية i',
+      ariaLabel: 'ENG engineering notation, ←, or imaginary unit i',
       primary: 'ENG',
       shiftLabel: '←',
       cmplxRightLabel: 'i',
@@ -169,14 +169,14 @@ export const SCIENTIFIC_ROWS_2_TO_4: readonly (readonly KeySpec[])[] = [
     },
     {
       id: 'open',
-      ariaLabel: 'فتح قوس ( أو نسبة مئوية %',
+      ariaLabel: 'Open parenthesis ( or percent %',
       primary: '(',
       shiftLabel: '%',
       variant: 'sci',
     },
     {
       id: 'close',
-      ariaLabel: 'غلق قوس ) أو فاصلة , أو المتغير X',
+      ariaLabel: 'Close parenthesis ), comma ,, or variable X',
       primary: ')',
       shiftLabel: ',',
       alphaLabel: 'X',
@@ -184,7 +184,7 @@ export const SCIENTIFIC_ROWS_2_TO_4: readonly (readonly KeySpec[])[] = [
     },
     {
       id: 'sd',
-      ariaLabel: 'S⇔D تحويل الكسر لعشري أو تحويل عدد كسري أو المتغير Y',
+      ariaLabel: 'S⇔D standard-to-decimal toggle, mixed fraction toggle, or variable Y',
       primary: 'S⇔D',
       shiftLabel: 'a b/c⇔d/c',
       alphaLabel: 'Y',
@@ -192,7 +192,7 @@ export const SCIENTIFIC_ROWS_2_TO_4: readonly (readonly KeySpec[])[] = [
     },
     {
       id: 'mplus',
-      ariaLabel: 'M+ جمع في الذاكرة أو M− طرح من الذاكرة أو المتغير M',
+      ariaLabel: 'M+ memory add, M− memory subtract, or variable M',
       primary: 'M+',
       shiftLabel: 'M−',
       alphaLabel: 'M',
@@ -203,31 +203,31 @@ export const SCIENTIFIC_ROWS_2_TO_4: readonly (readonly KeySpec[])[] = [
 
 export const LOWER_KEYPAD_ROWS: readonly (readonly KeySpec[])[] = [
   [
-    { id: '7', ariaLabel: '7 أو الثوابت العلمية CONST', primary: '7', shiftLabel: 'CONST', variant: 'num' },
-    { id: '8', ariaLabel: '8 أو تحويل الوحدات CONV', primary: '8', shiftLabel: 'CONV', variant: 'num' },
-    { id: '9', ariaLabel: '9 أو مسح CLR', primary: '9', shiftLabel: 'CLR', variant: 'num' },
-    { id: 'del', ariaLabel: 'DEL حذف أو INS إدراج', primary: 'DEL', shiftLabel: 'INS', variant: 'accent' },
-    { id: 'ac', ariaLabel: 'AC مسح الكل أو OFF إيقاف', primary: 'AC', shiftLabel: 'OFF', variant: 'accent' },
+    { id: '7', ariaLabel: '7 or scientific constants CONST', primary: '7', shiftLabel: 'CONST', variant: 'num' },
+    { id: '8', ariaLabel: '8 or unit conversions CONV', primary: '8', shiftLabel: 'CONV', variant: 'num' },
+    { id: '9', ariaLabel: '9 or clear CLR', primary: '9', shiftLabel: 'CLR', variant: 'num' },
+    { id: 'del', ariaLabel: 'DEL delete or INS insert mode', primary: 'DEL', shiftLabel: 'INS', variant: 'accent' },
+    { id: 'ac', ariaLabel: 'AC all clear or OFF power off', primary: 'AC', shiftLabel: 'OFF', variant: 'accent' },
   ],
   [
-    { id: '4', ariaLabel: '4 أو قائمة المصفوفات MATRIX', primary: '4', shiftLabel: 'MATRIX', modeTag: true, variant: 'num' },
-    { id: '5', ariaLabel: '5 أو قائمة المتجهات VECTOR', primary: '5', shiftLabel: 'VECTOR', modeTag: true, variant: 'num' },
-    { id: '6', ariaLabel: '6 أو قائمة التحقق VERIFY', primary: '6', shiftLabel: 'VERIFY', modeTag: true, variant: 'num' },
-    { id: 'multiply', ariaLabel: 'ضرب × أو تباديل nPr أو القاسم المشترك الأكبر GCD', primary: '×', shiftLabel: 'nPr', alphaLabel: 'GCD', variant: 'op' },
-    { id: 'divide', ariaLabel: 'قسمة ÷ أو توافيق nCr أو المضاعف المشترك الأصغر LCM', primary: '÷', shiftLabel: 'nCr', alphaLabel: 'LCM', variant: 'op' },
+    { id: '4', ariaLabel: '4 or MATRIX menu', primary: '4', shiftLabel: 'MATRIX', modeTag: true, variant: 'num' },
+    { id: '5', ariaLabel: '5 or VECTOR menu', primary: '5', shiftLabel: 'VECTOR', modeTag: true, variant: 'num' },
+    { id: '6', ariaLabel: '6 or VERIFY menu', primary: '6', shiftLabel: 'VERIFY', modeTag: true, variant: 'num' },
+    { id: 'multiply', ariaLabel: 'Multiply ×, permutation nPr, or GCD', primary: '×', shiftLabel: 'nPr', alphaLabel: 'GCD', variant: 'op' },
+    { id: 'divide', ariaLabel: 'Divide ÷, combination nCr, or LCM', primary: '÷', shiftLabel: 'nCr', alphaLabel: 'LCM', variant: 'op' },
   ],
   [
-    { id: '1', ariaLabel: '1 أو قائمة الإحصاء والتوزيعات STAT/DIST', primary: '1', shiftLabel: 'STAT/DIST', modeTag: true, variant: 'num' },
-    { id: '2', ariaLabel: '2 أو قائمة الأعداد المركبة CMPLX', primary: '2', shiftLabel: 'CMPLX', modeTag: true, variant: 'num' },
-    { id: '3', ariaLabel: '3 أو قائمة الأنظمة العددية BASE', primary: '3', shiftLabel: 'BASE', modeTag: true, variant: 'num' },
-    { id: 'add', ariaLabel: 'جمع + أو تحويل قطبي Pol أو الجزء الصحيح Int', primary: '+', shiftLabel: 'Pol', alphaLabel: 'Int', variant: 'op' },
-    { id: 'subtract', ariaLabel: 'طرح − أو تحويل كارتيزي Rec أو أكبر عدد صحيح Intg', primary: '−', shiftLabel: 'Rec', alphaLabel: 'Intg', variant: 'op' },
+    { id: '1', ariaLabel: '1 or STAT/DIST menu', primary: '1', shiftLabel: 'STAT/DIST', modeTag: true, variant: 'num' },
+    { id: '2', ariaLabel: '2 or CMPLX menu', primary: '2', shiftLabel: 'CMPLX', modeTag: true, variant: 'num' },
+    { id: '3', ariaLabel: '3 or BASE menu', primary: '3', shiftLabel: 'BASE', modeTag: true, variant: 'num' },
+    { id: 'add', ariaLabel: 'Add +, polar Pol, or integer part Int', primary: '+', shiftLabel: 'Pol', alphaLabel: 'Int', variant: 'op' },
+    { id: 'subtract', ariaLabel: 'Subtract −, rectangular Rec, or floor Intg', primary: '−', shiftLabel: 'Rec', alphaLabel: 'Intg', variant: 'op' },
   ],
   [
-    { id: '0', ariaLabel: '0 أو تقريب Rnd', primary: '0', shiftLabel: 'Rnd', variant: 'num' },
-    { id: 'dot', ariaLabel: 'علامة عشرية · أو رقم عشوائي Ran# أو RanInt', primary: '·', shiftLabel: 'Ran#', alphaLabel: 'RanInt', variant: 'num' },
-    { id: 'exp', ariaLabel: '×10^x أس عشرة أو π أو e', primary: '×10ˣ', shiftLabel: 'π', alphaLabel: 'e', variant: 'op' },
-    { id: 'ans', ariaLabel: 'Ans آخر إجابة أو DRG▶ أو PreAns', primary: 'Ans', shiftLabel: 'DRG▶', alphaLabel: 'PreAns', variant: 'op' },
-    { id: 'equals', ariaLabel: 'يساوي = أو تقريب عشري ≈ أو Re⇔Im', primary: '=', shiftLabel: '≈', cmplxRightLabel: 'Re⇔Im', variant: 'op' },
+    { id: '0', ariaLabel: '0 or round Rnd', primary: '0', shiftLabel: 'Rnd', variant: 'num' },
+    { id: 'dot', ariaLabel: 'Decimal point ·, random Ran#, or RanInt', primary: '·', shiftLabel: 'Ran#', alphaLabel: 'RanInt', variant: 'num' },
+    { id: 'exp', ariaLabel: '×10^x scientific exponent, π, or Euler e', primary: '×10ˣ', shiftLabel: 'π', alphaLabel: 'e', variant: 'op' },
+    { id: 'ans', ariaLabel: 'Ans last answer, DRG▶ angle unit, or PreAns', primary: 'Ans', shiftLabel: 'DRG▶', alphaLabel: 'PreAns', variant: 'op' },
+    { id: 'equals', ariaLabel: 'Equals =, approximate ≈, or Re⇔Im', primary: '=', shiftLabel: '≈', cmplxRightLabel: 'Re⇔Im', variant: 'op' },
   ],
 ];

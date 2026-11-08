@@ -565,7 +565,7 @@ function insert(
     cursor = expression.length;
   }
   if (expression.length + text.length > 300) {
-    return withNotice(s, 'وصلت للحد الأقصى للإدخال.');
+    return withNotice(s, 'Input limit reached.');
   }
   const canOverwrite =
     !s.insertMode &&

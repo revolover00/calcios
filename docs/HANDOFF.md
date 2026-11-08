@@ -1,15 +1,18 @@
-# Calcios Architecture & Handoff
+# Calcios — Engineering Handoff
 
-## Overview
+## 1. Architecture Overview
 
-- **Calcios** is a standalone TypeScript + React scientific calculator rendered 100% in code (HTML/CSS/SVG + custom generated dot-matrix TrueType fonts `CalciosLCDLarge` `5×9` and `CalciosLCDSmall` `5×6`, zero `<img>` tags).
-- Displays at authentic handheld proportions (`356 × 708` logical px, uniformly scaled down only if a small screen has less room, always keeping surrounding margin) across mobile, tablet, and desktop viewports.
-- Includes three unified injection-molded color editions (**Black**, **Pink**, and **Ice Blue**) sharing the exact same chassis, top-right solar window, 3D chamfered LCD bezel, spun-metal round buttons, diamond-knurled D-pad, and two-tone sculpted keypad.
+- **Pure State Machine (`src/core/calculator.ts`)**: Deterministic reducer managing all 11 calculator modes (`COMP`, `CMPLX`, `STAT`, `BASE-N`, `EQN`, `MATRIX`, `TABLE`, `VECTOR`, `INEQ`, `VERIF`, `DIST`), setup flags (`MathIO`/`LineIO`, `Deg`/`Rad`/`Gra`, `Norm`/`Fix`/`Sci`, `a b/c`/`d/c`, `CMPLX` rectangular/polar), replay history, and variable registers (`A`–`F`, `X`, `Y`, `M`, `Ans`, `PreAns`).
+- **2D Natural Math Tree (`src/core/exprTree.ts` + `src/components/NaturalMath.tsx`)**: Hierarchical token-list editor supporting stacked fractions, mixed fractions, arbitrary roots, superscripts, base-$a$ logarithms, definite integrals, derivatives, summations, and products with deterministic 4-way cursor traversal.
+- **Symbolic & Numerical Engine (`src/core/bigintFrac.ts`, `symbolic.ts`, `parser.ts`, `solvers.ts`)**: Exact `BigInt` rational reduction, multi-radical canonical forms, nested square-root denesting, exact $\pi$-angle trigonometry, Cardano/quadratic root solvers, adaptive Gauss–Legendre quadrature, and Newton–Raphson `SOLVE`.
+- **Dot-Matrix Display & Unified 3D Hardware (`scripts/build-calcios-fonts.mjs`, `src/components/CalculatorHardware.tsx`, `src/styles/calculator.css`)**:
+  - Custom `CalciosLCDLarge` (`5×9`) and `CalciosLCDSmall` (`5×6`) TrueType pixel fonts rendered onto `#cfe3e6` FSTN glass with `#020405` pixel ink.
+  - Unified physical handheld shell (`356 × 708` logical px) across **Onyx Black**, **Dusty Rose Pink**, and **Ice Steel Blue**, scaled cleanly via `--calc-scale` so the calculator always retains its authentic handheld proportions on desktop and mobile screens.
 
-## Core Modules
+## 2. Verification Commands
 
-- `scripts/build-calcios-fonts.mjs`: Generates `src/assets/calcios-lcd-large.ttf` (`5×9`) and `src/assets/calcios-lcd-small.ttf` (`5×6`).
-- `src/core/mathAst.ts`: Structural 2D template AST engine powering 4-way (`◀`/`▶`/`▲`/`▼`) cursor navigation, smart `DEL`/`INS`, and operand-to-numerator fraction wrapping.
-- `src/core/expression.ts` & `src/core/calculus.ts`: Custom Pratt parser/evaluator with `Decimal.js` precision, exact symbolic surds/fractions/`π` multiples, numerical derivatives, adaptive Gauss-Legendre definite integrals, `∑`/`∏`, `CALC`, and Newton-Secant `SOLVE`.
-- `src/core/{cmplx,stat,basen,eqn,matrix,table,vector,ineq,verif,dist,constants}.ts`: All 11 scientific modes plus 40 `CONST` and 40 `CONV` entries.
-- `src/components/{CalculatorHardware,LcdScreen,NaturalMath}.tsx` & `src/styles/calculator.css`: Calcios hardware UI, color edition switcher, and 2D dot-matrix LCD renderer.
+```bash
+npm run typecheck
+npm test
+npm run build
+```

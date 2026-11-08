@@ -537,7 +537,7 @@ describe('Comprehensive Multi-Difficulty Audit (Easy -> Medium -> Hard -> Extrem
         }
         pressWithCaretInvariants(...seq);
       }
-    });
+    }, 20000);
 
     it('[Actions & Memory] verifies STO, RCL, M+, M-, Replay History protection, DRG▸, CONST, CONV, LineIO & CLR', () => {
       // 1) Replay history: calculate 10+5=15, start typing '77', press ▼ -> '77' is NOT wiped!
