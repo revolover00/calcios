@@ -19,6 +19,30 @@ const DISPLAY_FUNC_LABELS: Record<string, string> = {
 
 const STAT_KEYS_SORTED = Object.keys(STAT_TOKEN_LABELS).sort((a, b) => b.length - a.length);
 
+function RadicalSign(): React.ReactElement {
+  return (
+    <span className="math-sqrt-glyph">
+      <span className="lcd-sr-text">√</span>
+      <svg
+        className="math-sqrt-svg"
+        viewBox="0 0 12 22"
+        preserveAspectRatio="none"
+        aria-hidden="true"
+      >
+        <polyline
+          points="0.8,12.5 3.0,10.8 5.6,20.2 11.2,0.9 12,0.9"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.9"
+          strokeLinecap="square"
+          strokeLinejoin="miter"
+          vectorEffect="non-scaling-stroke"
+        />
+      </svg>
+    </span>
+  );
+}
+
 function Caret({ overwrite, box = false }: { overwrite: boolean; box?: boolean }) {
   const ref = useRef<HTMLSpanElement | null>(null);
   useEffect(() => {
@@ -50,7 +74,7 @@ function Caret({ overwrite, box = false }: { overwrite: boolean; box?: boolean }
         data-testid="lcd-caret"
         aria-hidden="true"
       >
-        ■
+        <span className="lcd-sr-text">■</span>
       </span>
     );
   }
@@ -96,7 +120,11 @@ function MathRange({
     return (
       <span className="math-seq">
         {inRange(start) && <Caret overwrite={overwrite} />}
-        {showEmptyPlaceholder && <span className="math-box-placeholder">□</span>}
+        {showEmptyPlaceholder && (
+          <span className="math-box-placeholder">
+            <span className="lcd-sr-text">□</span>
+          </span>
+        )}
       </span>
     );
   }
@@ -280,7 +308,7 @@ function MathRange({
             <span key={`k-${keyCounter++}`} className="math-sqrt">
               {strayCursor && <Caret overwrite={overwrite} />}
               {isCube && <sup className="math-root-idx">3</sup>}
-              <span className="math-sqrt-glyph">√</span>
+              <RadicalSign />
               <span className="math-sqrt-body">
                 <MathRange source={source} start={rad.start} end={rad.end} cursor={cursor} overwrite={overwrite} lineMode={false} showEmptyPlaceholder />
               </span>
@@ -307,7 +335,7 @@ function MathRange({
               <sup className="math-root-idx">
                 <MathRange source={source} start={idx.start} end={idx.end} cursor={cursor} overwrite={overwrite} lineMode={false} showEmptyPlaceholder />
               </sup>
-              <span className="math-sqrt-glyph">√</span>
+              <RadicalSign />
               <span className="math-sqrt-body">
                 <MathRange source={source} start={rad.start} end={rad.end} cursor={cursor} overwrite={overwrite} lineMode={false} showEmptyPlaceholder />
               </span>
@@ -519,7 +547,7 @@ function SurdTop({ a, b, rad }: { a: string; b: string; rad: string }): React.Re
   const coef = absB === 1n ? '' : absB.toString();
   const radNode = (
     <span className="math-sqrt">
-      <span className="math-sqrt-glyph">√</span>
+      <RadicalSign />
       <span className="math-sqrt-body">{rad}</span>
     </span>
   );
@@ -567,7 +595,7 @@ function MultiSurdTop({ terms }: { terms: Array<{ coef: string; rad: string }> }
             {sign}
             {coefStr}
             <span className="math-sqrt">
-              <span className="math-sqrt-glyph">√</span>
+              <RadicalSign />
               <span className="math-sqrt-body">{rBig.toString()}</span>
             </span>
           </span>

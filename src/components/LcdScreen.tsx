@@ -43,35 +43,61 @@ function LcdStatusBar({ state }: { state: CalculatorState }): React.ReactElement
   const isSci = state.numberFormat.mode === 'Sci';
   const showReIm = state.mode === 'CMPLX' && state.phase === 'result' && state.cmplx.result !== null;
   const showDisp = state.statementRun !== null;
-  const canReplayUp =
-    state.history.length > 0 && (state.historyIndex === null || state.historyIndex > 0);
-  const canReplayDown =
-    state.historyIndex !== null && state.historyIndex < state.history.length - 1;
+
+  const isPagedMenu =
+    state.screen === 'mode' ||
+    state.screen === 'setup' ||
+    state.screen === 'basen-menu' ||
+    state.screen === 'matrix-menu';
+  const canUp = isPagedMenu
+    ? state.menuPage > 0
+    : state.history.length > 0 && (state.historyIndex === null || state.historyIndex > 0);
+  const canDown = isPagedMenu
+    ? state.menuPage === 0
+    : state.historyIndex !== null && state.historyIndex < state.history.length - 1;
+
+  const modeBadge =
+    state.mode === 'BASE-N'
+      ? state.baseN.base
+      : state.mode === 'CMPLX'
+        ? 'CMPLX'
+        : state.mode === 'STAT'
+          ? 'STAT'
+          : state.mode === 'MATRIX'
+            ? 'MAT'
+            : state.mode === 'VECTOR'
+              ? 'VCT'
+              : state.mode !== 'COMP'
+                ? state.mode
+                : '';
 
   return (
     <div className="lcd-status" data-testid="lcd-status" dir="ltr">
-      <span className={state.shift ? 'ind ind-boxed on' : 'ind ind-boxed'}>S</span>
-      <span className={state.alpha ? 'ind ind-boxed on' : 'ind ind-boxed'}>A</span>
-      <span className={state.pending === 'store' ? 'ind on' : 'ind'}>STO</span>
-      <span className={state.pending === 'recall' ? 'ind on' : 'ind'}>RCL</span>
-      <span className={state.hyp ? 'ind on' : 'ind'}>HYP</span>
-      <span className={hasM ? 'ind on' : 'ind'}>M</span>
-      <span className="ind ind-boxed on">{state.angle === 'DEG' ? 'D' : state.angle === 'RAD' ? 'R' : 'G'}</span>
-      <span className={state.mode === 'CMPLX' ? 'ind on' : 'ind'}>CMPLX</span>
-      <span className={state.mode === 'STAT' ? 'ind on' : 'ind'}>STAT</span>
-      <span className={state.mode === 'MATRIX' ? 'ind on' : 'ind'}>MAT</span>
-      <span className={state.mode === 'VECTOR' ? 'ind on' : 'ind'}>VCT</span>
-      <span className={isFix ? 'ind on' : 'ind'}>FIX</span>
-      <span className={isSci ? 'ind on' : 'ind'}>SCI</span>
-      {showDisp && <span className="ind ind-boxed on">Disp</span>}
-      {showReIm && <span className="ind on">Re⇔Im</span>}
-      <span className="ind-spacer" />
-      <span className={canReplayUp ? 'ind on' : 'ind'}>▲</span>
-      <span className={canReplayDown ? 'ind on' : 'ind'}>▼</span>
-      <span className={isMath ? 'ind on' : 'ind'}>Math</span>
-      <span className="ind-mode">
-        {state.mode === 'BASE-N' ? state.baseN.base : state.mode !== 'COMP' ? state.mode : ''}
-      </span>
+      <div className="lcd-status-zone zone-left">
+        {state.shift && <span className="ind ind-boxed on">S</span>}
+        {state.alpha && <span className="ind ind-boxed on">A</span>}
+        {state.pending === 'store' && <span className="ind on">STO</span>}
+        {state.pending === 'recall' && <span className="ind on">RCL</span>}
+        {hasM && <span className="ind on">M</span>}
+        {modeBadge && <span className="ind on">{modeBadge}</span>}
+      </div>
+      <div className="lcd-status-zone zone-center">
+        {state.hyp && <span className="ind on">HYP</span>}
+        <span className="ind ind-boxed on">
+          {state.angle === 'DEG' ? 'D' : state.angle === 'RAD' ? 'R' : 'G'}
+        </span>
+      </div>
+      <div className="lcd-status-zone zone-math">
+        {isFix && <span className="ind on">FIX</span>}
+        {isSci && <span className="ind on">SCI</span>}
+        {isMath && <span className="ind on">Math</span>}
+      </div>
+      <div className="lcd-status-zone zone-right">
+        {showReIm && <span className="ind on">Re⇔Im</span>}
+        {showDisp && <span className="ind ind-boxed on">Disp</span>}
+        {canUp && <span className="ind on">▲</span>}
+        {canDown && <span className="ind on">▼</span>}
+      </div>
     </div>
   );
 }
@@ -101,7 +127,6 @@ function renderMenuScreen(state: CalculatorState): React.ReactElement | null {
             <span>3:DIST</span>
           </div>
         )}
-        <div className="lcd-menu-hint">{menuPage === 0 ? '▼ Page 2' : '▲ Page 1'}</div>
       </div>
     );
   }
@@ -132,7 +157,6 @@ function renderMenuScreen(state: CalculatorState): React.ReactElement | null {
             <span>8:◀CONT▶</span>
           </div>
         )}
-        <div className="lcd-menu-hint">{menuPage === 0 ? '▼ Page 2' : '▲ Page 1'}</div>
       </div>
     );
   }
@@ -276,7 +300,6 @@ function renderMenuScreen(state: CalculatorState): React.ReactElement | null {
             <span>4:o</span>
           </div>
         )}
-        <div className="lcd-menu-hint">{menuPage === 0 ? '▼ Base Prefix' : '▲ Logic'}</div>
       </div>
     );
   }
@@ -470,7 +493,6 @@ function renderMenuScreen(state: CalculatorState): React.ReactElement | null {
             <span>2:Rref</span>
           </div>
         )}
-        <div className="lcd-menu-hint">{menuPage === 0 ? '▼ Ref / Rref' : '▲ Page 1'}</div>
       </div>
     );
   }
