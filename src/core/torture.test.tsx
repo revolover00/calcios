@@ -62,7 +62,7 @@ function pressWithCaretInvariants(...ids: string[]): CalculatorState {
 }
 
 describe('Comprehensive Multi-Difficulty Audit (Easy -> Medium -> Hard -> Extreme)', () => {
-  describe('1. 2D Natural-V.P.A.M. Cursor Movements (◀ ▶ ▲ ▼), Smart DEL, INS & Fraction Wrapping', () => {
+  describe('1. 2D 2D Natural Math Cursor Movements (◀ ▶ ▲ ▼), Smart DEL, INS & Fraction Wrapping', () => {
     it('[Easy] wraps preceding operand into 2D fraction numerator with ■/□ and mixed fraction with SHIFT+■/□', () => {
       // 3 -> ■/□ -> 4 -> =  ==> 3/4
       const s1 = pressWithCaretInvariants('3', 'frac', '4', 'equals');
@@ -188,7 +188,7 @@ describe('Comprehensive Multi-Difficulty Audit (Easy -> Medium -> Hard -> Extrem
   });
 
   describe('2. Scientific Notation ×10ˣ (⏨), Implicit Multiplication & Symbolic Algebra', () => {
-    it('[Easy & Medium] evaluates unary and binary ×10ˣ with authentic Casio precedence (no parens needed)', () => {
+    it('[Easy & Medium] evaluates unary and binary ×10ˣ with authentic Calcios precedence (no parens needed)', () => {
       // Unary ×10ˣ 3 = 1000
       expect(dec(pressWithCaretInvariants('exp', '3', 'equals'))).toBe('1000');
       // 2 ×10ˣ -3 = 1/500 (2×10^-3 in Norm1, 0.002 in Norm2)
@@ -222,7 +222,7 @@ describe('Comprehensive Multi-Difficulty Audit (Easy -> Medium -> Hard -> Extrem
       expect(dec(pressWithCaretInvariants('3', 'exp', '8', 'square', 'equals'))).toBe('9×10^16');
     });
 
-    it('[Hard & Extreme] handles Casio implicit multiplication, open-paren 1D functions, surds, ▸Simp, ÷R & FACT', () => {
+    it('[Hard & Extreme] handles Calcios implicit multiplication, open-paren 1D functions, surds, ▸Simp, ÷R & FACT', () => {
       // 6 ÷ 2(1 + 2) = 1
       expect(dec(press('6', 'divide', '2', 'open', '1', 'add', '2', 'close', 'equals'))).toBe('1');
       // 1 ÷ 2π in RAD: sin(2π ÷ 2π) = sin(1) -> check 2π ÷ 2π = 1!
@@ -575,7 +575,7 @@ describe('Comprehensive Multi-Difficulty Audit (Easy -> Medium -> Hard -> Extrem
       expect(formatDecimal(deserialize(sCleared.variables.M))).toBe('0');
     });
 
-    it('[Casio Hardware Fidelity] enforces wrap-around, visual L-to-R ∫/∑/∏ traversal, active ■ box, atomic 10^/e^, RCL immediate display & auto-DMS', () => {
+    it('[Calcios Hardware Fidelity] enforces wrap-around, visual L-to-R ∫/∑/∏ traversal, active ■ box, atomic 10^/e^, RCL immediate display & auto-DMS', () => {
       // 1) Expression wrap-around at 0 (◀ -> end) and length (▶ -> 0)
       const sWrapRight = press('1', 'add', '2', 'right');
       expect(sWrapRight.cursor).toBe(0);

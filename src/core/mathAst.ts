@@ -1,5 +1,5 @@
 /**
- * Structural parser & cursor/deletion engine for Casio Natural-V.P.A.M. 2D templates.
+ * Structural parser & cursor/deletion engine for Calcios 2D Natural Math 2D templates.
  * Shared by both the state machine (calculator.ts) and LCD renderer (NaturalMath.tsx)
  * so cursor movement (◀ ▶ ▲ ▼), smart DEL, and operand wrapping never desynchronize.
  */
@@ -303,7 +303,7 @@ export function moveCursorHorizontal(
       }
     }
 
-    // Wrap around from rightmost end of expression to start (0) like real Casio hardware!
+    // Wrap around from rightmost end of expression to start (0) like real Calcios hardware!
     if (cursor >= source.length) return 0;
 
     // 3) Step over atomic 1D token (e.g. 'sin(', 'Ans', '^2', '^3', '^(-1)', '⏨')
@@ -344,7 +344,7 @@ export function moveCursorHorizontal(
     }
   }
 
-  // Wrap around from leftmost start (0) to end (source.length) like real Casio hardware!
+  // Wrap around from leftmost start (0) to end (source.length) like real Calcios hardware!
   if (cursor <= 0) return source.length;
 
   // 3) Step backward over atomic 1D token
@@ -490,7 +490,7 @@ function isTemplateEmpty(node: TemplateNode): boolean {
 }
 
 /**
- * Casio-authentic DEL behavior that never corrupts internal template parentheses/commas.
+ * Calcios-authentic DEL behavior that never corrupts internal template parentheses/commas.
  */
 export function smartDeleteBeforeCursor(
   source: string,
@@ -515,7 +515,7 @@ export function smartDeleteBeforeCursor(
           cursor: endingHere.nodeStart,
         };
       }
-      // Non-empty template: step cursor INSIDE the end of the visually rightmost slot (like Casio hardware!)
+      // Non-empty template: step cursor INSIDE the end of the visually rightmost slot (like Calcios hardware!)
       const lastVisualSlot =
         endingHere.kind === 'integ' || endingHere.kind === 'sigma' || endingHere.kind === 'prod'
           ? endingHere.slots[0]

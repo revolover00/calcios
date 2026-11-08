@@ -218,7 +218,7 @@ export function divide(a: Scalar, b: Scalar): Scalar {
   return makeScalar(a.decimal.dividedBy(b.decimal), ex, pref, sym.symbolic);
 }
 
-/** Manual step-by-step fraction simplification (▸Simp [factor]) matching Casio fx-991ES PLUS C. */
+/** Manual step-by-step fraction simplification (▸Simp [factor]) matching Calcios Calcios. */
 export function simplifyManualFraction(s: Scalar, factor?: Scalar): Scalar {
   const source = s.simpUnreduced ?? s.rawUnreduced ?? s.exact;
   if (!source) mathError('▸Simp requires an exact fraction');

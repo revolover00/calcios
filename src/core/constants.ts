@@ -19,7 +19,7 @@ export interface UnitConversion {
 }
 
 /**
- * 40 scientific constants matching the Casio fx-991ES PLUS C reference table (CODATA 2010).
+ * 40 scientific constants matching the Calcios Calcios reference table (CODATA 2010).
  */
 export const SCIENTIFIC_CONSTANTS: readonly ScientificConstant[] = [
   { code: '01', token: 'const01', symbol: 'mp', nameAr: 'كتلة البروتون', nameEn: 'Proton mass', value: '1.672621777e-27', unit: 'kg' },
@@ -68,7 +68,7 @@ export const CONSTANT_BY_TOKEN = new Map(SCIENTIFIC_CONSTANTS.map((c) => [c.toke
 export const CONSTANT_BY_CODE = new Map(SCIENTIFIC_CONSTANTS.map((c) => [c.code, c]));
 
 /**
- * 40 metric/imperial unit conversions matching the Casio fx-991ES PLUS C table.
+ * 40 metric/imperial unit conversions matching the Calcios Calcios table.
  */
 export const UNIT_CONVERSIONS: readonly UnitConversion[] = [
   { code: '01', token: '▸conv01', label: 'in▶cm', categoryAr: 'الطول', factor: '2.54' },

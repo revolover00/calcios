@@ -2,22 +2,21 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 /**
- * Generates authentic Casio ES PLUS 96×31 dot-matrix TrueType (.ttf) fonts:
- *  1) src/assets/casio-es-large.ttf — Authentic 5×9 tall slender main display font (+ 2 descender rows)
- *  2) src/assets/casio-es-small.ttf — Authentic 5×6 small fraction / exponent / subscript font
+ * Generates Calcios 96×31 dot-matrix TrueType (.ttf) fonts:
+ *  1) src/assets/calcios-lcd-large.ttf — 5×9 tall slender main display font (+ 2 descender rows)
+ *  2) src/assets/calcios-lcd-small.ttf — 5×6 small fraction / exponent / subscript font
  *
- * Every active dot '#' is emitted as a crisp 92×92 square pixel inside a 100×100 dot pitch,
- * reproducing the exact liquid-crystal dot-matrix geometry of the Casio fx-95ES PLUS / fx-991ES PLUS.
+ * Every active dot '#' is emitted as a crisp 93×93 square pixel inside a 100×100 dot pitch.
  */
 
 // ============================================================================
-// 1. CASIO ES PLUS LARGE FONT (5×9 cap/digit height + 2 descender rows = 11 rows)
+// 1. CALCIOS LARGE FONT (5×9 cap/digit height + 2 descender rows = 11 rows)
 //    Rows 0..8 sit above baseline (y = 800 down to 0); rows 9..10 sit at y = -100, -200.
 // ============================================================================
 const LARGE_GLYPHS = {
   ' ': { adv: 4, rows: [] },
 
-  // Tall 5×9 Casio digits (open un-slashed 0, serifed 1, crisp diagonal 2, etc.)
+  // Tall 5×9 LCD digits (open un-slashed 0, serifed 1, crisp diagonal 2, etc.)
   '0': [
     '.###.',
     '#...#',
@@ -1085,7 +1084,7 @@ const LARGE_GLYPHS = {
     '.....',
   ],
 
-  // Exact Casio π from user's reference photo (`-1/2 π`)!
+  // Exact dot-matrix π glyph (`-1/2 π`)
   'π': {
     adv: 7,
     rows: [
@@ -1173,7 +1172,7 @@ const LARGE_GLYPHS = {
     ],
   },
 
-  // Phasor ∠, Line fraction ⌟, Arrows & Casio symbols
+  // Phasor ∠, Line fraction ⌟, Arrows & scientific symbols
   '∠': [
     '....#',
     '...#.',
@@ -1503,7 +1502,7 @@ const LARGE_GLYPHS = {
 };
 
 // ============================================================================
-// 2. CASIO ES PLUS SMALL FONT (5×6 fraction / exponent / subscript font)
+// 2. CALCIOS SMALL FONT (5×6 fraction / exponent / subscript font)
 //    Verified pixel-for-pixel against `1` and `2` in `-1/2 π` of user's photo!
 // ============================================================================
 const SMALL_GLYPHS = {
@@ -2237,23 +2236,23 @@ const outDir = path.resolve('src/assets');
 fs.mkdirSync(outDir, { recursive: true });
 
 const largeBuf = buildFont({
-  familyName: 'CasioESLarge',
+  familyName: 'CalciosLCDLarge',
   glyphMap: LARGE_GLYPHS,
   unitsPerEm: 1100,
   ascender: 900,
   descender: -200,
   topRowIndex: 8,
 });
-fs.writeFileSync(path.join(outDir, 'casio-es-large.ttf'), largeBuf);
+fs.writeFileSync(path.join(outDir, 'calcios-lcd-large.ttf'), largeBuf);
 
 const smallBuf = buildFont({
-  familyName: 'CasioESSmall',
+  familyName: 'CalciosLCDSmall',
   glyphMap: SMALL_GLYPHS,
   unitsPerEm: 700,
   ascender: 600,
   descender: -100,
   topRowIndex: 5,
 });
-fs.writeFileSync(path.join(outDir, 'casio-es-small.ttf'), smallBuf);
+fs.writeFileSync(path.join(outDir, 'calcios-lcd-small.ttf'), smallBuf);
 
-console.log(`Generated casio-es-large.ttf (${largeBuf.length} B) and casio-es-small.ttf (${smallBuf.length} B)`);
+console.log(`Generated calcios-lcd-large.ttf (${largeBuf.length} B) and calcios-lcd-small.ttf (${smallBuf.length} B)`);

@@ -43,7 +43,7 @@ export function evaluateVerification(source: string, ctx: EvaluationContext): bo
 
   if (ops.length === 0) syntax('Expected relational operator (=, ≠, >, <, ≥, ≤)', source.length);
 
-  // Validate Casio chaining rules: ≠ cannot be chained; mixed < and > cannot be chained
+  // Validate Calcios chaining rules: ≠ cannot be chained; mixed < and > cannot be chained
   if (ops.length > 1) {
     const neqItem = ops.find((o) => o.op === '≠');
     if (neqItem) syntax('Cannot chain ≠ in VERIF', neqItem.index);

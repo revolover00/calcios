@@ -47,7 +47,7 @@ export function formatBaseN(value: bigint, base: BaseMode): string {
   const unsigned = BigInt.asUintN(32, v);
   if (base === 'HEX') return unsigned.toString(16).toUpperCase().padStart(8, '0');
   if (base === 'OCT') return unsigned.toString(8).padStart(11, '0');
-  // BIN: show 16 bits when value fits signed 16-bit (matches Casio 16-col block), else 32 bits
+  // BIN: show 16 bits when value fits signed 16-bit (matches Calcios 16-col block), else 32 bits
   if (v >= -32768n && v <= 32767n) {
     return BigInt.asUintN(16, v).toString(2).padStart(16, '0');
   }

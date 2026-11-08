@@ -176,7 +176,7 @@ function fromRadSum(rs: RadSum): { exact?: { n: bigint; d: bigint }; symbolic?: 
     }
   }
 
-  // Order multi-surd terms: rational first if present, else positive radicals descending (so (√6−√2)/4 matches Casio!)
+  // Order multi-surd terms: rational first if present, else positive radicals descending (so (√6−√2)/4 matches Calcios!)
   cleaned.sort((p, q) => {
     if (p.rad === ONE) return -1;
     if (q.rad === ONE) return 1;
