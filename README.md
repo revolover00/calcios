@@ -45,6 +45,8 @@ Calcios combines an exact symbolic algebra kernel (`BigInt` rationals, canonical
   - Instant one-tap switching between **Onyx Black**, **Dusty Rose Pink**, and **Ice Steel Blue** via the three color dots on the top-right bezel (persisted in `localStorage`).
 - **Built-In Scientific Reference Library**
   - **40 CODATA physical constants** (`SHIFT` + `7` `CONST`) and **40 bidirectional unit conversions** (`SHIFT` + `8` `CONV`).
+- **Instant Photo / Camera Math Scanner (`qwen/qwen3.8-27b`)**
+  - Click the micro camera lens next to the color-edition dots (or press `Ctrl+V` / `Cmd+V` with a screenshot in your clipboard) to capture or upload any handwritten or printed math problem directly into 2D Natural Math on the LCD and evaluate/solve it automatically.
 
 ---
 
@@ -118,6 +120,21 @@ npm test
 # Rebuild the custom 5×9 and 5×6 TrueType dot-matrix LCD fonts (optional)
 node scripts/build-calcios-fonts.mjs
 ```
+
+---
+
+## Deploying to GitHub Pages
+
+This repository includes an automated GitHub Pages workflow (`.github/workflows/deploy.yml`) configured with `base: './'` so all assets and custom LCD `.ttf` fonts resolve cleanly on any GitHub Pages URL.
+
+1. In your repository, open **Settings → Pages** and set **Build and deployment → Source** to **GitHub Actions**.
+2. Open **Settings → Environments → `github-pages`** (create the `github-pages` environment if it does not exist yet) and configure:
+   - **Environment variables**:
+     - `VITE_GROQ_API_URL` = `https://api.groq.com/openai/v1/chat/completions` *(or your custom proxy URL)*
+     - `VITE_GROQ_MODEL` = `qwen/qwen3.8-27b`
+   - **Environment secrets**:
+     - `VITE_GROQ_API_KEY` = your Groq API key (`gsk_...`)
+3. Push to `main` (or trigger **Deploy Calcios to GitHub Pages** manually from the **Actions** tab).
 
 ---
 
