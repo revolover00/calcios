@@ -1,12 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { CalculatorAction, CalculatorState } from '../core/calculator';
-import {
-  isDirectGroqHost,
-  loadVisionConfig,
-  saveVisionConfig,
-  scanMathFromImage,
-  type VisionConfig,
-} from '../core/visionScan';
+import { scanMathFromImage } from '../core/visionScan';
 import {
   LOWER_KEYPAD_ROWS,
   SCIENTIFIC_ROW_1,
@@ -315,9 +309,8 @@ export function CalculatorHardware({
   dispatch,
 }: CalculatorHardwareProps): React.ReactElement {
   const [bodyTheme, setBodyTheme] = useState<CalciosBodyTheme>(loadBodyTheme);
-  const [scanView, setScanView] = useState<'closed' | 'menu' | 'config' | 'scanning'>('closed');
+  const [scanView, setScanView] = useState<'closed' | 'menu' | 'scanning'>('closed');
   const [scanError, setScanError] = useState<string | null>(null);
-  const [visionCfg, setVisionCfg] = useState<VisionConfig>(loadVisionConfig);
 
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
   const uploadInputRef = useRef<HTMLInputElement | null>(null);
@@ -336,7 +329,7 @@ export function CalculatorHardware({
       setScanError(null);
       setScanView('scanning');
       try {
-        const scanned = await scanMathFromImage(file, visionCfg);
+        const scanned = await scanMathFromImage(file);
         dispatch({
           type: 'load-scanned-math',
           expression: scanned.expression,
@@ -347,11 +340,10 @@ export function CalculatorHardware({
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Failed to scan math image.';
         setScanError(msg);
-        const cfg = loadVisionConfig();
-        setScanView(!cfg.apiKey && isDirectGroqHost(cfg.apiUrl) ? 'config' : 'menu');
+        setScanView('menu');
       }
     },
-    [dispatch, visionCfg],
+    [dispatch],
   );
 
   useEffect(() => {
@@ -384,14 +376,6 @@ export function CalculatorHardware({
     }
   };
 
-  const handleSaveConfig = (e: React.FormEvent) => {
-    e.preventDefault();
-    const saved = saveVisionConfig(visionCfg);
-    setVisionCfg(saved);
-    setScanError(null);
-    setScanView('menu');
-  };
-
   const handlePress = (id: string) => {
     if (scanView !== 'closed') {
       if (id === 'ac' || id === 'on') {
@@ -406,10 +390,6 @@ export function CalculatorHardware({
         }
         if (id === '2') {
           uploadInputRef.current?.click();
-          return;
-        }
-        if (id === '3') {
-          setScanView('config');
           return;
         }
       }
@@ -445,7 +425,6 @@ export function CalculatorHardware({
                 title="Scan math problem from camera or image (or Ctrl+V paste)"
                 onClick={() => {
                   setScanError(null);
-                  setVisionCfg(loadVisionConfig());
                   setScanView((v) => (v === 'closed' ? 'menu' : 'closed'));
                 }}
               >
@@ -513,7 +492,7 @@ export function CalculatorHardware({
               {scanView === 'scanning' && (
                 <div className="scan-lcd-center">
                   <div className="scan-lcd-title">SCANNING MATH...</div>
-                  <div className="scan-lcd-sub">{visionCfg.model}</div>
+                  <div className="scan-lcd-sub">Converting image to 2D expression</div>
                 </div>
               )}
 
@@ -538,7 +517,7 @@ export function CalculatorHardware({
                       data-testid="scan-trigger-camera"
                       onClick={() => cameraInputRef.current?.click()}
                     >
-                      1:Camera Photo
+                      1:Take Photo
                     </button>
                     <button
                       type="button"
@@ -548,66 +527,9 @@ export function CalculatorHardware({
                     >
                       2:Upload Image
                     </button>
-                    <button
-                      type="button"
-                      className="scan-lcd-item"
-                      data-testid="scan-trigger-config"
-                      onClick={() => setScanView('config')}
-                    >
-                      3:Vision API
-                    </button>
                   </div>
-                  <div className="scan-lcd-hint">Tip: Paste screenshot with Ctrl+V</div>
+                  <div className="scan-lcd-hint">Or paste any screenshot with Ctrl+V</div>
                 </div>
-              )}
-
-              {scanView === 'config' && (
-                <form className="scan-lcd-form" onSubmit={handleSaveConfig}>
-                  <div className="scan-lcd-hdr">
-                    <span>VISION API</span>
-                    <button
-                      type="button"
-                      className="scan-lcd-close"
-                      aria-label="Back to scan menu"
-                      onClick={() => setScanView('menu')}
-                    >
-                      [BACK]
-                    </button>
-                  </div>
-                  {scanError && <div className="scan-lcd-err" data-testid="scan-lcd-error">{scanError}</div>}
-                  <input
-                    type="text"
-                    className="scan-lcd-input"
-                    data-testid="scan-api-url"
-                    aria-label="Vision API URL"
-                    placeholder="API URL"
-                    value={visionCfg.apiUrl}
-                    onChange={(e) => setVisionCfg((c) => ({ ...c, apiUrl: e.target.value }))}
-                  />
-                  <input
-                    type="text"
-                    className="scan-lcd-input"
-                    data-testid="scan-api-model"
-                    aria-label="Vision Model ID"
-                    placeholder="Model (qwen/qwen3.8-27b)"
-                    value={visionCfg.model}
-                    onChange={(e) => setVisionCfg((c) => ({ ...c, model: e.target.value }))}
-                  />
-                  <div className="scan-lcd-row">
-                    <input
-                      type="password"
-                      className="scan-lcd-input"
-                      data-testid="scan-api-key"
-                      aria-label="Groq API Key"
-                      placeholder="Groq API Key (gsk_...)"
-                      value={visionCfg.apiKey}
-                      onChange={(e) => setVisionCfg((c) => ({ ...c, apiKey: e.target.value }))}
-                    />
-                    <button type="submit" className="scan-lcd-save" data-testid="scan-save-config">
-                      SAVE
-                    </button>
-                  </div>
-                </form>
               )}
             </div>
           )}
