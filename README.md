@@ -132,8 +132,12 @@ This repository includes an automated GitHub Pages workflow (`.github/workflows/
    - **Environment variables**:
      - `VITE_GROQ_API_URL` = `https://api.groq.com/openai/v1/chat/completions` *(or your custom proxy URL)*
      - `VITE_GROQ_MODEL` = `qwen/qwen3.8-27b`
-   - **Environment secrets**:
-     - `VITE_GROQ_API_KEY` = your Groq API key (`gsk_...`)
+   - **Environment secrets** (automatic 5-key failover pool — rotates seamlessly whenever a key reaches its rate limit):
+     - `GROQ_API_KEY_1`
+     - `GROQ_API_KEY_2`
+     - `GROQ_API_KEY_3`
+     - `GROQ_API_KEY_4`
+     - `GROQ_API_KEY_5`
 3. Push to `main` (or trigger **Deploy Calcios to GitHub Pages** manually from the **Actions** tab).
 
 ---

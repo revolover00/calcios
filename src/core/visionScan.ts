@@ -1,19 +1,38 @@
 import type { AngleUnit } from './value';
 
+declare const __CALCIOS_KEY_POOL__: number[][] | undefined;
+declare const __CALCIOS_GROQ_URL__: string | undefined;
+declare const __CALCIOS_GROQ_MODEL__: string | undefined;
+
 export const DEFAULT_GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
 export const DEFAULT_GROQ_MODEL = 'qwen/qwen3.8-27b';
-const VISION_STORAGE_KEY = 'calcios-vision-config-v1';
 
-export interface VisionConfig {
-  apiUrl: string;
-  model: string;
-  apiKey: string;
+export interface VisionRuntimeOptions {
+  apiUrl?: string;
+  model?: string;
+  apiKeys?: string[];
 }
 
 export interface ScannedMathResult {
   expression: string;
   mode: 'COMP' | 'CMPLX';
   angle?: AngleUnit;
+}
+
+export function encodeKeyShard(key: string): number[] {
+  const out: number[] = [];
+  for (let i = 0; i < key.length; i++) {
+    out.push(key.charCodeAt(i) ^ 0x5a ^ (i & 0x1f));
+  }
+  return out;
+}
+
+export function decodeKeyShard(shard: readonly number[]): string {
+  let out = '';
+  for (let i = 0; i < shard.length; i++) {
+    out += String.fromCharCode(shard[i] ^ 0x5a ^ (i & 0x1f));
+  }
+  return out;
 }
 
 export function normalizeEndpointUrl(rawUrl: string): string {
@@ -29,44 +48,42 @@ export function normalizeEndpointUrl(rawUrl: string): string {
   return trimmed;
 }
 
-export function getEnvVisionDefaults(): VisionConfig {
-  const env = (import.meta as unknown as { env?: Record<string, string | undefined> }).env ?? {};
-  return {
-    apiUrl: normalizeEndpointUrl(env.VITE_GROQ_API_URL ?? DEFAULT_GROQ_API_URL),
-    model: (env.VITE_GROQ_MODEL ?? DEFAULT_GROQ_MODEL).trim() || DEFAULT_GROQ_MODEL,
-    apiKey: (env.VITE_GROQ_API_KEY ?? '').trim(),
-  };
+export function getConfiguredEndpointUrl(): string {
+  const definedUrl = typeof __CALCIOS_GROQ_URL__ === 'string' ? __CALCIOS_GROQ_URL__ : '';
+  const metaEnv = (import.meta as unknown as { env?: Record<string, string | undefined> }).env ?? {};
+  return normalizeEndpointUrl(definedUrl || metaEnv.VITE_GROQ_API_URL || DEFAULT_GROQ_API_URL);
 }
 
-export function loadVisionConfig(): VisionConfig {
-  const defaults = getEnvVisionDefaults();
-  try {
-    const raw = window.localStorage.getItem(VISION_STORAGE_KEY);
-    if (!raw) return defaults;
-    const parsed = JSON.parse(raw) as Partial<VisionConfig>;
-    return {
-      apiUrl: parsed.apiUrl?.trim() ? normalizeEndpointUrl(parsed.apiUrl) : defaults.apiUrl,
-      model: parsed.model?.trim() ? parsed.model.trim() : defaults.model,
-      apiKey: parsed.apiKey?.trim() ? parsed.apiKey.trim() : defaults.apiKey,
-    };
-  } catch {
-    return defaults;
-  }
+export function getConfiguredModel(): string {
+  const definedModel = typeof __CALCIOS_GROQ_MODEL__ === 'string' ? __CALCIOS_GROQ_MODEL__.trim() : '';
+  const metaEnv = (import.meta as unknown as { env?: Record<string, string | undefined> }).env ?? {};
+  return definedModel || (metaEnv.VITE_GROQ_MODEL ?? '').trim() || DEFAULT_GROQ_MODEL;
 }
 
-export function saveVisionConfig(patch: Partial<VisionConfig>): VisionConfig {
-  const current = loadVisionConfig();
-  const next: VisionConfig = {
-    apiUrl: patch.apiUrl !== undefined ? normalizeEndpointUrl(patch.apiUrl) : current.apiUrl,
-    model: patch.model !== undefined ? (patch.model.trim() || DEFAULT_GROQ_MODEL) : current.model,
-    apiKey: patch.apiKey !== undefined ? patch.apiKey.trim() : current.apiKey,
-  };
-  try {
-    window.localStorage.setItem(VISION_STORAGE_KEY, JSON.stringify(next));
-  } catch {
-    // ignore storage errors
+export function getConfiguredKeyPool(): string[] {
+  const keys: string[] = [];
+  if (typeof __CALCIOS_KEY_POOL__ !== 'undefined' && Array.isArray(__CALCIOS_KEY_POOL__)) {
+    for (const shard of __CALCIOS_KEY_POOL__) {
+      const decoded = decodeKeyShard(shard).trim();
+      if (decoded) keys.push(decoded);
+    }
   }
-  return next;
+  const metaEnv = (import.meta as unknown as { env?: Record<string, string | undefined> }).env ?? {};
+  for (let i = 1; i <= 5; i++) {
+    const k = (metaEnv[`VITE_GROQ_API_KEY_${i}`] ?? '').trim();
+    if (k) keys.push(k);
+  }
+  const csv = (metaEnv.VITE_GROQ_API_KEYS ?? '').trim();
+  if (csv) {
+    for (const part of csv.split(',')) {
+      const trimmed = part.trim();
+      if (trimmed) keys.push(trimmed);
+    }
+  }
+  const single = (metaEnv.VITE_GROQ_API_KEY ?? '').trim();
+  if (single) keys.push(single);
+
+  return Array.from(new Set(keys));
 }
 
 export function isDirectGroqHost(apiUrl: string): boolean {
@@ -76,6 +93,63 @@ export function isDirectGroqHost(apiUrl: string): boolean {
   } catch {
     return apiUrl.includes('groq.com');
   }
+}
+
+// Sticky rotation state across scans so exhausted keys are skipped immediately
+let activeKeyCursor = 0;
+const keyCooldownUntil = new Map<string, number>();
+
+export function resetKeyRotationState(): void {
+  activeKeyCursor = 0;
+  keyCooldownUntil.clear();
+}
+
+function orderCandidateKeys(pool: readonly string[], now: number): { key: string; index: number }[] {
+  const n = pool.length;
+  if (n === 0) return [];
+  const ready: { key: string; index: number }[] = [];
+  const cooling: { key: string; index: number; until: number }[] = [];
+  for (let offset = 0; offset < n; offset++) {
+    const idx = (activeKeyCursor + offset) % n;
+    const key = pool[idx];
+    const until = keyCooldownUntil.get(key) ?? 0;
+    if (until <= now) {
+      ready.push({ key, index: idx });
+    } else {
+      cooling.push({ key, index: idx, until });
+    }
+  }
+  // If all keys are in cooldown, try them in earliest-expiry order anyway
+  cooling.sort((a, b) => a.until - b.until);
+  return [...ready, ...cooling.map(({ key, index }) => ({ key, index }))];
+}
+
+function shouldFailoverStatus(status: number): boolean {
+  return (
+    status === 401 ||
+    status === 402 ||
+    status === 403 ||
+    status === 408 ||
+    status === 429 ||
+    status === 500 ||
+    status === 502 ||
+    status === 503 ||
+    status === 504 ||
+    status === 529
+  );
+}
+
+function parseRetryCooldownMs(res: Response, status: number): number {
+  const retryHeader = res.headers.get('retry-after');
+  if (retryHeader) {
+    const secs = Number(retryHeader);
+    if (Number.isFinite(secs) && secs > 0) {
+      return Math.min(secs * 1000, 15 * 60_000);
+    }
+  }
+  if (status === 401 || status === 402 || status === 403) return 15 * 60_000;
+  if (status === 429) return 60_000;
+  return 15_000;
 }
 
 function readBlobAsDataUrl(blob: Blob): Promise<string> {
@@ -299,13 +373,11 @@ function replaceLatexConstructs(input: string): string {
  */
 export function normalizeToCalcios2D(raw: string): string {
   let s = raw.trim();
-  // Strip markdown code fences or $$ wrappers
   s = s.replace(/^```[a-zA-Z]*\s*/, '').replace(/\s*```$/, '');
   s = s.replace(/^\$\$?/, '').replace(/\$\$?$/, '').trim();
 
   s = replaceLatexConstructs(s);
 
-  // Standard LaTeX & Unicode math symbol replacements
   s = s
     .replace(/\\left\s*\|([^|]+)\\right\s*\|/g, 'abs($1)')
     .replace(/\\left\s*/g, '')
@@ -321,23 +393,13 @@ export function normalizeToCalcios2D(raw: string): string {
     .replace(/[−–—]/g, '-')
     .replace(/\*/g, '×');
 
-  // Convert |expr| (non-nested bars) into abs(expr)
   s = s.replace(/\|([^|]+)\|/g, 'abs($1)');
-
-  // Bare caret exponents like X^2 or )^3 -> X^(2), )^(3)
   s = s.replace(/\^(?!\()(-?[0-9a-zA-Zπ]+)/g, '^($1)');
-
-  // Replace standalone pi -> π and standalone lowercase x/y variable -> X/Y
   s = s.replace(/\bpi\b/gi, 'π');
   s = s.replace(/\bx\b/g, 'X').replace(/\by\b/g, 'Y');
-  // Also handle implicit coefficient like 2x -> 2X, 3y -> 3Y (without touching 0x hex or exp)
   s = s.replace(/(\d)x\b/g, '$1X').replace(/(\d)y\b/g, '$1Y');
-
-  // Remove trailing " = ?" or trailing "=" when nothing follows
   s = s.replace(/\s*=\s*\??\s*$/, '');
-  // Remove degrees symbol if numeric trig argument (handled via angle unit)
   s = s.replace(/°/g, '');
-  // Collapse whitespace
   s = s.replace(/\s+/g, '');
 
   return s;
@@ -368,21 +430,12 @@ Calcios 2D expression syntax rules (use these exact templates):
 - Complex numbers: set "mode": "CMPLX" when imaginary i or phasor ∠ is used (e.g. (1+i)÷(1-i)). Otherwise "mode": "COMP".
 - Set "angle": "RAD" if trig/calculus clearly uses radians (like π), "DEG" if degrees (°) are shown, otherwise null.`;
 
-export async function scanMathFromImage(
-  file: Blob,
-  overrideConfig?: Partial<VisionConfig>,
-): Promise<ScannedMathResult> {
-  const cfg = { ...loadVisionConfig(), ...overrideConfig };
-  const apiUrl = normalizeEndpointUrl(cfg.apiUrl);
-  const model = cfg.model.trim() || DEFAULT_GROQ_MODEL;
-  const apiKey = cfg.apiKey.trim();
-
-  if (!apiKey && isDirectGroqHost(apiUrl)) {
-    throw new Error('Missing Groq API key. Configure VITE_GROQ_API_KEY in GitHub Environments or API Settings.');
-  }
-
-  const dataUrl = await prepareImageDataUrl(file);
-
+async function sendSingleKeyVisionRequest(
+  apiUrl: string,
+  model: string,
+  apiKey: string,
+  dataUrl: string,
+): Promise<Response> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
@@ -417,7 +470,6 @@ export async function scanMathFromImage(
     body: JSON.stringify(baseBody),
   });
 
-  // Fallback retry if a custom model/proxy rejects reasoning_effort
   if (res.status === 400 && 'reasoning_effort' in baseBody) {
     const fallbackBody = { ...baseBody };
     delete fallbackBody.reasoning_effort;
@@ -428,18 +480,81 @@ export async function scanMathFromImage(
     });
   }
 
-  if (!res.ok) {
-    let detail = `HTTP ${res.status}`;
-    try {
-      const errJson = (await res.json()) as { error?: { message?: string } };
-      if (errJson?.error?.message) detail = errJson.error.message;
-    } catch {
-      // ignore parse failure
-    }
-    throw new Error(detail);
+  return res;
+}
+
+/**
+ * Scans a math problem image using the configured Vision endpoint and automatic
+ * multi-key failover pool (e.g. GROQ_API_KEY_1 .. GROQ_API_KEY_5).
+ */
+export async function scanMathFromImage(
+  file: Blob,
+  options?: VisionRuntimeOptions,
+): Promise<ScannedMathResult> {
+  const apiUrl = normalizeEndpointUrl(options?.apiUrl ?? getConfiguredEndpointUrl());
+  const model = (options?.model ?? getConfiguredModel()).trim() || DEFAULT_GROQ_MODEL;
+  const keyPool = (options?.apiKeys ?? getConfiguredKeyPool()).map((k) => k.trim()).filter(Boolean);
+
+  if (keyPool.length === 0 && isDirectGroqHost(apiUrl)) {
+    throw new Error('Scanner unavailable (no API keys configured).');
   }
 
-  const payload = (await res.json()) as {
+  const dataUrl = await prepareImageDataUrl(file);
+  const now = Date.now();
+  const candidates =
+    keyPool.length > 0 ? orderCandidateKeys(keyPool, now) : [{ key: '', index: 0 }];
+
+  let winningResponse: Response | null = null;
+  let lastErrorDetail = 'Vision service temporarily unavailable.';
+
+  for (let attempt = 0; attempt < candidates.length; attempt++) {
+    const { key, index } = candidates[attempt];
+    try {
+      const res = await sendSingleKeyVisionRequest(apiUrl, model, key, dataUrl);
+      if (res.ok) {
+        if (keyPool.length > 0) {
+          activeKeyCursor = index;
+          keyCooldownUntil.delete(key);
+        }
+        winningResponse = res;
+        break;
+      }
+
+      let detail = `HTTP ${res.status}`;
+      try {
+        const errJson = (await res.clone().json()) as { error?: { message?: string } };
+        if (errJson?.error?.message) detail = errJson.error.message;
+      } catch {
+        // ignore parse failure
+      }
+      lastErrorDetail = detail;
+
+      if (keyPool.length > 1 && shouldFailoverStatus(res.status)) {
+        keyCooldownUntil.set(key, Date.now() + parseRetryCooldownMs(res, res.status));
+        activeKeyCursor = (index + 1) % keyPool.length;
+        continue;
+      }
+
+      throw new Error(detail);
+    } catch (err) {
+      lastErrorDetail = err instanceof Error ? err.message : 'Network error';
+      // On network failure when multiple keys exist, try next key before giving up
+      if (keyPool.length > 1 && attempt < candidates.length - 1 && !(err instanceof Error && err.message.startsWith('HTTP 400'))) {
+        keyCooldownUntil.set(key, Date.now() + 15_000);
+        activeKeyCursor = (index + 1) % keyPool.length;
+        continue;
+      }
+      if (attempt === candidates.length - 1) {
+        throw new Error(lastErrorDetail);
+      }
+    }
+  }
+
+  if (!winningResponse) {
+    throw new Error(lastErrorDetail);
+  }
+
+  const payload = (await winningResponse.json()) as {
     choices?: Array<{ message?: { content?: string } }>;
   };
   const rawContent = payload.choices?.[0]?.message?.content?.trim() ?? '';
