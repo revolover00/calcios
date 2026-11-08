@@ -229,9 +229,9 @@ function readSubOrSupBound(s: string, idx: number): { content: string; nextIdx: 
   let i = idx;
   while (i < s.length && /\s/.test(s[i])) i++;
   if (s[i] === '{') return extractBraceGroup(s, i);
-  const m = s.slice(i).match(/^([^\s^_\\]+)/);
+  const m = s.slice(i).match(/^(?:\\[a-zA-Z]+|-?[0-9]+(?:\.[0-9]+)?|[a-zA-Zπ](?:=[0-9a-zA-Z+-]+)?)/);
   if (!m) return null;
-  return { content: m[1], nextIdx: i + m[1].length };
+  return { content: m[0], nextIdx: i + m[0].length };
 }
 
 function replaceLatexConstructs(input: string): string {
@@ -263,10 +263,11 @@ function replaceLatexConstructs(input: string): string {
       }
     }
 
-    // \sum_{x=low}^{high} body
-    const sumMatch = s.match(/\\sum\s*_/);
-    if (sumMatch && sumMatch.index !== undefined) {
-      const uIdx = s.indexOf('_', sumMatch.index);
+    // \sum_{x=low}^{high} body  OR  \prod_{x=low}^{high} body
+    const sumProdMatch = s.match(/\\(sum|prod)\s*_/);
+    if (sumProdMatch && sumProdMatch.index !== undefined) {
+      const fnName = sumProdMatch[1] === 'prod' ? 'prod' : 'sigma';
+      const uIdx = s.indexOf('_', sumProdMatch.index);
       const lowRaw = readSubOrSupBound(s, uIdx + 1);
       if (lowRaw) {
         let j = lowRaw.nextIdx;
@@ -275,11 +276,60 @@ function replaceLatexConstructs(input: string): string {
           const high = readSubOrSupBound(s, j + 1);
           if (high) {
             const lowClean = lowRaw.content.replace(/^[a-zA-Z]\s*=\s*/, '').trim();
-            const body = s.slice(high.nextIdx).trim();
-            s = `${s.slice(0, sumMatch.index)}sigma(${body},${lowClean},${high.content.trim()})`;
-            changed = true;
-            continue;
+            let k = high.nextIdx;
+            while (k < s.length && /\s/.test(s[k])) k++;
+            let body = '';
+            let restIdx = s.length;
+            if (s[k] === '{') {
+              const gb = extractBraceGroup(s, k);
+              if (gb) {
+                body = gb.content.trim();
+                restIdx = gb.nextIdx;
+              }
+            }
+            if (!body) {
+              // Scan single summand/factor term up to top-level binary + / - / =
+              let depth = 0;
+              let idx = k;
+              for (; idx < s.length; idx++) {
+                const ch = s[idx];
+                if (ch === '(' || ch === '{' || ch === '[') depth++;
+                else if (ch === ')' || ch === '}' || ch === ']') {
+                  if (depth === 0) break;
+                  depth--;
+                } else if (depth === 0 && idx > k && (ch === '+' || ch === '-' || ch === '=')) {
+                  const prevNonSpace = s.slice(k, idx).trimEnd().slice(-1);
+                  if (prevNonSpace && !'+-×*/^_('.includes(prevNonSpace)) break;
+                }
+              }
+              body = s.slice(k, idx).trim();
+              restIdx = idx;
+            }
+            if (body) {
+              s = `${s.slice(0, sumProdMatch.index)}${fnName}(${body},${lowClean},${high.content.trim()})${s.slice(restIdx)}`;
+              changed = true;
+              continue;
+            }
           }
+        }
+      }
+    }
+
+    // \binom{n}{r} -> (n)nCr(r)
+    const binomMatch = s.match(/\\binom\s*\{/);
+    if (binomMatch && binomMatch.index !== undefined) {
+      const b1 = s.indexOf('{', binomMatch.index);
+      const g1 = extractBraceGroup(s, b1);
+      if (g1) {
+        let j = g1.nextIdx;
+        while (j < s.length && /\s/.test(s[j])) j++;
+        const g2 = extractBraceGroup(s, j);
+        if (g2) {
+          const nPart = /^[0-9a-zA-Z]+$/.test(g1.content.trim()) ? g1.content.trim() : `(${g1.content.trim()})`;
+          const rPart = /^[0-9a-zA-Z]+$/.test(g2.content.trim()) ? g2.content.trim() : `(${g2.content.trim()})`;
+          s = `${s.slice(0, binomMatch.index)}${nPart}nCr${rPart}${s.slice(g2.nextIdx)}`;
+          changed = true;
+          continue;
         }
       }
     }
@@ -327,25 +377,32 @@ function replaceLatexConstructs(input: string): string {
       }
     }
 
-    // \log_{b}{x} or \log_{b}(x)
-    const logbBrace = s.match(/\\log\s*_\s*\{/);
-    if (logbBrace && logbBrace.index !== undefined) {
-      const bIdx = s.indexOf('{', logbBrace.index);
-      const gb = extractBraceGroup(s, bIdx);
+    // \log_{b}{x}, \log_{b}(x), \log_2(8), \log_2 8
+    const logbSub = s.match(/\\log\s*_/);
+    if (logbSub && logbSub.index !== undefined) {
+      const uIdx = s.indexOf('_', logbSub.index);
+      const gb = readSubOrSupBound(s, uIdx + 1);
       if (gb) {
         let j = gb.nextIdx;
         while (j < s.length && /\s/.test(s[j])) j++;
         if (s[j] === '{') {
           const gx = extractBraceGroup(s, j);
           if (gx) {
-            s = `${s.slice(0, logbBrace.index)}logb(${gb.content},${gx.content})${s.slice(gx.nextIdx)}`;
+            s = `${s.slice(0, logbSub.index)}logb(${gb.content.trim()},${gx.content})${s.slice(gx.nextIdx)}`;
             changed = true;
             continue;
           }
         } else if (s[j] === '(') {
-          s = `${s.slice(0, logbBrace.index)}logb(${gb.content},${s.slice(j + 1)}`;
+          s = `${s.slice(0, logbSub.index)}logb(${gb.content.trim()},${s.slice(j + 1)}`;
           changed = true;
           continue;
+        } else {
+          const argMatch = s.slice(j).match(/^([0-9a-zA-Zπ.]+)/);
+          if (argMatch) {
+            s = `${s.slice(0, logbSub.index)}logb(${gb.content.trim()},${argMatch[1]})${s.slice(j + argMatch[1].length)}`;
+            changed = true;
+            continue;
+          }
         }
       }
     }
@@ -393,13 +450,20 @@ export function normalizeToCalcios2D(raw: string): string {
     .replace(/[−–—]/g, '-')
     .replace(/\*/g, '×');
 
+  // Preserve sexagesimal DMS (e.g. 12°30'45" or 12°30′) as 12°30°45° while stripping standalone degree sign in sin(30°)
+  s = s.replace(
+    /(\d+)\s*°\s*(\d+)\s*(?:['′’]|°)(?:\s*(\d+(?:\.\d+)?)\s*(?:["″”]|''|°))?/g,
+    (_m, deg: string, min: string, sec?: string) =>
+      sec !== undefined ? `${deg}\uE000${min}\uE000${sec}\uE000` : `${deg}\uE000${min}\uE000`,
+  );
+
   s = s.replace(/\|([^|]+)\|/g, 'abs($1)');
   s = s.replace(/\^(?!\()(-?[0-9a-zA-Zπ]+)/g, '^($1)');
   s = s.replace(/\bpi\b/gi, 'π');
   s = s.replace(/\bx\b/g, 'X').replace(/\by\b/g, 'Y');
   s = s.replace(/(\d)x\b/g, '$1X').replace(/(\d)y\b/g, '$1Y');
   s = s.replace(/\s*=\s*\??\s*$/, '');
-  s = s.replace(/°/g, '');
+  s = s.replace(/°/g, '').replace(/\uE000/g, '°');
   s = s.replace(/\s+/g, '');
 
   return s;
@@ -509,45 +573,45 @@ export async function scanMathFromImage(
 
   for (let attempt = 0; attempt < candidates.length; attempt++) {
     const { key, index } = candidates[attempt];
+    let res: Response;
     try {
-      const res = await sendSingleKeyVisionRequest(apiUrl, model, key, dataUrl);
-      if (res.ok) {
-        if (keyPool.length > 0) {
-          activeKeyCursor = index;
-          keyCooldownUntil.delete(key);
-        }
-        winningResponse = res;
-        break;
-      }
-
-      let detail = `HTTP ${res.status}`;
-      try {
-        const errJson = (await res.clone().json()) as { error?: { message?: string } };
-        if (errJson?.error?.message) detail = errJson.error.message;
-      } catch {
-        // ignore parse failure
-      }
-      lastErrorDetail = detail;
-
-      if (keyPool.length > 1 && shouldFailoverStatus(res.status)) {
-        keyCooldownUntil.set(key, Date.now() + parseRetryCooldownMs(res, res.status));
-        activeKeyCursor = (index + 1) % keyPool.length;
-        continue;
-      }
-
-      throw new Error(detail);
+      res = await sendSingleKeyVisionRequest(apiUrl, model, key, dataUrl);
     } catch (err) {
       lastErrorDetail = err instanceof Error ? err.message : 'Network error';
-      // On network failure when multiple keys exist, try next key before giving up
-      if (keyPool.length > 1 && attempt < candidates.length - 1 && !(err instanceof Error && err.message.startsWith('HTTP 400'))) {
+      if (keyPool.length > 1 && attempt < candidates.length - 1) {
         keyCooldownUntil.set(key, Date.now() + 15_000);
         activeKeyCursor = (index + 1) % keyPool.length;
         continue;
       }
-      if (attempt === candidates.length - 1) {
-        throw new Error(lastErrorDetail);
-      }
+      throw new Error(lastErrorDetail);
     }
+
+    if (res.ok) {
+      if (keyPool.length > 0) {
+        activeKeyCursor = index;
+        keyCooldownUntil.delete(key);
+      }
+      winningResponse = res;
+      break;
+    }
+
+    let detail = `HTTP ${res.status}`;
+    try {
+      const errJson = (await res.clone().json()) as { error?: { message?: string } };
+      if (errJson?.error?.message) detail = errJson.error.message;
+    } catch {
+      // ignore parse failure
+    }
+    lastErrorDetail = detail;
+
+    if (keyPool.length > 1 && shouldFailoverStatus(res.status)) {
+      keyCooldownUntil.set(key, Date.now() + parseRetryCooldownMs(res, res.status));
+      activeKeyCursor = (index + 1) % keyPool.length;
+      continue;
+    }
+
+    // Non-failover HTTP status (e.g. 400 invalid image): fail immediately without poisoning healthy API keys
+    throw new Error(detail);
   }
 
   if (!winningResponse) {
