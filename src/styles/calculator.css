@@ -93,33 +93,35 @@ button {
 
 .casio-model {
   font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
-  font-weight: 600;
-  font-size: 0.9rem;
+  font-style: italic;
+  font-weight: 700;
+  font-size: 0.92rem;
   letter-spacing: 0.02em;
   color: #e4e8ec;
 }
 
-.casio-sub-row {
+.casio-vpam-row {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   margin-top: 3px;
-  min-height: 18px;
 }
 
 .casio-vpam {
-  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-family: 'Times New Roman', Georgia, serif;
   font-style: italic;
-  font-weight: 800;
-  font-size: 0.76rem;
+  font-weight: 700;
+  font-size: 0.78rem;
   letter-spacing: 0.06em;
-  color: #bedcd4;
+  color: #9ea99a;
 }
 
-.casio-edition-group {
-  display: inline-flex;
+.casio-edition-row {
+  display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 6px;
+  margin-top: 2px;
+  min-height: 16px;
 }
 
 .casio-edition {
@@ -222,12 +224,11 @@ button {
 .lcd-status {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
   font-size: 0.56rem;
   font-weight: 800;
   letter-spacing: 0.01em;
-  padding-bottom: 3px;
-  border-bottom: 1px solid rgba(19, 28, 31, 0.11);
+  padding-bottom: 2px;
   flex-shrink: 0;
 }
 
@@ -236,8 +237,8 @@ button {
 }
 
 .ind {
-  opacity: 0.14;
-  transition: opacity 0.08s ease;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .ind.on {
@@ -248,8 +249,8 @@ button {
   background: var(--lcd-ink);
   color: var(--lcd-bg-top);
   padding: 0 2.5px;
-  border-radius: 1.5px;
-  line-height: 1.1;
+  border-radius: 1px;
+  line-height: 1.15;
 }
 
 .ind-spacer {
@@ -390,9 +391,23 @@ button {
 
 .math-box-placeholder {
   display: inline-block;
-  font-size: 0.85em;
-  opacity: 0.62;
+  font-size: 0.86em;
+  line-height: 1;
+  opacity: 0.88;
   padding: 0 1px;
+}
+
+.math-box-active {
+  display: inline-block;
+  font-size: 0.86em;
+  line-height: 1;
+  color: var(--lcd-ink);
+  padding: 0 1px;
+  animation: lcd-blink 1s steps(1, end) infinite;
+}
+
+.math-box-overwrite {
+  text-decoration: underline;
 }
 
 .math-frac {
@@ -740,31 +755,41 @@ button {
 }
 
 /* ==========================================================================
-   Upper Deck: Metallic Round Keys + Sculpted 4-Way Replay Pad
+   Upper Deck: Individual Metallic Round Wells + Sculpted 4-Way Replay Pad
    ========================================================================== */
 .casio-upper-deck {
   position: relative;
   display: grid;
-  grid-template-columns: 1fr 104px 1fr;
+  grid-template-columns: 1fr 108px 1fr;
   align-items: start;
-  margin-top: 12px;
-  margin-bottom: 2px;
+  margin-top: 10px;
+  margin-bottom: 4px;
 }
 
-.casio-round-pair-wrap {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.casio-round-labels {
+.casio-round-pair {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  text-align: center;
+  gap: 6px;
+  align-items: start;
+}
+
+.casio-round-unit {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+
+.casio-round-unit.unit-inner {
+  margin-top: 5px;
+}
+
+.round-lbl {
   font-family: system-ui, -apple-system, sans-serif;
-  font-size: 0.64rem;
+  font-size: 0.62rem;
   font-weight: 800;
   letter-spacing: 0.03em;
+  line-height: 1;
 }
 
 .round-lbl-shift,
@@ -789,39 +814,42 @@ button {
   display: inline-flex;
   justify-content: center;
   gap: 3px;
-  font-size: 0.58rem;
+  font-size: 0.56rem;
+  line-height: 1;
+  white-space: nowrap;
 }
 
-.casio-pill-groove {
+.casio-round-well {
+  width: 35px;
+  height: 35px;
+  border-radius: 50%;
   display: flex;
   align-items: center;
-  justify-content: space-around;
-  padding: 5px 7px;
-  border-radius: 999px;
-  background: linear-gradient(180deg, #0f1113 0%, #1c1f23 100%);
+  justify-content: center;
+  background: radial-gradient(circle at 50% 35%, #0c0e11 0%, #191c20 100%);
   box-shadow:
-    inset 0 2px 5px rgba(0, 0, 0, 0.9),
-    0 1px 0 rgba(255, 255, 255, 0.07);
+    inset 0 2.5px 5px rgba(0, 0, 0, 0.92),
+    0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 .casio-metal-btn {
-  width: 27px;
-  height: 27px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
-  border: 1px solid #101214;
+  border: 1px solid #0f1114;
   background: conic-gradient(
-    from 30deg,
-    #25282c 0deg,
-    #5d636a 45deg,
-    #202327 95deg,
-    #555b62 180deg,
-    #1f2226 260deg,
-    #5b6168 315deg,
-    #25282c 360deg
+    from 25deg,
+    #2d3136 0deg,
+    #777e87 42deg,
+    #25292d 95deg,
+    #6d747d 180deg,
+    #23272b 262deg,
+    #737a83 318deg,
+    #2d3136 360deg
   );
   box-shadow:
-    0 2.5px 3px rgba(0, 0, 0, 0.85),
-    inset 0 1px 1px rgba(255, 255, 255, 0.28);
+    0 2.5px 3px rgba(0, 0, 0, 0.88),
+    inset 0 1px 1.5px rgba(255, 255, 255, 0.34);
   transition: transform 0.07s ease;
 }
 
@@ -830,7 +858,7 @@ button {
   transform: translateY(1.5px);
   box-shadow:
     0 1px 1px rgba(0, 0, 0, 0.9),
-    0 0 0 2px rgba(224, 183, 102, 0.45);
+    0 0 0 2px rgba(224, 183, 102, 0.48);
 }
 
 /* Central Sculpted 4-Way D-Pad */
@@ -838,44 +866,57 @@ button {
   display: flex;
   justify-content: center;
   z-index: 3;
-  margin-top: 6px;
-  margin-bottom: -36px;
+  margin-top: 8px;
+  margin-bottom: -38px;
 }
 
 .casio-dpad-ring {
   position: relative;
-  width: 96px;
-  height: 82px;
-  border-radius: 48px;
+  width: 100px;
+  height: 84px;
+  border-radius: 44px;
   background:
-    repeating-linear-gradient(45deg, #16181b 0 2px, #202328 2px 4px),
-    radial-gradient(circle, #1d2024 0%, #101215 100%);
-  border: 2px solid #0d0f12;
+    repeating-linear-gradient(45deg, rgba(12, 14, 17, 0.7) 0 2px, rgba(35, 39, 45, 0.7) 2px 4px),
+    repeating-linear-gradient(-45deg, rgba(12, 14, 17, 0.7) 0 2px, rgba(35, 39, 45, 0.7) 2px 4px),
+    radial-gradient(circle, #1e2227 0%, #0f1114 100%);
+  border: 2px solid #0b0d10;
   box-shadow:
-    0 5px 10px rgba(0, 0, 0, 0.72),
-    inset 0 1px 2px rgba(255, 255, 255, 0.12);
+    0 5px 11px rgba(0, 0, 0, 0.78),
+    inset 0 2px 4px rgba(0, 0, 0, 0.82),
+    0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 .dpad-center-knurl {
   position: absolute;
-  inset: 24px 30px;
+  inset: 26px 32px;
   border-radius: 50%;
-  background: repeating-conic-gradient(#17191d 0% 12.5%, #23272c 12.5% 25%);
-  opacity: 0.65;
+  background:
+    repeating-linear-gradient(45deg, #14171b 0 2px, #242930 2px 4px),
+    repeating-linear-gradient(-45deg, #14171b 0 2px, #242930 2px 4px);
+  opacity: 0.75;
   pointer-events: none;
 }
 
 .dpad-lobe {
   position: absolute;
-  border: 1px solid #0f1114;
-  background: conic-gradient(from 0deg, #24282c, #52585f, #1f2226, #50565d, #24282c);
-  color: rgba(236, 240, 244, 0.72);
+  border: 1px solid #0e1013;
+  background: conic-gradient(
+    from 15deg,
+    #2c3035 0deg,
+    #6e757e 45deg,
+    #23272b 95deg,
+    #686f78 180deg,
+    #22262a 265deg,
+    #6c737c 320deg,
+    #2c3035 360deg
+  );
+  color: rgba(240, 244, 248, 0.82);
   display: flex;
   align-items: center;
   justify-content: center;
   box-shadow:
-    0 2px 3px rgba(0, 0, 0, 0.8),
-    inset 0 1px 1px rgba(255, 255, 255, 0.24);
+    0 2.5px 3.5px rgba(0, 0, 0, 0.85),
+    inset 0 1px 1px rgba(255, 255, 255, 0.3);
   padding: 0;
   transition: transform 0.06s ease;
 }
@@ -1140,29 +1181,30 @@ button {
 .key-glyph-integ {
   display: inline-flex;
   align-items: center;
-  gap: 1.5px;
+  gap: 1px;
 }
 
 .glyph-int-sym {
-  font-size: 1.02rem;
-  font-weight: 500;
+  font-size: 1.04rem;
+  font-weight: 600;
   line-height: 1;
 }
 
-.glyph-int-boxes {
+.glyph-int-limits {
   display: inline-flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
+  margin-right: 1px;
 }
 
-.glyph-box-xs {
-  width: 4.5px !important;
-  height: 4.5px !important;
+.glyph-box-2xs {
+  width: 3.5px !important;
+  height: 3.5px !important;
 }
 
 .key-glyph-dms {
-  font-size: 0.78rem;
-  letter-spacing: -0.04em;
+  font-size: 0.82rem;
+  letter-spacing: -0.02em;
   font-weight: 700;
 }
 

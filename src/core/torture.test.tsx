@@ -574,5 +574,72 @@ describe('Comprehensive Multi-Difficulty Audit (Easy -> Medium -> Hard -> Extrem
       expect(sCleared.ioMode).toBe('Math');
       expect(formatDecimal(deserialize(sCleared.variables.M))).toBe('0');
     });
+
+    it('[Casio Hardware Fidelity] enforces wrap-around, visual L-to-R ∫/∑/∏ traversal, active ■ box, atomic 10^/e^, RCL immediate display & auto-DMS', () => {
+      // 1) Expression wrap-around at 0 (◀ -> end) and length (▶ -> 0)
+      const sWrapRight = press('1', 'add', '2', 'right');
+      expect(sWrapRight.cursor).toBe(0);
+      const sWrapLeft = pressFrom(sWrapRight, 'left');
+      expect(sWrapLeft.cursor).toBe(sWrapLeft.expression.length);
+
+      // 2) Active empty slot renders solid blinking '■' (`data-testid="lcd-caret"`), unfocused renders '□'
+      const sEmptyFrac = press('frac');
+      const view = render(<NaturalExpression expression={sEmptyFrac.expression} cursor={sEmptyFrac.cursor} />);
+      const caretEl = view.getByTestId('lcd-caret');
+      expect(caretEl.textContent).toBe('■');
+      expect(view.container.querySelectorAll('.math-box-placeholder').length).toBe(1);
+      view.unmount();
+
+      // 3) Visual L-to-R traversal on filled integral `integ(X,0,2)`
+      // Standing right after `integ(X,0,2)|`: ◀ enters body end (`X|`), NOT upper limit!
+      const sInt = press('integ', 'alpha', 'close', 'down', '0', 'up', '2', 'right');
+      expect(sInt.expression).toBe('integ(X,0,2)');
+      expect(sInt.cursor).toBe(sInt.expression.length);
+      const sStep1 = pressFrom(sInt, 'left'); // -> 'integ(X|,0,2)'
+      expect(sStep1.cursor).toBe(7);
+      const sStep2 = pressFrom(sStep1, 'left'); // -> 'integ(|X,0,2)'
+      expect(sStep2.cursor).toBe(6);
+      const sStep3 = pressFrom(sStep2, 'left'); // -> 'integ(X,0,2|)' (upper.end)
+      expect(sStep3.cursor).toBe(11);
+      const sStep4 = pressFrom(sStep3, 'left', 'left'); // -> 'integ(X,0|,2)' (lower.end)
+      expect(sStep4.cursor).toBe(9);
+      const sStep5 = pressFrom(sStep4, 'left', 'left'); // -> '|integ(X,0,2)' (nodeStart = 0)
+      expect(sStep5.cursor).toBe(0);
+      // Forward ▶ from '|integ(X,0,2)' enters lower.start ('|0') first!
+      const sFwd1 = pressFrom(sStep5, 'right');
+      expect(sFwd1.cursor).toBe(8);
+
+      // 4) Atomic 10^(■) and e^(■): ◀ from empty exponent steps before '10', DEL deletes whole '10^()'
+      const sPow10 = press('shift', 'log');
+      expect(sPow10.expression).toBe('10^()');
+      expect(pressFrom(sPow10, 'left').cursor).toBe(0);
+      expect(pressFrom(sPow10, 'del').expression).toBe('');
+
+      // 5) Centered proportional ▲/▼ inside 2D fraction: middle of '1234' ('12|34') -> ▼ -> middle of '56' ('5|6')
+      const sMidFrac = press('frac', '1', '2', '3', '4', 'down', '5', '6', 'up', 'left', 'left', 'down');
+      expect(sMidFrac.expression).toBe('frac(1234,56)');
+      expect(sMidFrac.cursor).toBe(11); // right between '5' and '6'
+
+      // 6) RCL <Var> on fresh screen immediately displays recalled value in result phase without pressing '='
+      const sRclNow = press('7', 'frac', '2', 'shift', 'rcl', 'neg', 'ac', 'rcl', 'neg');
+      expect(sRclNow.phase).toBe('result');
+      expect(dec(sRclNow)).toBe('3.5');
+
+      // 7) Sexagesimal arithmetic (`12°30° + 0°45° =`) auto-displays in DMS (`13°15’0”`) and toggles via S⇔D
+      const sDms = press('1', '2', 'dms', '3', '0', 'dms', 'add', '0', 'dms', '4', '5', 'dms', 'equals');
+      expect(formatActiveResult(sDms)).toEqual({ type: 'text', text: '13°15’0”' });
+      const sDmsToggle = pressFrom(sDms, 'sd');
+      expect(dec(sDmsToggle)).toBe('13.25');
+
+      // 8) Pressing ON or MODE inside sub-menus (e.g. eqn-menu) never strands EQN with null state
+      const sEqnMenu = press('mode', '5');
+      expect(sEqnMenu.screen).toBe('eqn-menu');
+      const sBackMode = pressFrom(sEqnMenu, 'mode', 'mode');
+      expect(sBackMode.screen).toBe('normal');
+      expect(sBackMode.mode).toBe('COMP');
+      const sOnFromMenu = pressFrom(sEqnMenu, 'on');
+      expect(sOnFromMenu.screen).toBe('normal');
+      expect(sOnFromMenu.mode).toBe('COMP');
+    });
   });
 });

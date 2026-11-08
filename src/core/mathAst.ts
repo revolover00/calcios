@@ -74,6 +74,8 @@ const TEMPLATE_SPECS: ReadonlyArray<{ prefix: string; kind: TemplateKind; arity:
   { prefix: 'root(', kind: 'root', arity: 2 },
   { prefix: 'logb(', kind: 'logb', arity: 2 },
   { prefix: 'abs(', kind: 'abs', arity: 1 },
+  { prefix: '10^(', kind: 'pow', arity: 1 },
+  { prefix: 'e^(', kind: 'pow', arity: 1 },
   { prefix: '^(', kind: 'pow', arity: 1 },
   { prefix: 'r(', kind: 'recur', arity: 1 },
 ];
@@ -86,12 +88,16 @@ export function parseTemplatesInRange(source: string, start: number, end: number
     let matched = false;
     for (const spec of TEMPLATE_SPECS) {
       if (rest.startsWith(spec.prefix)) {
-        // Ensure 'r(' is not the tail of another identifier like 'xor(' or 'or('
-        if (spec.kind === 'recur' && pos > start && /[a-zA-Z]/.test(source[pos - 1])) {
+        // Ensure 'r(' or 'e^(' is not the tail of another identifier
+        if ((spec.kind === 'recur' || spec.prefix === 'e^(') && pos > start && /[a-zA-Z]/.test(source[pos - 1])) {
+          continue;
+        }
+        // Ensure '10^(' is not the tail of a multi-digit number like '210^('
+        if (spec.prefix === '10^(' && pos > start && /[0-9.]/.test(source[pos - 1])) {
           continue;
         }
         // Treat '^(-1)' as the atomic postfix reciprocal '⁻¹' rather than an editable box
-        if (spec.kind === 'pow' && rest.startsWith('^(-1)')) {
+        if (spec.prefix === '^(' && rest.startsWith('^(-1)')) {
           continue;
         }
         const openIdx = pos + spec.prefix.length - 1;
@@ -245,11 +251,11 @@ export function moveCursorHorizontal(
   const cursor = normalizeMathCursor(source, rawCursor, lineMode);
   if (lineMode) {
     if (dir === 1) {
-      if (cursor >= source.length) return source.length;
+      if (cursor >= source.length) return 0;
       const hit = atomicSpans.find(([s, e]) => cursor >= s && cursor < e);
       return hit ? hit[1] : cursor + 1;
     }
-    if (cursor <= 0) return 0;
+    if (cursor <= 0) return source.length;
     const hit = atomicSpans.find(([s, e]) => cursor > s && cursor <= e);
     return hit ? hit[0] : cursor - 1;
   }
@@ -258,17 +264,38 @@ export function moveCursorHorizontal(
   const chain = enclosingSlotChain(all, cursor);
 
   if (dir === 1) {
-    // 1) Standing right at the start of a 2D template -> enter its first slot!
+    // 1) Standing right at the start of a 2D template -> enter its visually leftmost slot!
     const startingHere = all
       .filter((t) => t.nodeStart === cursor)
       .sort((a, b) => (b.nodeEnd - b.nodeStart) - (a.nodeEnd - a.nodeStart))[0];
     if (startingHere) {
+      if (
+        startingHere.kind === 'integ' ||
+        startingHere.kind === 'sigma' ||
+        startingHere.kind === 'prod'
+      ) {
+        const [, low, high] = startingHere.slots;
+        if (low.start < low.end || high.start < high.end) {
+          return low.start;
+        }
+      }
       return startingHere.slots[0].start;
     }
 
     // 2) Standing at the right end of an enclosing slot -> jump to next slot or exit template!
     for (const { node, slotIndex } of chain) {
       if (cursor === node.slots[slotIndex].end) {
+        if (node.kind === 'integ' || node.kind === 'sigma' || node.kind === 'prod') {
+          const [body, low, high] = node.slots;
+          if (slotIndex === 0) {
+            // From body: jump to lower/upper if still empty (initial entry), otherwise exit right after dx!
+            if (low.start === low.end) return low.start;
+            if (high.start === high.end) return high.start;
+            return node.nodeEnd;
+          }
+          if (slotIndex === 1) return high.start;
+          if (slotIndex === 2) return body.start === body.end ? body.start : node.nodeEnd;
+        }
         if (slotIndex + 1 < node.slots.length) {
           return node.slots[slotIndex + 1].start;
         }
@@ -276,7 +303,8 @@ export function moveCursorHorizontal(
       }
     }
 
-    if (cursor >= source.length) return source.length;
+    // Wrap around from rightmost end of expression to start (0) like real Casio hardware!
+    if (cursor >= source.length) return 0;
 
     // 3) Step over atomic 1D token (e.g. 'sin(', 'Ans', '^2', '^3', '^(-1)', '⏨')
     const hit = atomicSpans.find(([s, e]) => cursor >= s && cursor < e);
@@ -285,26 +313,39 @@ export function moveCursorHorizontal(
   }
 
   // dir === -1 (Left)
-  // 1) Standing right after a 2D template -> enter the end of its last slot!
+  // 1) Standing right after a 2D template -> enter the end of its visually rightmost slot!
   const endingHere = all
     .filter((t) => t.nodeEnd === cursor)
     .sort((a, b) => (b.nodeEnd - b.nodeStart) - (a.nodeEnd - a.nodeStart))[0];
   if (endingHere) {
+    if (
+      endingHere.kind === 'integ' ||
+      endingHere.kind === 'sigma' ||
+      endingHere.kind === 'prod'
+    ) {
+      return endingHere.slots[0].end; // body is visually rightmost!
+    }
     return endingHere.slots[endingHere.slots.length - 1].end;
   }
 
-  // 2) Standing at the left start of an enclosing slot -> jump to previous slot or before template!
+  // 2) Standing at the left start of an enclosing slot -> jump to previous visual slot or before template!
   for (const { node, slotIndex } of chain) {
     if (cursor === node.slots[slotIndex].start) {
+      if (node.kind === 'integ' || node.kind === 'sigma' || node.kind === 'prod') {
+        const [, low, high] = node.slots;
+        if (slotIndex === 0) return high.end;
+        if (slotIndex === 2) return low.end;
+        return node.nodeStart;
+      }
       if (slotIndex > 0) {
         return node.slots[slotIndex - 1].end;
       }
-      // For '10^(' or 'e^(', nodeStart is '^'; stepping left from slot[0].start puts cursor right before '^' (or before '10^' if desired)
       return node.nodeStart;
     }
   }
 
-  if (cursor <= 0) return 0;
+  // Wrap around from leftmost start (0) to end (source.length) like real Casio hardware!
+  if (cursor <= 0) return source.length;
 
   // 3) Step backward over atomic 1D token
   const hit = atomicSpans.find(([s, e]) => cursor > s && cursor <= e);
@@ -327,32 +368,86 @@ export function moveCursorVertical(
   const cursor = normalizeMathCursor(source, rawCursor, false);
   const all = flattenTemplates(parseTemplatesInRange(source, 0, source.length));
 
-  // If standing immediately after a power `^(exp)|` and pressing UP -> enter exponent!
-  if (dir === 'up') {
-    const powAfter = all.find((t) => t.kind === 'pow' && t.nodeEnd === cursor);
-    if (powAfter) return powAfter.slots[0].end;
-  }
-  // If standing right at start of `frac` or `mfrac` and pressing UP/DOWN -> enter num/den!
-  const atStart = all.find((t) => t.nodeStart === cursor && (t.kind === 'frac' || t.kind === 'mfrac'));
-  if (atStart) {
-    if (atStart.kind === 'frac') {
-      return dir === 'up' ? atStart.slots[0].start : atStart.slots[1].start;
+  // Standing immediately AFTER a 2D template (`cursor === nodeEnd`)
+  const afterNode = all
+    .filter((t) => t.nodeEnd === cursor)
+    .sort((a, b) => (b.nodeEnd - b.nodeStart) - (a.nodeEnd - a.nodeStart))[0];
+  if (afterNode) {
+    if (afterNode.kind === 'pow' && dir === 'up') return afterNode.slots[0].end;
+    if (afterNode.kind === 'frac') {
+      return dir === 'up' ? afterNode.slots[0].end : afterNode.slots[1].end;
     }
-    return dir === 'up' ? atStart.slots[1].start : atStart.slots[2].start;
+    if (afterNode.kind === 'mfrac') {
+      return dir === 'up' ? afterNode.slots[1].end : afterNode.slots[2].end;
+    }
+    if (afterNode.kind === 'deriv') {
+      return dir === 'up' ? afterNode.slots[0].end : afterNode.slots[1].end;
+    }
+    if (afterNode.kind === 'integ' || afterNode.kind === 'sigma' || afterNode.kind === 'prod') {
+      return dir === 'up' ? afterNode.slots[2].end : afterNode.slots[1].end;
+    }
+  }
+
+  // Standing immediately BEFORE a 2D template (`cursor === nodeStart`)
+  const beforeNode = all
+    .filter((t) => t.nodeStart === cursor)
+    .sort((a, b) => (b.nodeEnd - b.nodeStart) - (a.nodeEnd - a.nodeStart))[0];
+  if (beforeNode) {
+    if (beforeNode.kind === 'frac') {
+      return dir === 'up' ? beforeNode.slots[0].start : beforeNode.slots[1].start;
+    }
+    if (beforeNode.kind === 'mfrac') {
+      return dir === 'up' ? beforeNode.slots[1].start : beforeNode.slots[2].start;
+    }
+    if (beforeNode.kind === 'root') {
+      return dir === 'up' ? beforeNode.slots[0].start : beforeNode.slots[1].start;
+    }
+    if (beforeNode.kind === 'logb') {
+      return dir === 'up' ? beforeNode.slots[1].start : beforeNode.slots[0].start;
+    }
+    if (beforeNode.kind === 'integ' || beforeNode.kind === 'sigma' || beforeNode.kind === 'prod') {
+      return dir === 'up' ? beforeNode.slots[2].start : beforeNode.slots[1].start;
+    }
   }
 
   const chain = enclosingSlotChain(all, cursor);
   for (const { node, slotIndex } of chain) {
     switch (node.kind) {
       case 'frac': {
-        if (slotIndex === 0 && dir === 'down') return node.slots[1].end;
-        if (slotIndex === 1 && dir === 'up') return node.slots[0].end;
+        const [num, den] = node.slots;
+        if (slotIndex === 0 && dir === 'down') {
+          const numLen = num.end - num.start;
+          const denLen = den.end - den.start;
+          if (numLen === 0 || cursor === num.end) return den.end;
+          if (cursor === num.start) return den.start;
+          return den.start + Math.round(((cursor - num.start) / numLen) * denLen);
+        }
+        if (slotIndex === 1 && dir === 'up') {
+          const numLen = num.end - num.start;
+          const denLen = den.end - den.start;
+          if (denLen === 0 || cursor === den.end) return num.end;
+          if (cursor === den.start) return num.start;
+          return num.start + Math.round(((cursor - den.start) / denLen) * numLen);
+        }
         break;
       }
       case 'mfrac': {
-        if (slotIndex === 0) return dir === 'up' ? node.slots[1].end : node.slots[2].end;
-        if (slotIndex === 1 && dir === 'down') return node.slots[2].end;
-        if (slotIndex === 2 && dir === 'up') return node.slots[1].end;
+        const [, num, den] = node.slots;
+        if (slotIndex === 0) return dir === 'up' ? num.start : den.start;
+        if (slotIndex === 1 && dir === 'down') {
+          const numLen = num.end - num.start;
+          const denLen = den.end - den.start;
+          if (numLen === 0 || cursor === num.end) return den.end;
+          if (cursor === num.start) return den.start;
+          return den.start + Math.round(((cursor - num.start) / numLen) * denLen);
+        }
+        if (slotIndex === 2 && dir === 'up') {
+          const numLen = num.end - num.start;
+          const denLen = den.end - den.start;
+          if (denLen === 0 || cursor === den.end) return num.end;
+          if (cursor === den.start) return num.start;
+          return num.start + Math.round(((cursor - den.start) / denLen) * numLen);
+        }
         break;
       }
       case 'pow': {
@@ -415,21 +510,19 @@ export function smartDeleteBeforeCursor(
       .sort((a, b) => (b.nodeEnd - b.nodeStart) - (a.nodeEnd - a.nodeStart))[0];
     if (endingHere) {
       if (isTemplateEmpty(endingHere)) {
-        // Check for '10^(' or 'e^(' prefix before '^('
-        let delStart = endingHere.nodeStart;
-        if (endingHere.kind === 'pow') {
-          if (delStart >= 2 && source.slice(delStart - 2, delStart) === '10') delStart -= 2;
-          else if (delStart >= 1 && source[delStart - 1] === 'e') delStart -= 1;
-        }
         return {
-          expression: source.slice(0, delStart) + source.slice(endingHere.nodeEnd),
-          cursor: delStart,
+          expression: source.slice(0, endingHere.nodeStart) + source.slice(endingHere.nodeEnd),
+          cursor: endingHere.nodeStart,
         };
       }
-      // Non-empty template: step cursor INSIDE the end of the last slot (like Casio hardware!)
+      // Non-empty template: step cursor INSIDE the end of the visually rightmost slot (like Casio hardware!)
+      const lastVisualSlot =
+        endingHere.kind === 'integ' || endingHere.kind === 'sigma' || endingHere.kind === 'prod'
+          ? endingHere.slots[0]
+          : endingHere.slots[endingHere.slots.length - 1];
       return {
         expression: source,
-        cursor: endingHere.slots[endingHere.slots.length - 1].end,
+        cursor: lastVisualSlot.end,
       };
     }
 
@@ -440,14 +533,9 @@ export function smartDeleteBeforeCursor(
       if (cursor === node.slots[slotIndex].start) {
         // 2a) Entire template is empty -> delete the whole template cleanly!
         if (isTemplateEmpty(node)) {
-          let delStart = node.nodeStart;
-          if (node.kind === 'pow') {
-            if (delStart >= 2 && source.slice(delStart - 2, delStart) === '10') delStart -= 2;
-            else if (delStart >= 1 && source[delStart - 1] === 'e') delStart -= 1;
-          }
           return {
-            expression: source.slice(0, delStart) + source.slice(node.nodeEnd),
-            cursor: delStart,
+            expression: source.slice(0, node.nodeStart) + source.slice(node.nodeEnd),
+            cursor: node.nodeStart,
           };
         }
 
@@ -460,21 +548,21 @@ export function smartDeleteBeforeCursor(
           };
         }
 
-        // 2c) Single-slot wrapper (`sqrt(|5)`, `cbrt(|5)`, `abs(|5)`, `^(|5)`, `r(|3)`) -> unwrap keeping body!
+        // 2c) Single-slot wrapper (`sqrt(|5)`, `cbrt(|5)`, `abs(|5)`, `^(|5)`, `10^(|5)`, `r(|3)`) -> unwrap keeping body!
         if (node.slots.length === 1 && slotIndex === 0) {
           const inner = source.slice(node.slots[0].start, node.slots[0].end);
-          let delStart = node.nodeStart;
-          if (node.kind === 'pow') {
-            if (delStart >= 2 && source.slice(delStart - 2, delStart) === '10') delStart -= 2;
-            else if (delStart >= 1 && source[delStart - 1] === 'e') delStart -= 1;
-          }
           return {
-            expression: source.slice(0, delStart) + inner + source.slice(node.nodeEnd),
-            cursor: delStart,
+            expression: source.slice(0, node.nodeStart) + inner + source.slice(node.nodeEnd),
+            cursor: node.nodeStart,
           };
         }
 
-        // 2d) Multi-slot template: move cursor to previous slot or before template without deleting ',' or '('
+        // 2d) Multi-slot template: move cursor to previous visual slot or before template without deleting ',' or '('
+        if (node.kind === 'integ' || node.kind === 'sigma' || node.kind === 'prod') {
+          if (slotIndex === 0) return { expression: source, cursor: node.slots[2].end };
+          if (slotIndex === 2) return { expression: source, cursor: node.slots[1].end };
+          return { expression: source, cursor: node.nodeStart };
+        }
         if (slotIndex > 0) {
           return { expression: source, cursor: node.slots[slotIndex - 1].end };
         }

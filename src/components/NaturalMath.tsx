@@ -19,7 +19,7 @@ const DISPLAY_FUNC_LABELS: Record<string, string> = {
 
 const STAT_KEYS_SORTED = Object.keys(STAT_TOKEN_LABELS).sort((a, b) => b.length - a.length);
 
-function Caret({ overwrite }: { overwrite: boolean }) {
+function Caret({ overwrite, box = false }: { overwrite: boolean; box?: boolean }) {
   const ref = useRef<HTMLSpanElement | null>(null);
   useEffect(() => {
     const el = ref.current;
@@ -42,6 +42,18 @@ function Caret({ overwrite }: { overwrite: boolean }) {
       }
     }
   });
+  if (box) {
+    return (
+      <span
+        ref={ref}
+        className={overwrite ? 'math-box-active math-box-overwrite' : 'math-box-active'}
+        data-testid="lcd-caret"
+        aria-hidden="true"
+      >
+        ■
+      </span>
+    );
+  }
   return (
     <span
       ref={ref}
@@ -74,6 +86,13 @@ function MathRange({
   const inRange = (idx: number) => cursor !== null && cursor === idx;
 
   if (start === end) {
+    if (showEmptyPlaceholder && inRange(start)) {
+      return (
+        <span className="math-seq">
+          <Caret overwrite={overwrite} box />
+        </span>
+      );
+    }
     return (
       <span className="math-seq">
         {inRange(start) && <Caret overwrite={overwrite} />}

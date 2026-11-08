@@ -19,10 +19,11 @@ function renderKeyFace(key: KeySpec): React.ReactNode {
       return (
         <span className="key-glyph-integ" aria-hidden="true">
           <span className="glyph-int-sym">∫</span>
-          <span className="glyph-int-boxes">
-            <span className="glyph-box glyph-box-hollow glyph-box-xs" />
-            <span className="glyph-box glyph-box-solid glyph-box-xs" />
+          <span className="glyph-int-limits">
+            <span className="glyph-box glyph-box-hollow glyph-box-2xs" />
+            <span className="glyph-box glyph-box-hollow glyph-box-2xs" />
           </span>
+          <span className="glyph-box glyph-box-solid" />
         </span>
       );
     case 'frac':
@@ -76,7 +77,7 @@ function renderKeyFace(key: KeySpec): React.ReactNode {
     case 'dms':
       return (
         <span className="key-glyph-dms" aria-hidden="true">
-          ° ’ ’ ’
+          ° ’ ”
         </span>
       );
     case 'exp':
@@ -316,21 +317,21 @@ export function CalculatorHardware({
             <span className="casio-logo">CASIO</span>
             <span className="casio-model">fx-95ES PLUS</span>
           </div>
-          <div className="casio-sub-row">
+          <div className="casio-vpam-row">
             <span className="casio-vpam">NATURAL-V.P.A.M.</span>
-            <div className="casio-edition-group">
-              <button
-                type="button"
-                className={fnTrayOpen ? 'casio-fn-badge active' : 'casio-fn-badge'}
-                data-testid="fn-tray-toggle"
-                aria-label="اختصارات إضافية سريعة"
-                aria-expanded={fnTrayOpen}
-                onClick={() => setFnTrayOpen((v) => !v)}
-              >
-                991+
-              </button>
-              <span className="casio-edition">2nd edition</span>
-            </div>
+          </div>
+          <div className="casio-edition-row">
+            <button
+              type="button"
+              className={fnTrayOpen ? 'casio-fn-badge active' : 'casio-fn-badge'}
+              data-testid="fn-tray-toggle"
+              aria-label="اختصارات إضافية سريعة"
+              aria-expanded={fnTrayOpen}
+              onClick={() => setFnTrayOpen((v) => !v)}
+            >
+              991+
+            </button>
+            <span className="casio-edition">2nd edition</span>
           </div>
         </header>
 
@@ -404,33 +405,37 @@ export function CalculatorHardware({
 
         {/* Upper Control Row + Central Sculpted 4-Way D-Pad */}
         <div className="casio-upper-deck">
-          {/* Left Pill: SHIFT & ALPHA */}
-          <div className="casio-round-pair-wrap">
-            <div className="casio-round-labels">
+          {/* Left Pair: Individual Circular Wells for SHIFT & ALPHA */}
+          <div className="casio-round-pair">
+            <div className="casio-round-unit unit-outer">
               <span className={isShift ? 'round-lbl round-lbl-shift active' : 'round-lbl round-lbl-shift'}>
                 SHIFT
               </span>
+              <div className="casio-round-well">
+                <button
+                  type="button"
+                  className={isShift ? 'casio-metal-btn active' : 'casio-metal-btn'}
+                  data-key-id="shift"
+                  aria-label="SHIFT الوظائف الثانوية"
+                  aria-pressed={isShift}
+                  onClick={() => handlePress('shift')}
+                />
+              </div>
+            </div>
+            <div className="casio-round-unit unit-inner">
               <span className={isAlpha ? 'round-lbl round-lbl-alpha active' : 'round-lbl round-lbl-alpha'}>
                 ALPHA
               </span>
-            </div>
-            <div className="casio-pill-groove">
-              <button
-                type="button"
-                className={isShift ? 'casio-metal-btn active' : 'casio-metal-btn'}
-                data-key-id="shift"
-                aria-label="SHIFT الوظائف الثانوية"
-                aria-pressed={isShift}
-                onClick={() => handlePress('shift')}
-              />
-              <button
-                type="button"
-                className={isAlpha ? 'casio-metal-btn active' : 'casio-metal-btn'}
-                data-key-id="alpha"
-                aria-label="ALPHA المتغيرات والرموز"
-                aria-pressed={isAlpha}
-                onClick={() => handlePress('alpha')}
-              />
+              <div className="casio-round-well">
+                <button
+                  type="button"
+                  className={isAlpha ? 'casio-metal-btn active' : 'casio-metal-btn'}
+                  data-key-id="alpha"
+                  aria-label="ALPHA المتغيرات والرموز"
+                  aria-pressed={isAlpha}
+                  onClick={() => handlePress('alpha')}
+                />
+              </div>
             </div>
           </div>
 
@@ -478,30 +483,34 @@ export function CalculatorHardware({
             </div>
           </div>
 
-          {/* Right Pill: MODE/SETUP & ON */}
-          <div className="casio-round-pair-wrap">
-            <div className="casio-round-labels casio-round-labels-right">
+          {/* Right Pair: Individual Circular Wells for MODE/SETUP & ON */}
+          <div className="casio-round-pair">
+            <div className="casio-round-unit unit-inner">
               <span className="round-lbl-mode-group">
                 <span className="round-lbl round-lbl-mode">MODE</span>
                 <span className="round-lbl round-lbl-setup">SETUP</span>
               </span>
-              <span className="round-lbl round-lbl-on">ON</span>
+              <div className="casio-round-well">
+                <button
+                  type="button"
+                  className="casio-metal-btn"
+                  data-key-id="mode"
+                  aria-label="MODE الأوضاع أو SETUP الإعدادات"
+                  onClick={() => handlePress('mode')}
+                />
+              </div>
             </div>
-            <div className="casio-pill-groove">
-              <button
-                type="button"
-                className="casio-metal-btn"
-                data-key-id="mode"
-                aria-label="MODE الأوضاع أو SETUP الإعدادات"
-                onClick={() => handlePress('mode')}
-              />
-              <button
-                type="button"
-                className="casio-metal-btn"
-                data-key-id="on"
-                aria-label="ON تشغيل"
-                onClick={() => handlePress('on')}
-              />
+            <div className="casio-round-unit unit-outer">
+              <span className="round-lbl round-lbl-on">ON</span>
+              <div className="casio-round-well">
+                <button
+                  type="button"
+                  className="casio-metal-btn"
+                  data-key-id="on"
+                  aria-label="ON تشغيل"
+                  onClick={() => handlePress('on')}
+                />
+              </div>
             </div>
           </div>
         </div>

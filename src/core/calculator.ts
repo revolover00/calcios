@@ -756,6 +756,16 @@ function evalContext(s: CalculatorState, random?: number) {
   };
 }
 
+function hasTopLevelDms(expr: string): boolean {
+  let depth = 0;
+  for (const ch of expr) {
+    if (ch === '(') depth++;
+    else if (ch === ')') depth = Math.max(0, depth - 1);
+    else if (ch === '°' && depth === 0) return true;
+  }
+  return false;
+}
+
 function evaluateSingleStatement(
   s: CalculatorState,
   expr: string,
@@ -792,12 +802,14 @@ function evaluateSingleStatement(
     }
   }
 
+  const autoDms = !pairResult && hasTopLevelDms(exprToEval);
   const history = [...s.history, { expression: recordExpr, result: primaryStored }].slice(-40);
   return {
     ...resetResultModifiers(s),
     phase: 'result',
     result: primaryStored,
     pairResult,
+    displayOverride: autoDms ? 'dms' : 'none',
     preAns: s.ans,
     ans: primaryStored,
     variables,
@@ -1097,24 +1109,37 @@ export function activateModeByName(s: CalculatorState, label: string): Calculato
   }
 }
 
+function cancelMenuToSafeNormal(s: CalculatorState): CalculatorState {
+  if (s.screen === 'matrix-target-menu' || s.screen === 'matrix-dim-menu') {
+    return { ...closeLatches(s), screen: 'normal', menuPage: 0, matrix: { ...s.matrix, editingTarget: null } };
+  }
+  if (s.screen === 'vector-target-menu' || s.screen === 'vector-dim-menu') {
+    return { ...closeLatches(s), screen: 'normal', menuPage: 0, vector: { ...s.vector, editingTarget: null } };
+  }
+  if (s.screen === 'stat-type-menu') {
+    return { ...closeLatches(s), screen: 'normal', menuPage: 0, stat: { ...s.stat, editingTable: false } };
+  }
+  if ((s.mode === 'EQN' && !s.eqn) || (s.mode === 'INEQ' && !s.ineq) || (s.mode === 'DIST' && !s.dist)) {
+    return { ...closeLatches(s), mode: 'COMP', screen: 'normal', menuPage: 0, eqn: null, ineq: null, dist: null };
+  }
+  return { ...closeLatches(s), screen: 'normal', menuPage: 0, clearTarget: null, codeDigits: '', notice: null };
+}
+
 function handleMenu(s: CalculatorState, id: string): CalculatorState {
+  if (id === 'shift') return { ...s, shift: !s.shift, alpha: false };
   if (id === 'ac') {
-    if (s.screen === 'matrix-target-menu' || s.screen === 'matrix-dim-menu') {
-      return { ...s, screen: 'normal', menuPage: 0, matrix: { ...s.matrix, editingTarget: null } };
-    }
-    if (s.screen === 'vector-target-menu' || s.screen === 'vector-dim-menu') {
-      return { ...s, screen: 'normal', menuPage: 0, vector: { ...s.vector, editingTarget: null } };
-    }
-    if (s.screen === 'stat-type-menu') {
-      return { ...s, screen: 'normal', menuPage: 0, stat: { ...s.stat, editingTable: false } };
-    }
-    if (s.screen === 'eqn-menu' || s.screen === 'ineq-deg-menu' || s.screen === 'ineq-rel-menu' || s.screen === 'dist-menu') {
-      return { ...s, mode: 'COMP', screen: 'normal', menuPage: 0, eqn: null, ineq: null, dist: null };
-    }
-    return { ...s, screen: 'normal', menuPage: 0, clearTarget: null, codeDigits: '', notice: null, shift: false, alpha: false };
+    if (s.shift) return { ...closeLatches(s), screen: 'off' };
+    return cancelMenuToSafeNormal(s);
   }
   if (id === 'mode') {
-    return { ...s, screen: 'normal', menuPage: 0, clearTarget: null, codeDigits: '', notice: null, shift: false, alpha: false };
+    if (s.shift) {
+      return s.screen === 'setup'
+        ? cancelMenuToSafeNormal(s)
+        : { ...closeLatches(s), screen: 'setup', menuPage: 0, clearTarget: null, codeDigits: '', notice: null };
+    }
+    return s.screen === 'mode'
+      ? cancelMenuToSafeNormal(s)
+      : { ...closeLatches(s), screen: 'mode', menuPage: 0, clearTarget: null, codeDigits: '', notice: null };
   }
 
   // MODE Menu (Page 0 & Page 1)
@@ -1785,10 +1810,12 @@ function handleEqnMode(s: CalculatorState, id: string, random?: number): Calcula
     return { ...s, eqn: { ...eqn, input: nextInput, editingCell: nextInput.length > 0 } };
   }
   if ((id === 'left' || id === 'up') && !eqn.editingCell) {
-    return { ...s, eqn: { ...eqn, cursorIndex: Math.max(0, eqn.cursorIndex - 1) } };
+    const nextIdx = (eqn.cursorIndex - 1 + eqn.coeffs.length) % eqn.coeffs.length;
+    return { ...s, eqn: { ...eqn, cursorIndex: nextIdx } };
   }
   if ((id === 'right' || id === 'down') && !eqn.editingCell) {
-    return { ...s, eqn: { ...eqn, cursorIndex: Math.min(eqn.coeffs.length - 1, eqn.cursorIndex + 1) } };
+    const nextIdx = (eqn.cursorIndex + 1) % eqn.coeffs.length;
+    return { ...s, eqn: { ...eqn, cursorIndex: nextIdx } };
   }
   if (id === 'equals') {
     try {
@@ -1846,10 +1873,12 @@ function handleIneqMode(s: CalculatorState, id: string, random?: number): Calcul
     return { ...s, ineq: { ...ineq, input: nextInput, editingCell: nextInput.length > 0 } };
   }
   if ((id === 'left' || id === 'up') && !ineq.editingCell) {
-    return { ...s, ineq: { ...ineq, cursorIndex: Math.max(0, ineq.cursorIndex - 1) } };
+    const nextIdx = (ineq.cursorIndex - 1 + ineq.coeffs.length) % ineq.coeffs.length;
+    return { ...s, ineq: { ...ineq, cursorIndex: nextIdx } };
   }
   if ((id === 'right' || id === 'down') && !ineq.editingCell) {
-    return { ...s, ineq: { ...ineq, cursorIndex: Math.min(ineq.coeffs.length - 1, ineq.cursorIndex + 1) } };
+    const nextIdx = (ineq.cursorIndex + 1) % ineq.coeffs.length;
+    return { ...s, ineq: { ...ineq, cursorIndex: nextIdx } };
   }
   if (id === 'equals') {
     try {
@@ -1910,10 +1939,11 @@ function handleStatTableEditor(s: CalculatorState, id: string, random?: number):
   }
   if (!st.editingCell) {
     const maxRowSlot = Math.min(79, st.rows.length);
-    if (id === 'up') return { ...s, stat: { ...st, rowIdx: Math.max(0, st.rowIdx - 1) } };
-    if (id === 'down') return { ...s, stat: { ...st, rowIdx: Math.min(maxRowSlot, st.rowIdx + 1) } };
-    if (id === 'left') return { ...s, stat: { ...st, colIdx: Math.max(0, st.colIdx - 1) } };
-    if (id === 'right') return { ...s, stat: { ...st, colIdx: Math.min(colsCount - 1, st.colIdx + 1) } };
+    const totalRowSlots = maxRowSlot + 1;
+    if (id === 'up') return { ...s, stat: { ...st, rowIdx: (st.rowIdx - 1 + totalRowSlots) % totalRowSlots } };
+    if (id === 'down') return { ...s, stat: { ...st, rowIdx: (st.rowIdx + 1) % totalRowSlots } };
+    if (id === 'left') return { ...s, stat: { ...st, colIdx: (st.colIdx - 1 + colsCount) % colsCount } };
+    if (id === 'right') return { ...s, stat: { ...st, colIdx: (st.colIdx + 1) % colsCount } };
   }
   if (id === 'equals') {
     try {
@@ -1974,10 +2004,10 @@ function handleMatrixCellEditor(s: CalculatorState, id: string, random?: number)
     return { ...s, matrix: { ...mt, cellInput: next, editingCell: next.length > 0 } };
   }
   if (!mt.editingCell) {
-    if (id === 'up') return { ...s, matrix: { ...mt, rowIdx: Math.max(0, mt.rowIdx - 1) } };
-    if (id === 'down') return { ...s, matrix: { ...mt, rowIdx: Math.min(mat.rows - 1, mt.rowIdx + 1) } };
-    if (id === 'left') return { ...s, matrix: { ...mt, colIdx: Math.max(0, mt.colIdx - 1) } };
-    if (id === 'right') return { ...s, matrix: { ...mt, colIdx: Math.min(mat.cols - 1, mt.colIdx + 1) } };
+    if (id === 'up') return { ...s, matrix: { ...mt, rowIdx: (mt.rowIdx - 1 + mat.rows) % mat.rows } };
+    if (id === 'down') return { ...s, matrix: { ...mt, rowIdx: (mt.rowIdx + 1) % mat.rows } };
+    if (id === 'left') return { ...s, matrix: { ...mt, colIdx: (mt.colIdx - 1 + mat.cols) % mat.cols } };
+    if (id === 'right') return { ...s, matrix: { ...mt, colIdx: (mt.colIdx + 1) % mat.cols } };
   }
   if (id === 'equals') {
     try {
@@ -2032,8 +2062,8 @@ function handleVectorCellEditor(s: CalculatorState, id: string, random?: number)
     return { ...s, vector: { ...vt, cellInput: next, editingCell: next.length > 0 } };
   }
   if (!vt.editingCell) {
-    if (id === 'left' || id === 'up') return { ...s, vector: { ...vt, coordIdx: Math.max(0, vt.coordIdx - 1) } };
-    if (id === 'right' || id === 'down') return { ...s, vector: { ...vt, coordIdx: Math.min(vct.dim - 1, vt.coordIdx + 1) } };
+    if (id === 'left' || id === 'up') return { ...s, vector: { ...vt, coordIdx: (vt.coordIdx - 1 + vct.dim) % vct.dim } };
+    if (id === 'right' || id === 'down') return { ...s, vector: { ...vt, coordIdx: (vt.coordIdx + 1) % vct.dim } };
   }
   if (id === 'equals') {
     try {
@@ -2185,9 +2215,9 @@ function handleDistMode(s: CalculatorState, id: string, random?: number): Calcul
   }
 
   const totalSlots = ds.params.length;
-  if (!ds.editingParam) {
-    if (id === 'up') return { ...s, dist: { ...ds, paramIdx: Math.max(0, ds.paramIdx - 1) } };
-    if (id === 'down') return { ...s, dist: { ...ds, paramIdx: Math.min(totalSlots - 1, ds.paramIdx + 1) } };
+  if (!ds.editingParam && totalSlots > 0) {
+    if (id === 'up') return { ...s, dist: { ...ds, paramIdx: (ds.paramIdx - 1 + totalSlots) % totalSlots } };
+    if (id === 'down') return { ...s, dist: { ...ds, paramIdx: (ds.paramIdx + 1) % totalSlots } };
   }
 
   if (id === 'equals') {
@@ -2255,8 +2285,10 @@ function handleTableMode(s: CalculatorState, id: string, random?: number): Calcu
     if (id === 'ac') {
       return { ...s, phase: 'editing', expression: tbl.fExpr, cursor: tbl.fExpr.length, table: { ...tbl, stage: 'f', editingField: false } };
     }
-    if (id === 'down') return { ...s, table: { ...tbl, selectedRow: Math.min(tbl.rows.length - 1, tbl.selectedRow + 1) } };
-    if (id === 'up') return { ...s, table: { ...tbl, selectedRow: Math.max(0, tbl.selectedRow - 1) } };
+    if (tbl.rows.length > 0) {
+      if (id === 'down') return { ...s, table: { ...tbl, selectedRow: (tbl.selectedRow + 1) % tbl.rows.length } };
+      if (id === 'up') return { ...s, table: { ...tbl, selectedRow: (tbl.selectedRow - 1 + tbl.rows.length) % tbl.rows.length } };
+    }
     return s;
   }
 
@@ -2326,11 +2358,10 @@ export function calculatorReducer(state: CalculatorState, action: CalculatorActi
       ? { ...resetResultModifiers(state), screen: 'normal', phase: 'editing', expression: '', cursor: 0, result: null, error: null, notice: null }
       : state;
   }
-  if (state.screen !== 'normal') return handleMenu(state, id);
-
   if (id === 'on') {
+    const safeBase = state.screen !== 'normal' ? cancelMenuToSafeNormal(state) : state;
     return {
-      ...resetResultModifiers(state),
+      ...resetResultModifiers(safeBase),
       screen: 'normal',
       phase: 'editing',
       expression: '',
@@ -2342,6 +2373,7 @@ export function calculatorReducer(state: CalculatorState, action: CalculatorActi
       notice: null,
     };
   }
+  if (state.screen !== 'normal') return handleMenu(state, id);
 
   // Global error screen recovery ([AC] :Cancel / [◀][▶]:Goto) across ALL 11 modes!
   if (state.phase === 'error') {
@@ -2402,21 +2434,21 @@ export function calculatorReducer(state: CalculatorState, action: CalculatorActi
     if (tblNext) return tblNext;
   }
 
-  // Navigating Matrix / Vector result cells with arrows + S⇔D toggle
+  // Navigating Matrix / Vector result cells with wrap-around arrows + S⇔D toggle
   if (state.mode === 'MATRIX' && state.phase === 'result' && state.matrix.showingMatrixResult && state.matrix.matrices.MatAns) {
     const mAns = state.matrix.matrices.MatAns;
-    if (id === 'up') return { ...state, matrix: { ...state.matrix, rowIdx: Math.max(0, state.matrix.rowIdx - 1) } };
-    if (id === 'down') return { ...state, matrix: { ...state.matrix, rowIdx: Math.min(mAns.rows - 1, state.matrix.rowIdx + 1) } };
-    if (id === 'left') return { ...state, matrix: { ...state.matrix, colIdx: Math.max(0, state.matrix.colIdx - 1) } };
-    if (id === 'right') return { ...state, matrix: { ...state.matrix, colIdx: Math.min(mAns.cols - 1, state.matrix.colIdx + 1) } };
+    if (id === 'up') return { ...state, matrix: { ...state.matrix, rowIdx: (state.matrix.rowIdx - 1 + mAns.rows) % mAns.rows } };
+    if (id === 'down') return { ...state, matrix: { ...state.matrix, rowIdx: (state.matrix.rowIdx + 1) % mAns.rows } };
+    if (id === 'left') return { ...state, matrix: { ...state.matrix, colIdx: (state.matrix.colIdx - 1 + mAns.cols) % mAns.cols } };
+    if (id === 'right') return { ...state, matrix: { ...state.matrix, colIdx: (state.matrix.colIdx + 1) % mAns.cols } };
     if (id === 'sd' && !state.shift && !state.alpha) {
       return { ...state, resultFormat: state.resultFormat === 'exact' ? 'decimal' : 'exact' };
     }
   }
   if (state.mode === 'VECTOR' && state.phase === 'result' && state.vector.showingVectorResult && state.vector.vectors.VctAns) {
     const vAns = state.vector.vectors.VctAns;
-    if (id === 'left' || id === 'up') return { ...state, vector: { ...state.vector, coordIdx: Math.max(0, state.vector.coordIdx - 1) } };
-    if (id === 'right' || id === 'down') return { ...state, vector: { ...state.vector, coordIdx: Math.min(vAns.dim - 1, state.vector.coordIdx + 1) } };
+    if (id === 'left' || id === 'up') return { ...state, vector: { ...state.vector, coordIdx: (state.vector.coordIdx - 1 + vAns.dim) % vAns.dim } };
+    if (id === 'right' || id === 'down') return { ...state, vector: { ...state.vector, coordIdx: (state.vector.coordIdx + 1) % vAns.dim } };
     if (id === 'sd' && !state.shift && !state.alpha) {
       return { ...state, resultFormat: state.resultFormat === 'exact' ? 'decimal' : 'exact' };
     }
@@ -2431,7 +2463,40 @@ export function calculatorReducer(state: CalculatorState, action: CalculatorActi
       if (id === 'ac') return { ...state, pending: null, shift: false, alpha: false, notice: null };
       return state;
     }
-    if (state.pending === 'recall') return insert({ ...state, pending: null }, name);
+    if (state.pending === 'recall') {
+      if (
+        (state.phase === 'result' || state.expression.trim() === '') &&
+        (state.mode === 'COMP' || state.mode === 'STAT' || state.mode === 'CMPLX' || state.mode === 'MATRIX' || state.mode === 'VECTOR')
+      ) {
+        const recalledVal = state.variables[name];
+        const recalledScalar = deserialize(recalledVal);
+        return {
+          ...resetResultModifiers(state),
+          expression: name,
+          cursor: name.length,
+          phase: 'result',
+          result: recalledVal,
+          resultFormat: effectiveResultFormat(state, defaultResultFormat(recalledScalar)),
+          preAns: state.ans,
+          ans: recalledVal,
+          cmplx:
+            state.mode === 'CMPLX'
+              ? {
+                  ...state.cmplx,
+                  ans: { re: recalledVal, im: zeroStored() },
+                  result: { re: recalledVal, im: zeroStored() },
+                  partView: 'both',
+                }
+              : state.cmplx,
+          matrix: { ...state.matrix, showingMatrixResult: false },
+          vector: { ...state.vector, showingVectorResult: false },
+          pending: null,
+          shift: false,
+          alpha: false,
+        };
+      }
+      return insert({ ...state, pending: null }, name);
+    }
     try {
       const storedVal = currentValue(state);
       const valScalar = deserialize(storedVal);
