@@ -1,22 +1,43 @@
 import { numericDerivative, numericIntegral, numericProduct, numericSummation } from './calculus';
 import { CONSTANT_BY_TOKEN } from './constants';
+import { statNormP, statNormQ, statNormR } from './dist';
 import { CalculatorError, mathError, syntax } from './errors';
 import type { NumberFormatSetting } from './format';
-import { estimateStatXHat, estimateStatYHat, type StatSubMode, type StatSummary } from './stat';
+import {
+  estimateStatXHat, estimateStatXHat2, estimateStatYHat, standardizeStatT,
+  type StatSubMode, type StatSummary,
+} from './stat';
 import {
   VARIABLES, add, applyFunction, applyUnitConversion, combinatoric, convertAngleToActive,
   deserialize, divide, dmsToScalar, factorial, makeScalar, multiply, negate, polarFromRect, power,
-  rectFromPolar, scalarFromInteger, scalarFromLiteral, scalarPi, serialize, subtract, D,
+  quotientRemainder, rectFromPolar, scalarFromInteger, scalarFromLiteral, scalarFromRecurring, scalarPi,
+  serialize, subtract, D,
   type AngleUnit, type Scalar, type StoredScalar, type VariableName,
 } from './value';
 
-type TokenType = 'number' | 'identifier' | 'operator' | 'postfix' | 'dms' | 'open' | 'close' | 'comma' | 'end';
-export interface Token { type: TokenType; text: string }
+type TokenType =
+  | 'number'
+  | 'recur'
+  | 'identifier'
+  | 'operator'
+  | 'postfix'
+  | 'dms'
+  | 'open'
+  | 'close'
+  | 'comma'
+  | 'end';
+
+export interface Token {
+  type: TokenType;
+  text: string;
+  recurParts?: [string, string, string];
+}
 
 export interface EvaluationContext {
   angle: AngleUnit;
   variables: Record<VariableName, StoredScalar>;
   ans: StoredScalar;
+  preAns?: StoredScalar;
   random?: number;
   numberFormat?: NumberFormatSetting;
   statContext?: { subMode: StatSubMode; summary: StatSummary };
@@ -25,7 +46,7 @@ export interface EvaluationContext {
 export interface RichEvaluationResult {
   primary: Scalar;
   secondary?: Scalar;
-  pairKind?: 'pol' | 'rec';
+  pairKind?: 'pol' | 'rec' | 'divr';
 }
 
 export const STAT_TOKEN_LABELS: Record<string, string> = {
@@ -35,6 +56,9 @@ export const STAT_TOKEN_LABELS: Record<string, string> = {
   statSampSdX: 'sx',
   statSumX: '∑x',
   statSumX2: '∑x²',
+  statSumX3: '∑x³',
+  statSumX2Y: '∑x²y',
+  statSumX4: '∑x⁴',
   statMinX: 'minX',
   statMaxX: 'maxX',
   statQ1: 'Q₁',
@@ -57,11 +81,21 @@ export const STAT_TOKEN_LABELS: Record<string, string> = {
 const STAT_IDENTIFIERS = Object.keys(STAT_TOKEN_LABELS);
 const CALCULUS_NAMES = ['deriv', 'integ', 'sigma', 'prod'];
 const FUNCTION_NAMES = [
-  'RanInt', 'mfrac', 'asinh', 'acosh', 'atanh', 'logb', 'sqrt', 'cbrt', 'frac', 'root',
-  'sinh', 'cosh', 'tanh', 'asin', 'acos', 'atan', 'Pol', 'Rec', 'Rnd',
+  'RanInt', 'mfrac', 'asinh', 'acosh', 'atanh', 'StatP', 'StatQ', 'StatR',
+  'logb', 'sqrt', 'cbrt', 'frac', 'root', 'Intg',
+  'sinh', 'cosh', 'tanh', 'asin', 'acos', 'atan',
+  'GCD', 'LCM', 'Int', 'Pol', 'Rec', 'Rnd',
   'sin', 'cos', 'tan', 'abs', 'log', 'ln',
 ];
-const KEYWORDS = [...STAT_IDENTIFIERS, ...CALCULUS_NAMES, ...FUNCTION_NAMES, 'nCr', 'nPr', 'Ans'].sort((a, b) => b.length - a.length);
+const KEYWORDS = [
+  ...STAT_IDENTIFIERS,
+  ...CALCULUS_NAMES,
+  ...FUNCTION_NAMES,
+  'PreAns',
+  'nCr',
+  'nPr',
+  'Ans',
+].sort((a, b) => b.length - a.length);
 const VARIABLE_SET = new Set<string>(VARIABLES);
 
 export function tokenize(source: string): Token[] {
@@ -87,15 +121,53 @@ export function tokenize(source: string): Token[] {
       continue;
     }
 
+    if (rest.startsWith('▸xhat2')) {
+      tokens.push({ type: 'postfix', text: '▸xhat2' });
+      i += 6;
+      continue;
+    }
+
     if (rest.startsWith('▸yhat') || rest.startsWith('▸xhat')) {
       tokens.push({ type: 'postfix', text: rest.slice(0, 5) });
       i += 5;
       continue;
     }
 
+    if (rest.startsWith('▸t')) {
+      tokens.push({ type: 'postfix', text: '▸t' });
+      i += 2;
+      continue;
+    }
+
+    if (rest.startsWith('÷R')) {
+      tokens.push({ type: 'operator', text: '÷R' });
+      i += 2;
+      continue;
+    }
+
+    // Recurring decimal literal: e.g. 0.r(3), 12.58r(3), or .r(142857)
+    const recMatch = rest.match(/^(?:(\d+)\.(\d*)|\.(\d*))r\((\d+)\)/);
+    if (recMatch) {
+      if (tokens[tokens.length - 1]?.type === 'number' || tokens[tokens.length - 1]?.type === 'recur') {
+        syntax('Adjacent numbers are invalid');
+      }
+      const intPart = recMatch[1] ?? '0';
+      const nonRep = recMatch[1] !== undefined ? (recMatch[2] ?? '') : (recMatch[3] ?? '');
+      const rep = recMatch[4];
+      tokens.push({
+        type: 'recur',
+        text: recMatch[0],
+        recurParts: [intPart, nonRep, rep],
+      });
+      i += recMatch[0].length;
+      continue;
+    }
+
     const number = rest.match(/^(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?/);
     if (number) {
-      if (tokens[tokens.length - 1]?.type === 'number') syntax('Adjacent numbers are invalid');
+      if (tokens[tokens.length - 1]?.type === 'number' || tokens[tokens.length - 1]?.type === 'recur') {
+        syntax('Adjacent numbers are invalid');
+      }
       tokens.push({ type: 'number', text: number[0] });
       i += number[0].length;
       continue;
@@ -147,6 +219,9 @@ function resolveStatToken(name: string, ctx: EvaluationContext): Scalar {
     statSampSdX: s.sampSdX,
     statSumX: s.sumX,
     statSumX2: s.sumX2,
+    statSumX3: s.sumX3,
+    statSumX2Y: s.sumX2Y,
+    statSumX4: s.sumX4,
     statMinX: s.minX,
     statMaxX: s.maxX,
     statQ1: s.q1,
@@ -190,6 +265,8 @@ class Parser {
 
   parseTopLevel(): RichEvaluationResult {
     if (this.peek().type === 'end') return syntax('Empty expression');
+
+    // Top-level Pol(x, y) or Rec(r, θ)
     if (this.peek().type === 'identifier' && (this.peek().text === 'Pol' || this.peek().text === 'Rec')) {
       const savePos = this.pos;
       const fnName = this.take().text as 'Pol' | 'Rec';
@@ -214,6 +291,28 @@ class Parser {
       }
       this.pos = savePos;
     }
+
+    // Top-level Quotient & Remainder: <expr> ÷R <expr>
+    const divRIndices = this.tokens
+      .map((t, idx) => (t.type === 'operator' && t.text === '÷R' ? idx : -1))
+      .filter((idx) => idx !== -1);
+    if (divRIndices.length === 1) {
+      let depth = 0;
+      const splitAt = divRIndices[0];
+      for (let i = 0; i < splitAt; i++) {
+        if (this.tokens[i].type === 'open') depth++;
+        else if (this.tokens[i].type === 'close') depth--;
+      }
+      if (depth === 0) {
+        const lhsTokens: Token[] = [...this.tokens.slice(0, splitAt), { type: 'end', text: '' }];
+        const rhsTokens: Token[] = [...this.tokens.slice(splitAt + 1)];
+        const lhs = new Parser(lhsTokens, this.context).parse();
+        const rhs = new Parser(rhsTokens, this.context).parse();
+        const { quotient, remainder } = quotientRemainder(lhs, rhs);
+        return { primary: quotient, secondary: remainder, pairKind: 'divr' };
+      }
+    }
+
     return { primary: this.parse() };
   }
 
@@ -266,6 +365,12 @@ class Parser {
         } else if (next.text === '▸xhat') {
           if (!this.context.statContext) mathError('STAT unavailable');
           left = estimateStatXHat(this.context.statContext.subMode, this.context.statContext.summary, left);
+        } else if (next.text === '▸xhat2') {
+          if (!this.context.statContext) mathError('STAT unavailable');
+          left = estimateStatXHat2(this.context.statContext.subMode, this.context.statContext.summary, left);
+        } else if (next.text === '▸t') {
+          if (!this.context.statContext) mathError('STAT unavailable');
+          left = standardizeStatT(this.context.statContext.summary, left);
         } else {
           left = applyUnitConversion(left, next.text);
         }
@@ -283,12 +388,18 @@ class Parser {
       let precedence = 0;
       let implicit = false;
       if (next.type === 'operator') {
+        if (next.text === '÷R') syntax('÷R can only be used as a top-level division');
         operator = next.text;
         precedence = operator === '+' || operator === '-' ? 10
           : ['×', '÷', '*', '/'].includes(operator) ? 20
           : operator === 'nCr' || operator === 'nPr' ? 25
           : operator === '^' ? 30 : 0;
-      } else if (next.type === 'number' || next.type === 'identifier' || next.type === 'open') {
+      } else if (
+        next.type === 'number' ||
+        next.type === 'recur' ||
+        next.type === 'identifier' ||
+        next.type === 'open'
+      ) {
         operator = '×';
         precedence = 20;
         implicit = true;
@@ -317,6 +428,10 @@ class Parser {
       return token.text === '-' ? negate(operand) : operand;
     }
     if (token.type === 'number') return scalarFromLiteral(token.text);
+    if (token.type === 'recur' && token.recurParts) {
+      const [intPart, nonRep, rep] = token.recurParts;
+      return scalarFromRecurring(intPart, nonRep, rep);
+    }
     if (token.type === 'open') {
       const value = this.expression(0);
       this.expect('close');
@@ -349,6 +464,15 @@ class Parser {
         return numericProduct(evalWithX, arg1, arg2);
       }
 
+      if (token.text === 'StatP' || token.text === 'StatQ' || token.text === 'StatR') {
+        this.expect('open');
+        const arg = this.expression(0);
+        this.expect('close');
+        if (token.text === 'StatP') return statNormP(arg);
+        if (token.text === 'StatQ') return statNormQ(arg);
+        return statNormR(arg);
+      }
+
       if (FUNCTION_NAMES.includes(token.text)) {
         this.expect('open');
         const args = [this.expression(0)];
@@ -371,6 +495,7 @@ class Parser {
       if (token.text === 'π') return scalarPi();
       if (token.text === 'e') return makeScalar(new D(1).exp(), undefined, false);
       if (token.text === 'Ans') return deserialize(this.context.ans);
+      if (token.text === 'PreAns') return deserialize(this.context.preAns ?? this.context.ans);
       if (VARIABLE_SET.has(token.text)) return deserialize(this.context.variables[token.text as VariableName]);
     }
     return syntax('Expected a value');

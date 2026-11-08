@@ -1,8 +1,9 @@
-import { CalculatorError, syntax } from './errors';
+import { CalculatorError, mathError, syntax } from './errors';
 import { completeParentheses } from './expression';
 import {
-  VARIABLES, add, applyFunction, deserialize, divide, multiply, negate, scalarFromInteger,
-  scalarFromLiteral, serialize, subtract, zeroStored, type Scalar, type StoredScalar, type VariableName,
+  VARIABLES, add, applyFunction, deserialize, divide, makeScalar, multiply, negate, scalarFromInteger,
+  scalarFromLiteral, serialize, subtract, zeroStored, D,
+  type AngleUnit, type Scalar, type StoredScalar, type VariableName,
 } from './value';
 
 export type VectorName = 'VctA' | 'VctB' | 'VctC' | 'VctAns';
@@ -66,18 +67,33 @@ export function normVector(v: VectorValue): Scalar {
   return applyFunction('sqrt', [sumSq], 'DEG');
 }
 
+export function angleVector(a: VectorValue, b: VectorValue, angle: AngleUnit = 'DEG'): Scalar {
+  if (a.dim !== b.dim) throw new CalculatorError('Argument ERROR', 'Angle dimension mismatch');
+  const na = normVector(a);
+  const nb = normVector(b);
+  if (na.decimal.isZero() || nb.decimal.isZero()) mathError('Angle with zero vector is undefined');
+  const dot = dotVector(a, b);
+  let cosVal = divide(dot, multiply(na, nb));
+  if (cosVal.decimal.gt(1)) cosVal = makeScalar(new D(1), { n: 1n, d: 1n });
+  else if (cosVal.decimal.lt(-1)) cosVal = makeScalar(new D(-1), { n: -1n, d: 1n });
+  return applyFunction('acos', [cosVal], angle);
+}
+
 export type VectorEvalVal = { kind: 'vector'; vector: VectorValue } | { kind: 'scalar'; scalar: Scalar };
 
 export interface VectorEvalContext {
   vectors: Record<VectorName, StoredVector | null>;
   variables: Record<VariableName, StoredScalar>;
   ans: StoredScalar;
+  angle?: AngleUnit;
 }
 
 type VctTok =
   | { type: 'num'; text: string }
   | { type: 'vct'; name: VectorName }
   | { type: 'abs' }
+  | { type: 'angle' }
+  | { type: 'comma' }
   | { type: 'var'; text: string }
   | { type: 'op'; text: '+' | '-' | '×' | '÷' | '·' }
   | { type: 'open' }
@@ -103,6 +119,7 @@ function tokenizeVector(source: string): VctTok[] {
       }
     }
     if (matchedVct) continue;
+    if (rest.startsWith('Angle(')) { tokens.push({ type: 'angle' }); tokens.push({ type: 'open' }); i += 6; continue; }
     if (rest.startsWith('abs(')) { tokens.push({ type: 'abs' }); tokens.push({ type: 'open' }); i += 4; continue; }
     if (rest.startsWith('dot') || ch === '·') {
       tokens.push({ type: 'op', text: '·' });
@@ -119,6 +136,7 @@ function tokenizeVector(source: string): VctTok[] {
       i++;
       continue;
     }
+    if (ch === ',') { tokens.push({ type: 'comma' }); i++; continue; }
     if (ch === '(') { tokens.push({ type: 'open' }); i++; continue; }
     if (ch === ')') { tokens.push({ type: 'close' }); i++; continue; }
     syntax(`Unexpected '${ch}' in VECTOR`);
@@ -143,7 +161,7 @@ export function evaluateVectorExpression(source: string, ctx: VectorEvalContext)
       if (next.type === 'op') {
         op = next.text;
         prec = op === '+' || op === '-' ? 10 : 20;
-      } else if (next.type === 'vct' || next.type === 'abs' || next.type === 'open') {
+      } else if (next.type === 'vct' || next.type === 'abs' || next.type === 'angle' || next.type === 'open') {
         op = '×';
         prec = 20;
         implicit = true;
@@ -199,6 +217,20 @@ export function evaluateVectorExpression(source: string, ctx: VectorEvalContext)
       const stored = ctx.vectors[tok.name];
       if (!stored) throw new CalculatorError('Argument ERROR', `${tok.name} is undefined`);
       return { kind: 'vector', vector: deserializeVector(stored) };
+    }
+    if (tok.type === 'angle') {
+      if (peek().type !== 'open') syntax('Expected (');
+      take();
+      const first = parseExpr(0);
+      if (peek().type !== 'comma') syntax('Expected , in Angle(VctA,VctB)');
+      take();
+      const second = parseExpr(0);
+      if (peek().type !== 'close') syntax('Expected )');
+      take();
+      if (first.kind !== 'vector' || second.kind !== 'vector') {
+        throw new CalculatorError('Argument ERROR', 'Angle requires two vectors');
+      }
+      return { kind: 'scalar', scalar: angleVector(first.vector, second.vector, ctx.angle ?? 'DEG') };
     }
     if (tok.type === 'abs') {
       if (peek().type !== 'open') syntax('Expected (');

@@ -4,7 +4,8 @@ import { mathError, syntax } from './errors';
 import { DEFAULT_NUMBER_FORMAT, toSuperscript, type NumberFormatSetting } from './format';
 import {
   addSymbolic, divideSymbolic, exactInverseTrigDegrees, exactTrigDegrees,
-  makePiMultiple, multiplySymbolic, negateSymbolic, symbolicSqrtRational,
+  gcdBig, lcmBig, makePiMultiple, multiplySymbolic, negateSymbolic,
+  parseRecurringRational, symbolicSqrtRational, symbolicSqrtSurd,
   type SymbolicValue,
 } from './symbolic';
 
@@ -24,7 +25,8 @@ export interface Scalar {
 
 export type StoredSymbolic =
   | { kind: 'pi'; n: string; d: string }
-  | { kind: 'surd'; a: string; b: string; rad: string; d: string };
+  | { kind: 'surd'; a: string; b: string; rad: string; d: string }
+  | { kind: 'multi-surd'; terms: Array<{ coef: string; rad: string }>; d: string };
 
 export interface StoredScalar {
   decimal: string;
@@ -106,6 +108,12 @@ export function serialize(value: Scalar): StoredScalar {
       rad: value.symbolic.rad.toString(),
       d: value.symbolic.d.toString(),
     };
+  } else if (value.symbolic?.kind === 'multi-surd') {
+    sym = {
+      kind: 'multi-surd',
+      terms: value.symbolic.terms.map((t) => ({ coef: t.coef.toString(), rad: t.rad.toString() })),
+      d: value.symbolic.d.toString(),
+    };
   }
   return {
     decimal: value.decimal.toString(),
@@ -128,6 +136,12 @@ export function deserialize(value: StoredScalar): Scalar {
       a: BigInt(value.symbolic.a),
       b: BigInt(value.symbolic.b),
       rad: BigInt(value.symbolic.rad),
+      d: BigInt(value.symbolic.d),
+    };
+  } else if (value.symbolic?.kind === 'multi-surd') {
+    sym = {
+      kind: 'multi-surd',
+      terms: value.symbolic.terms.map((t) => ({ coef: BigInt(t.coef), rad: BigInt(t.rad) })),
       d: BigInt(value.symbolic.d),
     };
   }
@@ -195,7 +209,7 @@ export function power(a: Scalar, b: Scalar): Scalar {
       const exact = exponent < 0 ? rational(d, n) : rational(n, d);
       return makeScalar(a.decimal.pow(b.decimal), exact, pref);
     }
-    if (a.symbolic?.kind === 'surd' && Math.abs(exponent) <= 12) {
+    if ((a.symbolic?.kind === 'surd' || a.symbolic?.kind === 'multi-surd') && Math.abs(exponent) <= 10) {
       if (exponent === 0) return scalarFromInteger(1);
       let acc: Scalar = scalarFromInteger(1);
       let base: Scalar = a;
@@ -396,6 +410,63 @@ function angleScalarToExactDegrees(a: Scalar, angle: AngleUnit): Rational | unde
   return undefined;
 }
 
+export function gcdScalar(a: Scalar, b: Scalar): Scalar {
+  if (!a.decimal.isInteger() || !b.decimal.isInteger() || a.decimal.abs().gte('1e15') || b.decimal.abs().gte('1e15')) {
+    mathError('GCD requires integers within ±10^15');
+  }
+  const na = BigInt(a.decimal.toFixed(0));
+  const nb = BigInt(b.decimal.toFixed(0));
+  if (na === ZERO && nb === ZERO) mathError('GCD(0,0) is undefined');
+  const g = gcdBig(na, nb);
+  return scalarFromInteger(g);
+}
+
+export function lcmScalar(a: Scalar, b: Scalar): Scalar {
+  if (!a.decimal.isInteger() || !b.decimal.isInteger() || a.decimal.abs().gte('1e15') || b.decimal.abs().gte('1e15')) {
+    mathError('LCM requires integers within ±10^15');
+  }
+  const na = BigInt(a.decimal.toFixed(0));
+  const nb = BigInt(b.decimal.toFixed(0));
+  if (na === ZERO || nb === ZERO) return scalarFromInteger(0);
+  const l = lcmBig(na, nb);
+  return makeScalar(l.toString(), rational(l));
+}
+
+export function intPartScalar(a: Scalar): Scalar {
+  const trunc = a.decimal.truncated();
+  if (trunc.abs().lt('1e20')) {
+    return scalarFromInteger(BigInt(trunc.toFixed(0)));
+  }
+  return makeScalar(trunc, undefined, true);
+}
+
+export function floorIntgScalar(a: Scalar): Scalar {
+  const fl = a.decimal.floor();
+  if (fl.abs().lt('1e20')) {
+    return scalarFromInteger(BigInt(fl.toFixed(0)));
+  }
+  return makeScalar(fl, undefined, true);
+}
+
+export function quotientRemainder(a: Scalar, b: Scalar): { quotient: Scalar; remainder: Scalar } {
+  if (!a.decimal.isInteger() || !b.decimal.isInteger() || a.decimal.lt(0) || b.decimal.lte(0) || a.decimal.gte('1e10') || b.decimal.gte('1e10')) {
+    mathError('÷R requires positive integers');
+  }
+  const dividend = BigInt(a.decimal.toFixed(0));
+  const divisor = BigInt(b.decimal.toFixed(0));
+  return {
+    quotient: scalarFromInteger(dividend / divisor),
+    remainder: scalarFromInteger(dividend % divisor),
+  };
+}
+
+export function scalarFromRecurring(intStr: string, nonRepeatStr: string, repeatStr: string): Scalar {
+  const r = parseRecurringRational(intStr, nonRepeatStr, repeatStr);
+  if (!r) syntax('Invalid recurring decimal');
+  const dec = new D(r.n.toString()).div(r.d.toString());
+  return makeScalar(dec, rational(r.n, r.d), false);
+}
+
 export function applyFunction(
   name: string,
   args: Scalar[],
@@ -406,12 +477,24 @@ export function applyFunction(
     if (args.length !== 3) syntax('Wrong number of arguments');
     return mixedFraction(args[0], args[1], args[2]);
   }
-  const two = name === 'frac' || name === 'logb' || name === 'root' || name === 'Pol' || name === 'Rec' || name === 'RanInt';
+  const two =
+    name === 'frac' ||
+    name === 'logb' ||
+    name === 'root' ||
+    name === 'Pol' ||
+    name === 'Rec' ||
+    name === 'RanInt' ||
+    name === 'GCD' ||
+    name === 'LCM';
   if (args.length !== (two ? 2 : 1)) syntax('Wrong number of arguments');
   const a = args[0];
   const x = a.decimal;
   switch (name) {
     case 'frac': return divide(a, args[1]);
+    case 'GCD': return gcdScalar(a, args[1]);
+    case 'LCM': return lcmScalar(a, args[1]);
+    case 'Int': return intPartScalar(a);
+    case 'Intg': return floorIntgScalar(a);
     case 'Pol': return polarFromRect(a, args[1], angle).r;
     case 'Rec': return rectFromPolar(a, args[1], angle).x;
     case 'RanInt': return randomInteger(a, args[1], options?.random);
@@ -426,6 +509,15 @@ export function applyFunction(
         }
         if (sq && 'kind' in sq) {
           return makeScalar(x.sqrt(), undefined, a.preferDecimal, sq);
+        }
+      }
+      if (a.symbolic?.kind === 'surd') {
+        const denested = symbolicSqrtSurd(a.symbolic);
+        if (denested?.exact) {
+          return makeScalar(x.sqrt(), rational(denested.exact.n, denested.exact.d), a.preferDecimal);
+        }
+        if (denested?.symbolic) {
+          return makeScalar(x.sqrt(), undefined, a.preferDecimal, denested.symbolic);
         }
       }
       return makeScalar(x.sqrt(), undefined, a.preferDecimal);

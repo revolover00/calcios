@@ -1,7 +1,7 @@
 import React from 'react';
 import { CONSTANT_BY_TOKEN, CONVERSION_BY_TOKEN } from '../core/constants';
 import { STAT_TOKEN_LABELS } from '../core/expression';
-import type { DisplayValue } from '../core/format';
+import type { DisplayValue, IneqSegmentDisplay } from '../core/format';
 
 interface ArgSpan {
   start: number;
@@ -45,6 +45,9 @@ const DISPLAY_FUNC_LABELS: Record<string, string> = {
   acosh: 'cosh⁻¹',
   atanh: 'tanh⁻¹',
   RanInt: 'RanInt#',
+  StatP: 'P',
+  StatQ: 'Q',
+  StatR: 'R',
 };
 
 const STAT_KEYS_SORTED = Object.keys(STAT_TOKEN_LABELS).sort((a, b) => b.length - a.length);
@@ -132,10 +135,28 @@ function MathRange({
       continue;
     }
 
+    if (rest.startsWith('▸xhat2')) {
+      nodes.push(<span key={`k-${keyCounter++}`} className="math-const">x̂₂</span>);
+      pos += 6;
+      continue;
+    }
+
     if (rest.startsWith('▸yhat') || rest.startsWith('▸xhat')) {
       const lbl = rest.startsWith('▸yhat') ? 'ŷ' : 'x̂';
       nodes.push(<span key={`k-${keyCounter++}`} className="math-const">{lbl}</span>);
       pos += 5;
+      continue;
+    }
+
+    if (rest.startsWith('▸t')) {
+      nodes.push(<span key={`k-${keyCounter++}`} className="math-const">▸t</span>);
+      pos += 2;
+      continue;
+    }
+
+    if (rest.startsWith('÷R')) {
+      nodes.push(<span key={`k-${keyCounter++}`} className="math-const">÷R</span>);
+      pos += 2;
       continue;
     }
 
@@ -147,6 +168,32 @@ function MathRange({
     }
 
     if (!lineMode) {
+      // Recurring decimal vinculum overbar: r(3) -> 3̅
+      if (rest.startsWith('r(')) {
+        const parsed = parseCallSpans(source, pos + 1, 1);
+        if (parsed && parsed.afterIndex <= end) {
+          const [rep] = parsed.args;
+          const strayCursor =
+            cursor !== null && cursor > pos && cursor < parsed.afterIndex && !(cursor >= rep.start && cursor <= rep.end);
+          nodes.push(
+            <span key={`k-${keyCounter++}`} className="math-overbar">
+              {strayCursor && <Caret overwrite={overwrite} />}
+              <MathRange
+                source={source}
+                start={rep.start}
+                end={rep.end}
+                cursor={cursor}
+                overwrite={overwrite}
+                lineMode={false}
+                showEmptyPlaceholder
+              />
+            </span>,
+          );
+          pos = parsed.afterIndex;
+          continue;
+        }
+      }
+
       if (rest.startsWith('mfrac(')) {
         const parsed = parseCallSpans(source, pos + 5, 3);
         if (parsed && parsed.afterIndex <= end) {
@@ -467,6 +514,137 @@ function SurdTop({ a, b, rad }: { a: string; b: string; rad: string }): React.Re
   );
 }
 
+function MultiSurdTop({ terms }: { terms: Array<{ coef: string; rad: string }> }): React.ReactElement {
+  return (
+    <span className="math-seq">
+      {terms.map((t, idx) => {
+        const cBig = BigInt(t.coef);
+        const rBig = BigInt(t.rad);
+        const neg = cBig < 0n;
+        const absC = neg ? -cBig : cBig;
+        const sign = idx === 0 ? (neg ? '−' : '') : neg ? '−' : '+';
+        if (rBig === 1n) {
+          return (
+            <span key={idx}>
+              {sign}
+              {absC.toString()}
+            </span>
+          );
+        }
+        const coefStr = absC === 1n ? '' : absC.toString();
+        return (
+          <span key={idx} className="math-seq">
+            {sign}
+            {coefStr}
+            <span className="math-sqrt">
+              <span className="math-sqrt-glyph">√</span>
+              <span className="math-sqrt-body">{rBig.toString()}</span>
+            </span>
+          </span>
+        );
+      })}
+    </span>
+  );
+}
+
+function InlineDisplayAtom({ display, lineMode }: { display: DisplayValue; lineMode: boolean }): React.ReactElement {
+  if (display.type === 'symbolic-pi') {
+    if (display.denominator === '1') {
+      const coef = display.numerator === '1' ? '' : display.numerator;
+      return <span>{display.sign}{coef}π</span>;
+    }
+    if (lineMode) return <span>{display.sign}{display.numerator}⌟{display.denominator}π</span>;
+    return (
+      <span className="math-seq">
+        {display.sign && <span>{display.sign}</span>}
+        <span className="math-frac math-frac-mini-res">
+          <span className="math-frac-num">{display.numerator}</span>
+          <span className="math-frac-bar" />
+          <span className="math-frac-den">{display.denominator}</span>
+        </span>
+        <span>π</span>
+      </span>
+    );
+  }
+  if (display.type === 'fraction') {
+    if (lineMode) return <span>{display.sign}{display.numerator}⌟{display.denominator}</span>;
+    return (
+      <span className="math-seq">
+        {display.sign && <span>{display.sign}</span>}
+        <span className="math-frac math-frac-mini-res">
+          <span className="math-frac-num">{display.numerator}</span>
+          <span className="math-frac-bar" />
+          <span className="math-frac-den">{display.denominator}</span>
+        </span>
+      </span>
+    );
+  }
+  if (display.type === 'symbolic-surd') {
+    if (display.d === '1') return <SurdTop a={display.a} b={display.b} rad={display.rad} />;
+    return (
+      <span className="math-frac math-frac-mini-res">
+        <span className="math-frac-num"><SurdTop a={display.a} b={display.b} rad={display.rad} /></span>
+        <span className="math-frac-bar" />
+        <span className="math-frac-den">{display.d}</span>
+      </span>
+    );
+  }
+  if (display.type === 'symbolic-multisurd') {
+    if (display.d === '1') return <MultiSurdTop terms={display.terms} />;
+    return (
+      <span className="math-frac math-frac-mini-res">
+        <span className="math-frac-num"><MultiSurdTop terms={display.terms} /></span>
+        <span className="math-frac-bar" />
+        <span className="math-frac-den">{display.d}</span>
+      </span>
+    );
+  }
+  if (display.type === 'text') {
+    return <span>{renderFormattedText(display.text)}</span>;
+  }
+  return <span />;
+}
+
+function renderIneqSegment(seg: IneqSegmentDisplay, idx: number, lineMode: boolean): React.ReactNode {
+  if (seg.kind === 'all') return <span key={idx}>All Real Numbers</span>;
+  if (seg.kind === 'none') return <span key={idx}>No Solution</span>;
+  if (seg.kind === 'eq') {
+    return (
+      <span key={idx} className="math-seq">
+        X=<InlineDisplayAtom display={seg.val} lineMode={lineMode} />
+      </span>
+    );
+  }
+  if (seg.kind === 'neq') {
+    return (
+      <span key={idx} className="math-seq">
+        X≠<InlineDisplayAtom display={seg.val} lineMode={lineMode} />
+      </span>
+    );
+  }
+  if (seg.kind === 'left') {
+    return (
+      <span key={idx} className="math-seq">
+        X{seg.op}<InlineDisplayAtom display={seg.upper} lineMode={lineMode} />
+      </span>
+    );
+  }
+  if (seg.kind === 'right') {
+    return (
+      <span key={idx} className="math-seq">
+        <InlineDisplayAtom display={seg.lower} lineMode={lineMode} />{seg.op}X
+      </span>
+    );
+  }
+  return (
+    <span key={idx} className="math-seq">
+      <InlineDisplayAtom display={seg.lower} lineMode={lineMode} />
+      {seg.op}X{seg.op}
+      <InlineDisplayAtom display={seg.upper} lineMode={lineMode} />
+    </span>
+  );
+}
+
 export function NaturalResult({
   display,
   lineMode = false,
@@ -474,7 +652,28 @@ export function NaturalResult({
   display: DisplayValue;
   lineMode?: boolean;
 }): React.ReactElement {
+  if (display.type === 'ineq-2d') {
+    return (
+      <div className="lcd-result-frac lcd-ineq-2d" dir="ltr">
+        {display.segments.map((seg, idx) => (
+          <React.Fragment key={idx}>
+            {idx > 0 && <span className="lcd-ineq-sep">, </span>}
+            {renderIneqSegment(seg, idx, lineMode)}
+          </React.Fragment>
+        ))}
+      </div>
+    );
+  }
+
   if (display.type === 'pair') {
+    if (display.label1 === 'Q' && display.label2 === 'R') {
+      return (
+        <div className="lcd-result-text" dir="ltr">
+          {renderFormattedText(display.value1)}
+          <span className="lcd-divr-rem">, R= {renderFormattedText(display.value2)}</span>
+        </div>
+      );
+    }
     return (
       <div className="lcd-pair-result" dir="ltr">
         <div className="lcd-pair-row">
@@ -485,6 +684,16 @@ export function NaturalResult({
           <span className="lcd-pair-label">{display.label2}=</span>
           <span className="lcd-pair-val">{renderFormattedText(display.value2)}</span>
         </div>
+      </div>
+    );
+  }
+
+  if (display.type === 'recurring-decimal') {
+    return (
+      <div className="lcd-result-text" dir="ltr">
+        {display.sign}
+        {display.intPart}.{display.nonRepeat}
+        <span className="math-overbar">{display.repeat}</span>
       </div>
     );
   }
@@ -531,6 +740,27 @@ export function NaturalResult({
         <span className="math-frac math-frac-result">
           <span className="math-frac-num">
             <SurdTop a={display.a} b={display.b} rad={display.rad} />
+          </span>
+          <span className="math-frac-bar" />
+          <span className="math-frac-den">{display.d}</span>
+        </span>
+      </div>
+    );
+  }
+
+  if (display.type === 'symbolic-multisurd') {
+    if (display.d === '1') {
+      return (
+        <div className="lcd-result-frac" dir="ltr">
+          <MultiSurdTop terms={display.terms} />
+        </div>
+      );
+    }
+    return (
+      <div className="lcd-result-frac" dir="ltr">
+        <span className="math-frac math-frac-result">
+          <span className="math-frac-num">
+            <MultiSurdTop terms={display.terms} />
           </span>
           <span className="math-frac-bar" />
           <span className="math-frac-den">{display.d}</span>

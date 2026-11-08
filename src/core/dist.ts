@@ -68,6 +68,19 @@ function stdNormCdf(z: InstanceType<typeof D>): InstanceType<typeof D> {
   return new D('0.5').times(new D(1).plus(erfDecimal(z.div(new D(2).sqrt()))));
 }
 
+/** STAT 1-VAR Distr functions: P(t) = P(Z <= t), Q(t) = P(0 <= Z <= t) signed, R(t) = P(Z >= t). */
+export function statNormP(t: Scalar): Scalar {
+  return makeScalar(stdNormCdf(t.decimal), undefined, true);
+}
+
+export function statNormQ(t: Scalar): Scalar {
+  return makeScalar(stdNormCdf(t.decimal).minus('0.5'), undefined, true);
+}
+
+export function statNormR(t: Scalar): Scalar {
+  return makeScalar(new D(1).minus(stdNormCdf(t.decimal)), undefined, true);
+}
+
 export function normalPd(x: Scalar, mu: Scalar, sigma: Scalar): Scalar {
   if (sigma.decimal.lte(0)) mathError('σ must be positive');
   const z = x.decimal.minus(mu.decimal).div(sigma.decimal);

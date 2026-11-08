@@ -76,6 +76,19 @@ function tokenizeBaseN(source: string, base: BaseMode): BaseToken[] {
     if (rest.startsWith('Not(')) { tokens.push({ type: 'unary', op: 'Not' }); tokens.push({ type: 'open' }); i += 4; continue; }
     if (rest.startsWith('Neg(')) { tokens.push({ type: 'unary', op: 'Neg' }); tokens.push({ type: 'open' }); i += 4; continue; }
 
+    // Explicit base prefixes (SHIFT+3 Page 2: d, h, b, o)
+    const prefMatch = rest.match(/^([dhbo])([0-9A-F]+)/);
+    if (prefMatch) {
+      const p = prefMatch[1];
+      const body = prefMatch[2];
+      const pBase: BaseMode = p === 'd' ? 'DEC' : p === 'h' ? 'HEX' : p === 'b' ? 'BIN' : 'OCT';
+      const parsed = parseBaseLiteral(body, pBase);
+      // Store as canonical decimal prefixed literal marker
+      tokens.push({ type: 'literal', text: `@${parsed.toString(10)}` });
+      i += prefMatch[0].length;
+      continue;
+    }
+
     const lit = rest.match(digitRegex);
     if (lit) {
       tokens.push({ type: 'literal', text: lit[0] });
@@ -169,7 +182,10 @@ export function evaluateBaseN(source: string, base: BaseMode, ans: bigint): bigi
       take();
       return v;
     }
-    if (tok.type === 'literal') return parseBaseLiteral(tok.text, base);
+    if (tok.type === 'literal') {
+      if (tok.text.startsWith('@')) return toInt32(BigInt(tok.text.slice(1)));
+      return parseBaseLiteral(tok.text, base);
+    }
     if (tok.type === 'ans') return toInt32(ans);
     return syntax('Expected value in BASE-N');
   }

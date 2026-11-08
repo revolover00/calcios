@@ -45,31 +45,31 @@ export const SCIENTIFIC_ROWS_2_TO_4: readonly (readonly KeySpec[])[] = [
 
 export const LOWER_KEYPAD_ROWS: readonly (readonly KeySpec[])[] = [
   [
-    { id: '7', ariaLabel: '7 أو الثوابت العلمية CONST', primary: '7', shiftLabel: 'CONST', variant: 'num' },
-    { id: '8', ariaLabel: '8 أو تحويل الوحدات CONV', primary: '8', shiftLabel: 'CONV', variant: 'num' },
+    { id: '7', ariaLabel: '7 أو الثوابت العلمية CONST مع SHIFT', primary: '7', variant: 'num' },
+    { id: '8', ariaLabel: '8 أو تحويل الوحدات CONV مع SHIFT', primary: '8', variant: 'num' },
     { id: '9', ariaLabel: '9 أو مسح CLR', primary: '9', shiftLabel: 'CLR', variant: 'num' },
     { id: 'del', ariaLabel: 'DEL حذف أو INS إدراج', primary: 'DEL', shiftLabel: 'INS', variant: 'accent' },
     { id: 'ac', ariaLabel: 'AC مسح الكل أو OFF إيقاف', primary: 'AC', shiftLabel: 'OFF', variant: 'accent' },
   ],
   [
-    { id: '4', ariaLabel: '4 أو المصفوفات MATRIX', primary: '4', shiftLabel: 'MATRIX', variant: 'num' },
-    { id: '5', ariaLabel: '5 أو المتجهات VECTOR', primary: '5', shiftLabel: 'VECTOR', variant: 'num' },
-    { id: '6', ariaLabel: '6 أو التحقق VERIFY', primary: '6', shiftLabel: 'VERIFY', variant: 'num' },
-    { id: 'multiply', ariaLabel: 'ضرب أو تباديل nPr', primary: '×', shiftLabel: 'nPr', variant: 'op' },
-    { id: 'divide', ariaLabel: 'قسمة أو توافيق nCr', primary: '÷', shiftLabel: 'nCr', variant: 'op' },
+    { id: '4', ariaLabel: '4 أو المصفوفات MATRIX مع SHIFT', primary: '4', variant: 'num' },
+    { id: '5', ariaLabel: '5 أو المتجهات VECTOR مع SHIFT', primary: '5', variant: 'num' },
+    { id: '6', ariaLabel: '6 أو التحقق VERIFY مع SHIFT', primary: '6', variant: 'num' },
+    { id: 'multiply', ariaLabel: 'ضرب أو تباديل nPr أو GCD', primary: '×', shiftLabel: 'nPr', variant: 'op' },
+    { id: 'divide', ariaLabel: 'قسمة أو توافيق nCr أو LCM', primary: '÷', shiftLabel: 'nCr', variant: 'op' },
   ],
   [
     { id: '1', ariaLabel: '1 أو الإحصاء STAT', primary: '1', shiftLabel: '┌STAT┐', variant: 'num' },
-    { id: '2', ariaLabel: '2 أو الأعداد المركبة CMPLX', primary: '2', shiftLabel: '┌CMPLX┐', variant: 'num' },
-    { id: '3', ariaLabel: '3 أو الأنظمة العددية BASE', primary: '3', shiftLabel: 'BASE', variant: 'num' },
-    { id: 'add', ariaLabel: 'جمع أو تحويل قطبي Pol', primary: '+', shiftLabel: 'Pol', variant: 'op' },
-    { id: 'subtract', ariaLabel: 'طرح أو تحويل كارتيزي Rec', primary: '−', shiftLabel: 'Rec', variant: 'op' },
+    { id: '2', ariaLabel: '2 أو الأعداد المركبة CMPLX مع SHIFT', primary: '2', variant: 'num' },
+    { id: '3', ariaLabel: '3 أو الأنظمة العددية BASE مع SHIFT', primary: '3', variant: 'num' },
+    { id: 'add', ariaLabel: 'جمع أو تحويل قطبي Pol أو Int', primary: '+', shiftLabel: 'Pol', variant: 'op' },
+    { id: 'subtract', ariaLabel: 'طرح أو تحويل كارتيزي Rec أو Intg', primary: '−', shiftLabel: 'Rec', variant: 'op' },
   ],
   [
     { id: '0', ariaLabel: '0 أو تقريب Rnd', primary: '0', shiftLabel: 'Rnd', variant: 'num' },
     { id: 'dot', ariaLabel: 'علامة عشرية أو رقم عشوائي', primary: '·', shiftLabel: 'Ran#', alphaLabel: 'RanInt', variant: 'num' },
     { id: 'exp', ariaLabel: '×10^x أس عشرة أو π أو e', primary: '×10ˣ', shiftLabel: 'π', alphaLabel: 'e', variant: 'op' },
-    { id: 'ans', ariaLabel: 'Ans آخر إجابة أو DRG▶', primary: 'Ans', shiftLabel: 'DRG▶', variant: 'op' },
+    { id: 'ans', ariaLabel: 'Ans آخر إجابة أو DRG▶ أو PreAns', primary: 'Ans', shiftLabel: 'DRG▶', variant: 'op' },
     { id: 'equals', ariaLabel: 'يساوي =', primary: '=', variant: 'op' },
   ],
 ];

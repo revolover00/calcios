@@ -1,5 +1,8 @@
 import React from 'react';
-import { formatActiveResult, type CalculatorState } from '../core/calculator';
+import {
+  formatActiveInequalityDisplay, formatActiveResult,
+  type CalculatorState,
+} from '../core/calculator';
 import { SCIENTIFIC_CONSTANTS, UNIT_CONVERSIONS } from '../core/constants';
 import type { DistSubMode } from '../core/dist';
 import type { EqnType } from '../core/eqn';
@@ -46,7 +49,7 @@ function LcdStatusBar({ state }: { state: CalculatorState }): React.ReactElement
       <span className={state.pending === 'recall' ? 'ind on' : 'ind'}>RCL</span>
       <span className={state.hyp ? 'ind on' : 'ind'}>HYP</span>
       <span className={hasM ? 'ind on' : 'ind'}>M</span>
-      <span className="ind on">{state.angle === 'DEG' ? 'D' : state.angle === 'RAD' ? 'R' : 'G'}</span>
+      <span className="ind ind-boxed on">{state.angle === 'DEG' ? 'D' : state.angle === 'RAD' ? 'R' : 'G'}</span>
       <span className={state.mode === 'CMPLX' ? 'ind on' : 'ind'}>CMPLX</span>
       <span className={state.mode === 'STAT' ? 'ind on' : 'ind'}>STAT</span>
       <span className={state.mode === 'MATRIX' ? 'ind on' : 'ind'}>MAT</span>
@@ -63,7 +66,7 @@ function LcdStatusBar({ state }: { state: CalculatorState }): React.ReactElement
 }
 
 function renderMenuScreen(state: CalculatorState): React.ReactElement | null {
-  const { screen, menuPage, numberFormat } = state;
+  const { screen, menuPage } = state;
   if (screen === 'normal' || screen === 'off') return null;
 
   if (screen === 'mode') {
@@ -109,8 +112,13 @@ function renderMenuScreen(state: CalculatorState): React.ReactElement | null {
         ) : (
           <div className="lcd-menu-grid">
             <span>1:ab/c</span>
-            <span>2:TABLE</span>
-            <span>3:STAT</span>
+            <span>2:d/c</span>
+            <span>3:CMPLX</span>
+            <span>4:STAT</span>
+            <span>5:Disp</span>
+            <span>6:TABLE</span>
+            <span>7:Recur</span>
+            <span>8:◀CONT▶</span>
           </div>
         )}
         <div className="lcd-menu-hint">{menuPage === 0 ? '▼ Page 2' : '▲ Page 1'}</div>
@@ -119,28 +127,48 @@ function renderMenuScreen(state: CalculatorState): React.ReactElement | null {
   }
 
   if (
+    screen === 'setup-matho' ||
     screen === 'setup-fix' ||
     screen === 'setup-sci' ||
     screen === 'setup-norm' ||
-    screen === 'setup-abdc' ||
+    screen === 'setup-cmplx' ||
+    screen === 'setup-disp' ||
     screen === 'setup-table' ||
-    screen === 'setup-stat-freq'
+    screen === 'setup-stat-freq' ||
+    screen === 'setup-recur'
   ) {
     const prompt =
-      screen === 'setup-fix'
-        ? 'Fix 0~9?'
-        : screen === 'setup-sci'
-          ? 'Sci 0~9?'
-          : screen === 'setup-norm'
-            ? 'Norm 1~2?'
-            : screen === 'setup-abdc'
-              ? '1:a b/c   2:d/c'
-              : screen === 'setup-table'
-                ? '1:f(X)   2:f(X),g(X)'
-                : 'Frequency? 1:ON  2:OFF';
+      screen === 'setup-matho'
+        ? '1:MathO   2:LineO'
+        : screen === 'setup-fix'
+          ? 'Fix 0~9?'
+          : screen === 'setup-sci'
+            ? 'Sci 0~9?'
+            : screen === 'setup-norm'
+              ? 'Norm 1~2?'
+              : screen === 'setup-cmplx'
+                ? '1:a+bi   2:r∠θ'
+                : screen === 'setup-disp'
+                  ? '1:Dot   2:Comma'
+                  : screen === 'setup-table'
+                    ? '1:f(X)   2:f(X),g(X)'
+                    : screen === 'setup-stat-freq'
+                      ? 'Frequency? 1:ON  2:OFF'
+                      : 'Recurring Dec? 1:ON 2:OFF';
     return (
       <div className="lcd-prompt-screen" data-testid="lcd-menu" dir="ltr">
         <div className="lcd-prompt-title">{prompt}</div>
+      </div>
+    );
+  }
+
+  if (screen === 'setup-contrast') {
+    const bars = '█'.repeat(state.contrast) + '░'.repeat(10 - state.contrast);
+    return (
+      <div className="lcd-prompt-screen" data-testid="lcd-menu" dir="ltr">
+        <div className="lcd-prompt-title">CONTRAST</div>
+        <div className="lcd-contrast-bar">LIGHT ◀ {bars} ▶ DARK</div>
+        <div className="lcd-menu-hint">[AC] / [=] : Exit</div>
       </div>
     );
   }
@@ -220,14 +248,24 @@ function renderMenuScreen(state: CalculatorState): React.ReactElement | null {
   if (screen === 'basen-menu') {
     return (
       <div className="lcd-menu" data-testid="lcd-menu" dir="ltr">
-        <div className="lcd-menu-grid">
-          <span>1:and</span>
-          <span>2:or</span>
-          <span>3:xor</span>
-          <span>4:xnor</span>
-          <span>5:Not</span>
-          <span>6:Neg</span>
-        </div>
+        {menuPage === 0 ? (
+          <div className="lcd-menu-grid">
+            <span>1:and</span>
+            <span>2:or</span>
+            <span>3:xor</span>
+            <span>4:xnor</span>
+            <span>5:Not</span>
+            <span>6:Neg</span>
+          </div>
+        ) : (
+          <div className="lcd-menu-grid">
+            <span>1:d</span>
+            <span>2:h</span>
+            <span>3:b</span>
+            <span>4:o</span>
+          </div>
+        )}
+        <div className="lcd-menu-hint">{menuPage === 0 ? '▼ Base Prefix' : '▲ Logic'}</div>
       </div>
     );
   }
@@ -273,8 +311,8 @@ function renderMenuScreen(state: CalculatorState): React.ReactElement | null {
           <span>2:Data</span>
           <span>3:Sum</span>
           <span>4:Var</span>
-          <span>{isReg ? '5:Reg' : '5:MinMax'}</span>
-          {isReg && <span>6:MinMax</span>}
+          <span>{isReg ? '5:Reg' : '5:Distr'}</span>
+          <span>6:MinMax</span>
         </div>
       </div>
     );
@@ -282,6 +320,7 @@ function renderMenuScreen(state: CalculatorState): React.ReactElement | null {
 
   if (screen === 'stat-sub-sum') {
     const isReg = state.stat.subMode !== '1-VAR';
+    const isQuad = state.stat.subMode === '_+CX2';
     return (
       <div className="lcd-menu" data-testid="lcd-menu" dir="ltr">
         <div className="lcd-menu-grid">
@@ -290,6 +329,9 @@ function renderMenuScreen(state: CalculatorState): React.ReactElement | null {
           {isReg && <span>3:Σy²</span>}
           {isReg && <span>4:Σy</span>}
           {isReg && <span>5:Σxy</span>}
+          {isQuad && <span>6:Σx³</span>}
+          {isQuad && <span>7:Σx²y</span>}
+          {isQuad && <span>8:Σx⁴</span>}
         </div>
       </div>
     );
@@ -312,15 +354,30 @@ function renderMenuScreen(state: CalculatorState): React.ReactElement | null {
     );
   }
 
+  if (screen === 'stat-sub-distr') {
+    return (
+      <div className="lcd-menu" data-testid="lcd-menu" dir="ltr">
+        <div className="lcd-menu-grid">
+          <span>1:P(</span>
+          <span>2:Q(</span>
+          <span>3:R(</span>
+          <span>4:▸t</span>
+        </div>
+      </div>
+    );
+  }
+
   if (screen === 'stat-sub-reg') {
+    const isQuad = state.stat.subMode === '_+CX2';
     return (
       <div className="lcd-menu" data-testid="lcd-menu" dir="ltr">
         <div className="lcd-menu-grid">
           <span>1:A</span>
           <span>2:B</span>
-          <span>{state.stat.subMode === '_+CX2' ? '3:C' : '3:r'}</span>
-          <span>4:x̂</span>
-          <span>5:ŷ</span>
+          <span>{isQuad ? '3:C' : '3:r'}</span>
+          <span>{isQuad ? '4:x̂₁' : '4:x̂'}</span>
+          <span>{isQuad ? '5:x̂₂' : '5:ŷ'}</span>
+          {isQuad && <span>6:ŷ</span>}
         </div>
       </div>
     );
@@ -385,16 +442,24 @@ function renderMenuScreen(state: CalculatorState): React.ReactElement | null {
   if (screen === 'matrix-menu') {
     return (
       <div className="lcd-menu" data-testid="lcd-menu" dir="ltr">
-        <div className="lcd-menu-grid">
-          <span>1:Dim</span>
-          <span>2:Data</span>
-          <span>3:MatA</span>
-          <span>4:MatB</span>
-          <span>5:MatC</span>
-          <span>6:MatAns</span>
-          <span>7:det</span>
-          <span>8:Trn</span>
-        </div>
+        {menuPage === 0 ? (
+          <div className="lcd-menu-grid">
+            <span>1:Dim</span>
+            <span>2:Data</span>
+            <span>3:MatA</span>
+            <span>4:MatB</span>
+            <span>5:MatC</span>
+            <span>6:MatAns</span>
+            <span>7:det</span>
+            <span>8:Trn</span>
+          </div>
+        ) : (
+          <div className="lcd-menu-grid">
+            <span>1:Ref</span>
+            <span>2:Rref</span>
+          </div>
+        )}
+        <div className="lcd-menu-hint">{menuPage === 0 ? '▼ Ref / Rref' : '▲ Page 1'}</div>
       </div>
     );
   }
@@ -402,7 +467,7 @@ function renderMenuScreen(state: CalculatorState): React.ReactElement | null {
   if (screen === 'vector-target-menu') {
     return (
       <div className="lcd-menu" data-testid="lcd-menu" dir="ltr">
-        <div className="lcd-prompt-title">Vector?</div>
+        <div className="lcd-prompt-title">{state.vector.dimAction === 'define' ? 'Vector?' : 'Edit Vector?'}</div>
         <div className="lcd-menu-list">
           <span>1:VctA</span>
           <span>2:VctB</span>
@@ -435,6 +500,7 @@ function renderMenuScreen(state: CalculatorState): React.ReactElement | null {
           <span>5:VctC</span>
           <span>6:VctAns</span>
           <span>7:Dot</span>
+          <span>8:Angle</span>
         </div>
       </div>
     );
@@ -490,12 +556,14 @@ function renderMenuScreen(state: CalculatorState): React.ReactElement | null {
           <span>5:Binomial CD</span>
           <span>6:Poisson PD</span>
           <span>7:Poisson CD</span>
+          {state.dist && state.dist.subMode !== 'norm-cd' && state.dist.subMode !== 'inv-norm' && (
+            <span>8:{state.dist.listMode ? 'Var' : 'List'}</span>
+          )}
         </div>
       </div>
     );
   }
 
-  void numberFormat;
   return null;
 }
 
@@ -505,7 +573,7 @@ function renderNormalInteractiveBody(state: CalculatorState): React.ReactElement
   // CALC variable prompt
   if (state.calcPrompt) {
     const varName = state.calcPrompt.vars[state.calcPrompt.index] ?? 'X';
-    const currentStored = formatDecimal(deserialize(state.variables[varName]), state.numberFormat);
+    const currentStored = formatDecimal(deserialize(state.variables[varName]), state.numberFormat, state.decimalMark);
     return (
       <div className="lcd-home" dir="ltr">
         <div className="lcd-expr-area">
@@ -522,23 +590,43 @@ function renderNormalInteractiveBody(state: CalculatorState): React.ReactElement
     );
   }
 
-  // SOLVE prompt
-  if (state.solvePrompt && state.solvePrompt.stage === 'prompt-x') {
-    const xCurrent = formatDecimal(deserialize(state.variables.X), state.numberFormat);
-    return (
-      <div className="lcd-home" dir="ltr">
-        <div className="lcd-expr-area">
-          <span className="lcd-prompt-prefix">Solve for X:</span>
-          <NaturalExpression
-            expression={state.solvePrompt.input || xCurrent}
-            cursor={state.solvePrompt.input ? state.solvePrompt.input.length : null}
-            overwrite={!state.insertMode}
-            lineMode={lineMode}
-          />
+  // SOLVE prompt & 3-line Casio SOLVE result
+  if (state.solvePrompt) {
+    if (state.solvePrompt.stage === 'prompt-x') {
+      const xCurrent = formatDecimal(deserialize(state.variables.X), state.numberFormat, state.decimalMark);
+      return (
+        <div className="lcd-home" dir="ltr">
+          <div className="lcd-expr-area">
+            <span className="lcd-prompt-prefix">Solve for X:</span>
+            <NaturalExpression
+              expression={state.solvePrompt.input || xCurrent}
+              cursor={state.solvePrompt.input ? state.solvePrompt.input.length : null}
+              overwrite={!state.insertMode}
+              lineMode={lineMode}
+            />
+          </div>
+          <div className="lcd-result-area" data-testid="lcd-result" />
         </div>
-        <div className="lcd-result-area" data-testid="lcd-result" />
-      </div>
-    );
+      );
+    }
+
+    if (state.solvePrompt.stage === 'solved' && state.solvePrompt.root && state.solvePrompt.residual) {
+      const xVal = formatDecimal(deserialize(state.solvePrompt.root), state.numberFormat, state.decimalMark);
+      const lrVal = formatDecimal(deserialize(state.solvePrompt.residual), state.numberFormat, state.decimalMark);
+      return (
+        <div className="lcd-home" dir="ltr">
+          <div className="lcd-expr-area" data-testid="lcd-expression">
+            <NaturalExpression expression={state.solvePrompt.sourceExpr} cursor={null} lineMode={lineMode} />
+          </div>
+          <div className="lcd-result-area" data-testid="lcd-result">
+            <NaturalResult
+              display={{ type: 'pair', label1: 'X', value1: xVal, label2: 'L−R', value2: lrVal }}
+              lineMode={lineMode}
+            />
+          </div>
+        </div>
+      );
+    }
   }
 
   // STAT Data Table Editor
@@ -582,25 +670,32 @@ function renderNormalInteractiveBody(state: CalculatorState): React.ReactElement
     );
   }
 
-  // MATRIX Cell Editor or MatAns Result Grid
+  // MATRIX Cell Editor or MatAns Result Grid (with D-pad navigation & exact bottom-right cell readout!)
   if (state.mode === 'MATRIX' && (state.matrix.editingTarget || state.matrix.showingMatrixResult)) {
     const targetName = state.matrix.editingTarget ?? 'MatAns';
     const mat = state.matrix.matrices[targetName];
     const isEditing = state.matrix.editingTarget !== null;
     if (mat) {
+      const curR = Math.min(mat.rows - 1, state.matrix.rowIdx);
+      const curC = Math.min(mat.cols - 1, state.matrix.colIdx);
+      const activeCellScalar = deserialize(mat.cells[curR][curC]);
+      const activeCellExact = formatResult(activeCellScalar, 'exact', {
+        numberFormat: state.numberFormat,
+        decimalMark: state.decimalMark,
+      });
       return (
         <div className="lcd-table-view" data-testid="lcd-matrix-grid" dir="ltr">
           <div className="lcd-prompt-title">
-            {targetName} [{mat.rows}×{mat.cols}]
+            {targetName} [{mat.rows}×{mat.cols}] ({curR + 1},{curC + 1})
           </div>
           {mat.cells.map((rCells, r) => (
             <div key={r} className="lcd-mat-row">
               {rCells.map((cell, c) => {
-                const focused = isEditing && r === state.matrix.rowIdx && c === state.matrix.colIdx;
+                const focused = r === curR && c === curC;
                 const valStr =
-                  focused && state.matrix.editingCell
+                  isEditing && focused && state.matrix.editingCell
                     ? state.matrix.cellInput
-                    : formatDecimal(deserialize(cell), state.numberFormat);
+                    : formatDecimal(deserialize(cell), state.numberFormat, state.decimalMark);
                 return (
                   <span key={c} className={focused ? 'lcd-mat-cell focused' : 'lcd-mat-cell'}>
                     {valStr}
@@ -609,29 +704,40 @@ function renderNormalInteractiveBody(state: CalculatorState): React.ReactElement
               })}
             </div>
           ))}
+          {!state.matrix.editingCell && (
+            <div className="lcd-cell-readout">
+              <NaturalResult display={activeCellExact} lineMode={lineMode} />
+            </div>
+          )}
         </div>
       );
     }
   }
 
-  // VECTOR Coordinate Editor or VctAns Result
+  // VECTOR Coordinate Editor or VctAns Result (with D-pad navigation & exact readout!)
   if (state.mode === 'VECTOR' && (state.vector.editingTarget || state.vector.showingVectorResult)) {
     const targetName = state.vector.editingTarget ?? 'VctAns';
     const vct = state.vector.vectors[targetName];
     const isEditing = state.vector.editingTarget !== null;
     if (vct) {
+      const curIdx = Math.min(vct.dim - 1, state.vector.coordIdx);
+      const activeScalar = deserialize(vct.coords[curIdx]);
+      const activeExact = formatResult(activeScalar, 'exact', {
+        numberFormat: state.numberFormat,
+        decimalMark: state.decimalMark,
+      });
       return (
         <div className="lcd-table-view" data-testid="lcd-vector-grid" dir="ltr">
           <div className="lcd-prompt-title">
-            {targetName} [{vct.dim}]
+            {targetName} [{vct.dim}] ({curIdx + 1})
           </div>
           <div className="lcd-mat-row">
             {vct.coords.map((cell, idx) => {
-              const focused = isEditing && idx === state.vector.coordIdx;
+              const focused = idx === curIdx;
               const valStr =
-                focused && state.vector.editingCell
+                isEditing && focused && state.vector.editingCell
                   ? state.vector.cellInput
-                  : formatDecimal(deserialize(cell), state.numberFormat);
+                  : formatDecimal(deserialize(cell), state.numberFormat, state.decimalMark);
               return (
                 <span key={idx} className={focused ? 'lcd-mat-cell focused' : 'lcd-mat-cell'}>
                   {valStr}
@@ -639,6 +745,11 @@ function renderNormalInteractiveBody(state: CalculatorState): React.ReactElement
               );
             })}
           </div>
+          {!state.vector.editingCell && (
+            <div className="lcd-cell-readout">
+              <NaturalResult display={activeExact} lineMode={lineMode} />
+            </div>
+          )}
         </div>
       );
     }
@@ -673,6 +784,7 @@ function renderNormalInteractiveBody(state: CalculatorState): React.ReactElement
         ? formatResult(item.scalar, state.resultFormat, {
             fractionStyle: state.fractionStyle,
             numberFormat: state.numberFormat,
+            decimalMark: state.decimalMark,
           })
         : { type: 'text' as const, text: item?.complexText ?? '0' };
       return (
@@ -700,13 +812,17 @@ function renderNormalInteractiveBody(state: CalculatorState): React.ReactElement
         <div className="lcd-eqn-coeffs">
           {names.slice(0, 6).map((nm, idx) => (
             <span key={nm} className={idx === eqn.cursorIndex ? 'eqn-chip active' : 'eqn-chip'}>
-              {nm}={formatDecimal(deserialize(eqn.coeffs[idx]), state.numberFormat)}
+              {nm}={formatDecimal(deserialize(eqn.coeffs[idx]), state.numberFormat, state.decimalMark)}
             </span>
           ))}
         </div>
         <div className="lcd-expr-area">
           <NaturalExpression
-            expression={eqn.editingCell ? eqn.input : formatDecimal(deserialize(eqn.coeffs[eqn.cursorIndex]), state.numberFormat)}
+            expression={
+              eqn.editingCell
+                ? eqn.input
+                : formatDecimal(deserialize(eqn.coeffs[eqn.cursorIndex]), state.numberFormat, state.decimalMark)
+            }
             cursor={eqn.editingCell ? eqn.input.length : null}
             overwrite={!state.insertMode}
             lineMode={lineMode}
@@ -716,18 +832,19 @@ function renderNormalInteractiveBody(state: CalculatorState): React.ReactElement
     );
   }
 
-  // INEQ Mode Editor & Interval Solution
+  // INEQ Mode Editor & 2D Natural-V.P.A.M. Solution (matching references/fx95-layout.jpg!)
   if (state.mode === 'INEQ' && state.ineq) {
     const ineq = state.ineq;
     if (ineq.solved) {
-      const disp = formatActiveResult(state) ?? { type: 'text', text: '' };
+      const richDisp = formatActiveInequalityDisplay(state) ?? { type: 'text' as const, text: '' };
+      const topHeader = richDisp.type === 'ineq-2d' ? richDisp.header : 'Inequality:';
       return (
         <div className="lcd-home" dir="ltr">
-          <div className="lcd-expr-area">
-            <span className="lcd-eqn-res-label">Inequality:</span>
+          <div className="lcd-expr-area" data-testid="lcd-expression">
+            <span className="lcd-eqn-res-label">{topHeader}</span>
           </div>
           <div className="lcd-result-area" data-testid="lcd-result">
-            <NaturalResult display={disp} lineMode={lineMode} />
+            <NaturalResult display={richDisp} lineMode={lineMode} />
           </div>
         </div>
       );
@@ -743,13 +860,17 @@ function renderNormalInteractiveBody(state: CalculatorState): React.ReactElement
         <div className="lcd-eqn-coeffs">
           {names.map((nm, idx) => (
             <span key={nm} className={idx === ineq.cursorIndex ? 'eqn-chip active' : 'eqn-chip'}>
-              {nm}={formatDecimal(deserialize(ineq.coeffs[idx]), state.numberFormat)}
+              {nm}={formatDecimal(deserialize(ineq.coeffs[idx]), state.numberFormat, state.decimalMark)}
             </span>
           ))}
         </div>
         <div className="lcd-expr-area">
           <NaturalExpression
-            expression={ineq.editingCell ? ineq.input : formatDecimal(deserialize(ineq.coeffs[ineq.cursorIndex]), state.numberFormat)}
+            expression={
+              ineq.editingCell
+                ? ineq.input
+                : formatDecimal(deserialize(ineq.coeffs[ineq.cursorIndex]), state.numberFormat, state.decimalMark)
+            }
             cursor={ineq.editingCell ? ineq.input.length : null}
             overwrite={!state.insertMode}
             lineMode={lineMode}
@@ -759,13 +880,32 @@ function renderNormalInteractiveBody(state: CalculatorState): React.ReactElement
     );
   }
 
-  // DIST Mode Parameter Editor & Probability Result
+  // DIST Mode Parameter Editor & Probability Result (supports both Var and List!)
   if (state.mode === 'DIST' && state.dist) {
     const ds = state.dist;
+    if (ds.listResults) {
+      return (
+        <div className="lcd-table-view" data-testid="lcd-result" dir="ltr">
+          <div className="lcd-table-head">
+            <span>#</span>
+            <span>x</span>
+            <span>P</span>
+          </div>
+          {ds.listResults.map((row, idx) => (
+            <div key={idx} className={idx === ds.listRowIdx ? 'lcd-table-row active' : 'lcd-table-row'}>
+              <span>{idx + 1}</span>
+              <span>{row.x}</span>
+              <span>{row.p}</span>
+            </div>
+          ))}
+        </div>
+      );
+    }
     if (ds.result) {
       const disp = formatResult(deserialize(ds.result), 'decimal', {
         fractionStyle: state.fractionStyle,
         numberFormat: state.numberFormat,
+        decimalMark: state.decimalMark,
       });
       return (
         <div className="lcd-home" dir="ltr">
@@ -780,9 +920,24 @@ function renderNormalInteractiveBody(state: CalculatorState): React.ReactElement
     }
     return (
       <div className="lcd-table-view" data-testid="lcd-dist-editor" dir="ltr">
-        <div className="lcd-prompt-title">{DIST_TITLES[ds.subMode]}</div>
-        {ds.params.map((p, idx) => {
-          const active = idx === ds.paramIdx;
+        <div className="lcd-prompt-title">
+          {DIST_TITLES[ds.subMode]} [{ds.listMode ? 'List' : 'Var'}]
+        </div>
+        {ds.listMode &&
+          ds.listX.map((xVal, idx) => {
+            const active = idx === ds.paramIdx;
+            return (
+              <div key={`lx-${idx}`} className={active ? 'lcd-table-row active' : 'lcd-table-row'}>
+                <span>x{idx + 1}</span>
+                <span className={active ? 'cell-focus' : undefined}>
+                  {active && ds.editingParam ? ds.input : xVal}
+                </span>
+              </div>
+            );
+          })}
+        {ds.params.map((p, i) => {
+          const slotIdx = (ds.listMode ? ds.listX.length : 0) + i;
+          const active = slotIdx === ds.paramIdx;
           return (
             <div key={p.name} className={active ? 'lcd-table-row active' : 'lcd-table-row'}>
               <span>{p.name}</span>
@@ -833,7 +988,12 @@ function renderNormalInteractiveBody(state: CalculatorState): React.ReactElement
         <div className="lcd-home" dir="ltr">
           <div className="lcd-expr-area">
             <span className="lcd-prompt-prefix">{label}</span>
-            <NaturalExpression expression={val} cursor={val.length} overwrite={!state.insertMode} lineMode={lineMode} />
+            <NaturalExpression
+              expression={val}
+              cursor={tbl.editingField ? val.length : null}
+              overwrite={!state.insertMode}
+              lineMode={lineMode}
+            />
           </div>
           <div className="lcd-result-area" data-testid="lcd-result" />
         </div>
@@ -861,6 +1021,9 @@ function renderNormalInteractiveBody(state: CalculatorState): React.ReactElement
 }
 
 export function LcdScreen({ state }: { state: CalculatorState }): React.ReactElement {
+  const contrastOpacity = (0.45 + state.contrast * 0.055).toFixed(3);
+  const glassStyle = { '--lcd-contrast-alpha': contrastOpacity } as React.CSSProperties;
+
   if (state.screen === 'off') {
     return (
       <div className="lcd-bezel">
@@ -872,7 +1035,7 @@ export function LcdScreen({ state }: { state: CalculatorState }): React.ReactEle
   if (state.phase === 'error' && state.error) {
     return (
       <div className="lcd-bezel">
-        <div className="lcd-glass" data-testid="lcd-screen">
+        <div className="lcd-glass" style={glassStyle} data-testid="lcd-screen">
           <LcdStatusBar state={state} />
           <div className="lcd-error" data-testid="lcd-error" dir="ltr">
             <div className="lcd-error-title">{state.error}</div>
@@ -890,7 +1053,7 @@ export function LcdScreen({ state }: { state: CalculatorState }): React.ReactEle
   if (menuNode) {
     return (
       <div className="lcd-bezel">
-        <div className="lcd-glass" data-testid="lcd-screen">
+        <div className="lcd-glass" style={glassStyle} data-testid="lcd-screen">
           <LcdStatusBar state={state} />
           {menuNode}
         </div>
@@ -902,7 +1065,7 @@ export function LcdScreen({ state }: { state: CalculatorState }): React.ReactEle
   if (interactiveNode) {
     return (
       <div className="lcd-bezel">
-        <div className="lcd-glass" data-testid="lcd-screen">
+        <div className="lcd-glass" style={glassStyle} data-testid="lcd-screen">
           <LcdStatusBar state={state} />
           {interactiveNode}
         </div>
@@ -915,7 +1078,7 @@ export function LcdScreen({ state }: { state: CalculatorState }): React.ReactEle
 
   return (
     <div className="lcd-bezel">
-      <div className="lcd-glass" data-testid="lcd-screen">
+      <div className="lcd-glass" style={glassStyle} data-testid="lcd-screen">
         <LcdStatusBar state={state} />
         <div className="lcd-home">
           <div className="lcd-expr-area" data-testid="lcd-expression">

@@ -134,4 +134,37 @@ describe('Calculator-Only Viewport & fx-991ES PLUS C Integration', () => {
     clickHardwareKey(container, 'equals');
     expect(screen.getByTestId('lcd-result').textContent).toBe('TRUE');
   });
+
+  it('renders 2D Natural-V.P.A.M. INEQ header (X<A, B<X) and recurring decimal overbar on the LCD', () => {
+    const { container } = render(<App />);
+
+    // 1 ÷ 3 = -> 1/3 -> S⇔D -> 0.3̅ with vinculum overbar
+    clickHardwareKey(container, '1');
+    clickHardwareKey(container, 'divide');
+    clickHardwareKey(container, '3');
+    clickHardwareKey(container, 'equals');
+    clickHardwareKey(container, 'sd');
+
+    const overbar = container.querySelector('.math-overbar');
+    expect(overbar).not.toBeNull();
+    expect(overbar?.textContent).toBe('3');
+
+    // Switch to INEQ: aX^2+bX+c > 0 with a=1, b=0, c=-2 -> X<A, B<X on top line, X<-√2, √2<X on bottom
+    clickHardwareKey(container, 'mode');
+    clickHardwareKey(container, 'down');
+    clickHardwareKey(container, '1'); // INEQ
+    clickHardwareKey(container, '1'); // quad
+    clickHardwareKey(container, '1'); // > 0
+    clickHardwareKey(container, '1');
+    clickHardwareKey(container, 'equals');
+    clickHardwareKey(container, '0');
+    clickHardwareKey(container, 'equals');
+    clickHardwareKey(container, 'neg');
+    clickHardwareKey(container, '2');
+    clickHardwareKey(container, 'equals');
+
+    expect(screen.getByTestId('lcd-expression').textContent).toBe('X<A, B<X');
+    expect(screen.getByTestId('lcd-result').textContent).toContain('X<−√2');
+    expect(screen.getByTestId('lcd-result').textContent).toContain('√2<X');
+  });
 });

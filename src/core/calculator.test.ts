@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  calculatorReducer, createInitialState, formatActiveResult, hydrateState, saveableState,
-  type CalculatorState,
+  calculatorReducer, createInitialState, formatActiveInequalityDisplay, formatActiveResult,
+  hydrateState, saveableState, type CalculatorState,
 } from './calculator';
 import { deserialize } from './value';
 import { formatDecimal, formatResult } from './format';
@@ -278,5 +278,110 @@ describe('calculator state machine', () => {
     const restored = hydrateState(JSON.stringify(saveableState(s)));
     expect(restored.angle).toBe('RAD'); expect(deserialize(restored.variables.A).decimal.toString()).toBe('8');
     expect(hydrateState('{oops').angle).toBe('DEG');
+  });
+
+  it('supports recurring decimal S⇔D cycling, ÷R quotient/remainder (storing E & F), GCD/LCM/Int/Intg, and PreAns', () => {
+    // 1 ÷ 3 = -> 1/3 -> S⇔D -> 0.(3) recurring -> S⇔D -> 0.3333333333
+    const s1 = press('1', 'divide', '3', 'equals');
+    expect(formatActiveResult(s1)).toEqual({ type: 'fraction', sign: '', numerator: '1', denominator: '3' });
+    const s2 = calculatorReducer(s1, { type: 'key', id: 'sd' });
+    expect(formatActiveResult(s2)).toEqual({
+      type: 'recurring-decimal',
+      sign: '',
+      intPart: '0',
+      nonRepeat: '',
+      repeat: '3',
+    });
+    const s3 = calculatorReducer(s2, { type: 'key', id: 'sd' });
+    expect(formatActiveResult(s3)).toEqual({ type: 'text', text: '0.3333333333' });
+
+    // 17 ÷R 5 (ALPHA + frac) -> Q=3 (in Ans & E), R=2 (in F)
+    const sDivR = press('1', '7', 'alpha', 'frac', '5', 'equals');
+    expect(formatActiveResult(sDivR)).toEqual({
+      type: 'pair',
+      label1: 'Q',
+      value1: '3',
+      label2: 'R',
+      value2: '2',
+    });
+    expect(formatDecimal(deserialize(sDivR.variables.E))).toBe('3');
+    expect(formatDecimal(deserialize(sDivR.variables.F))).toBe('2');
+
+    // PreAns: 10 =, 25 =, ALPHA+Ans + Ans = -> 35
+    const sPre = press('1', '0', 'equals', '2', '5', 'equals', 'alpha', 'ans', 'add', 'ans', 'equals');
+    expect(shown(sPre)).toBe('35');
+
+    // ALPHA+multiply (GCD) & ALPHA+divide (LCM)
+    const sGcd = press('alpha', 'multiply', '4', '8', 'shift', 'close', '1', '8', '0', 'close', 'equals');
+    expect(shown(sGcd)).toBe('12');
+  });
+
+  it('supports MATRIX Ref/Rref, VECTOR Angle & Data edit, BASE-N prefixes, chained VERIF, STAT Distr/_+CX2, and 2D INEQ', () => {
+    // MATRIX Rref([[1, 2, 5], [1, -1, 2]]) -> [[1, 0, 3], [0, 1, 1]]
+    const sRref = press(
+      'mode', '6', '1', '4', // MatA 2x3
+      '1', 'equals', '2', 'equals', '5', 'equals',
+      '1', 'equals', 'neg', '1', 'equals', '2', 'equals',
+      'ac',
+      'shift', '4', 'down', '2', // Rref(
+      'shift', '4', '3', 'close', 'equals',
+    );
+    const rrefMat = sRref.matrix.matrices.MatAns!;
+    expect(formatDecimal(deserialize(rrefMat.cells[0][2]))).toBe('3');
+    expect(formatDecimal(deserialize(rrefMat.cells[1][2]))).toBe('1');
+
+    // VECTOR Angle([1, 0], [1, 1]) in DEG -> 45, plus SHIFT+5 -> 2:Data -> 2:VctB edit
+    const sAng = press(
+      'mode', '8', '1', '2', // VctA 2D
+      '1', 'equals', '0', 'equals', 'ac',
+      'shift', '5', '1', '2', '2', // VctB 2D
+      '1', 'equals', '1', 'equals', 'ac',
+      'shift', '5', '8', // Angle(
+      'shift', '5', '3', 'shift', 'close', 'shift', '5', '4', 'close', 'equals',
+    );
+    expect(shown(sAng)).toBe('45');
+
+    // BASE-N explicit prefixes in BIN mode: d10 + h0F = 25 (0000000000011001)
+    const sBasePref = press(
+      'mode', '4', 'log', // BIN
+      'shift', '3', 'down', '1', '1', '0', // d10
+      'add',
+      'shift', '3', 'down', '2', '0', 'tan', // h0F
+      'equals',
+    );
+    expect(formatActiveResult(sBasePref)).toEqual({ type: 'text', text: '0000000000011001' });
+
+    // Chained VERIF: 1 < 2 < 3 -> TRUE, 1 < 5 < 3 -> FALSE
+    const sVerifTrue = press('mode', 'down', '2', '1', 'shift', '6', '4', '2', 'shift', '6', '4', '3', 'equals');
+    expect(formatActiveResult(sVerifTrue)).toEqual({ type: 'text', text: 'TRUE' });
+    const sVerifFalse = press('mode', 'down', '2', '1', 'shift', '6', '4', '5', 'shift', '6', '4', '3', 'equals');
+    expect(formatActiveResult(sVerifFalse)).toEqual({ type: 'text', text: 'FALSE' });
+
+    // STAT 1-VAR 5:Distr -> 1:P(0) = 0.5
+    const sStatDistr = press('mode', '3', '1', '2', 'equals', '4', 'equals', 'ac', 'shift', '1', '5', '1', '0', 'close', 'equals');
+    expect(shown(sStatDistr)).toBe('0.5');
+
+    // EQN exact symbolic surd roots: X^2 - 2X - 1 = 0 -> 1+√2 and 1-√2
+    const sEqnSurd = press('mode', '5', '3', '1', 'equals', 'neg', '2', 'equals', 'neg', '1', 'equals');
+    expect(sEqnSurd.result && formatResult(deserialize(sEqnSurd.result), 'exact')).toEqual({
+      type: 'symbolic-surd',
+      a: '1',
+      b: '1',
+      rad: '2',
+      d: '1',
+    });
+
+    // INEQ 2D display: X^2 - 2 > 0 -> header 'X<A, B<X' with exact -√2 and √2 roots
+    const sIneq2D = press('mode', 'down', '1', '1', '1', '1', 'equals', '0', 'equals', 'neg', '2', 'equals');
+    const disp2D = formatActiveInequalityDisplay(sIneq2D);
+    expect(disp2D?.type).toBe('ineq-2d');
+    if (disp2D?.type === 'ineq-2d') {
+      expect(disp2D.header).toBe('X<A, B<X');
+      expect(disp2D.segments.length).toBe(2);
+    }
+
+    // TABLE Start?/End?/Step? replaces default on first digit rather than appending
+    const sTblReplace = press('mode', '7', 'alpha', 'close', 'equals', 'equals', '0', 'equals', '2', 'equals', '1', 'equals');
+    expect(sTblReplace.table?.rows.map((r) => r.x)).toEqual(['0', '1', '2']);
   });
 });

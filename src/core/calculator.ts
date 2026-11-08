@@ -17,14 +17,19 @@ import {
 } from './expression';
 import {
   DEFAULT_NUMBER_FORMAT, defaultResultFormat, formatDecimal, formatResult, initialEngExponent,
-  type DisplayOverride, type DisplayValue, type FractionStyle, type NumberFormatSetting, type ResultFormat,
+  type DecimalMark, type DisplayOverride, type DisplayValue, type FractionStyle,
+  type NumberFormatSetting, type ResultFormat,
 } from './format';
-import { formatInequalityResult, solveInequality, type IneqDegree, type IneqRelation } from './ineq';
+import {
+  formatInequalityDisplay, formatInequalityResult, solveInequality,
+  type IneqDegree, type IneqRelation,
+} from './ineq';
 import {
   createZeroMatrix, evaluateMatrixExpression, serializeMatrix,
   type MatrixName, type StoredMatrix,
 } from './matrix';
 import { computeStatSummary, type StatRow, type StatSubMode } from './stat';
+import { computeRecurringDecimal } from './symbolic';
 import { generateFunctionTable, type TableRow } from './table';
 import {
   VARIABLES, add, deserialize, primeFactorize, roundScalar, scalarFromInteger, serialize, subtract, zeroStored,
@@ -51,16 +56,22 @@ export type ActiveMode =
   | 'DIST';
 
 export type IoMode = 'Math' | 'Line';
+export type MathOutputMode = 'MathO' | 'LineO';
+
 export type ScreenView =
   | 'normal'
   | 'mode'
   | 'setup'
+  | 'setup-matho'
   | 'setup-fix'
   | 'setup-sci'
   | 'setup-norm'
-  | 'setup-abdc'
+  | 'setup-cmplx'
+  | 'setup-disp'
   | 'setup-table'
   | 'setup-stat-freq'
+  | 'setup-recur'
+  | 'setup-contrast'
   | 'drg'
   | 'const-picker'
   | 'conv-picker'
@@ -71,6 +82,7 @@ export type ScreenView =
   | 'stat-sub-sum'
   | 'stat-sub-var'
   | 'stat-sub-reg'
+  | 'stat-sub-distr'
   | 'stat-sub-minmax'
   | 'matrix-target-menu'
   | 'matrix-dim-menu'
@@ -131,6 +143,7 @@ export interface TableModeState {
   startInput: string;
   endInput: string;
   stepInput: string;
+  editingField: boolean;
   rows: TableRow[];
   selectedRow: number;
 }
@@ -173,6 +186,7 @@ export interface MatrixModeState {
 export interface VectorModeState {
   vectors: Record<VectorName, StoredVector | null>;
   editingTarget: VectorName | null;
+  dimAction: 'define' | 'edit';
   pendingTarget: 'VctA' | 'VctB' | 'VctC';
   coordIdx: number;
   cellInput: string;
@@ -182,6 +196,10 @@ export interface VectorModeState {
 
 export interface DistModeState {
   subMode: DistSubMode;
+  listMode: boolean;
+  listX: string[];
+  listResults: Array<{ x: string; p: string }> | null;
+  listRowIdx: number;
   params: Array<{ name: string; value: string }>;
   paramIdx: number;
   input: string;
@@ -192,6 +210,11 @@ export interface DistModeState {
 export interface CalculatorState {
   mode: ActiveMode;
   ioMode: IoMode;
+  mathOutputMode: MathOutputMode;
+  decimalMark: DecimalMark;
+  defaultCmplxFormat: ComplexFormat;
+  recurEnabled: boolean;
+  contrast: number;
   insertMode: boolean;
   expression: string;
   cursor: number;
@@ -220,6 +243,7 @@ export interface CalculatorState {
   clearTarget: 'setup' | 'memory' | 'all' | null;
   variables: Record<VariableName, StoredScalar>;
   ans: StoredScalar;
+  preAns: StoredScalar;
   history: HistoryEntry[];
   historyIndex: number | null;
   statementRun: { statements: string[]; index: number } | null;
@@ -252,8 +276,8 @@ function createDefaultBaseN(): BaseNState {
   return { base: 'DEC', ans: '0', result: null };
 }
 
-function createDefaultCmplx(): CmplxModeState {
-  return { ans: zeroStoredComplex(), result: null, format: 'rect' };
+function createDefaultCmplx(format: ComplexFormat = 'rect'): CmplxModeState {
+  return { ans: zeroStoredComplex(), result: null, format };
 }
 
 function createDefaultStat(subMode: StatSubMode = '1-VAR', useFreq = false): StatModeState {
@@ -287,6 +311,7 @@ function createDefaultVector(): VectorModeState {
   return {
     vectors: { VctA: null, VctB: null, VctC: null, VctAns: null },
     editingTarget: null,
+    dimAction: 'define',
     pendingTarget: 'VctA',
     coordIdx: 0,
     cellInput: '',
@@ -329,12 +354,13 @@ function createTableState(): TableModeState {
     startInput: '1',
     endInput: '5',
     stepInput: '1',
+    editingField: false,
     rows: [],
     selectedRow: 0,
   };
 }
 
-function createDistState(subMode: DistSubMode): DistModeState {
+function createDistState(subMode: DistSubMode, listMode = false): DistModeState {
   const paramDefs: Record<DistSubMode, Array<{ name: string; value: string }>> = {
     'norm-pd': [{ name: 'x', value: '0' }, { name: 'σ', value: '1' }, { name: 'μ', value: '0' }],
     'norm-cd': [{ name: 'Lower', value: '-1' }, { name: 'Upper', value: '1' }, { name: 'σ', value: '1' }, { name: 'μ', value: '0' }],
@@ -344,9 +370,15 @@ function createDistState(subMode: DistSubMode): DistModeState {
     'poisson-pd': [{ name: 'x', value: '2' }, { name: 'λ', value: '3' }],
     'poisson-cd': [{ name: 'x', value: '2' }, { name: 'λ', value: '3' }],
   };
+  const supportsList = subMode !== 'norm-cd' && subMode !== 'inv-norm';
+  const useList = supportsList && listMode;
   return {
     subMode,
-    params: paramDefs[subMode],
+    listMode: useList,
+    listX: ['0', '1', '2'],
+    listResults: null,
+    listRowIdx: 0,
+    params: useList ? paramDefs[subMode].slice(1) : paramDefs[subMode],
     paramIdx: 0,
     input: '',
     editingParam: false,
@@ -358,6 +390,11 @@ export function createInitialState(): CalculatorState {
   return {
     mode: 'COMP',
     ioMode: 'Math',
+    mathOutputMode: 'MathO',
+    decimalMark: 'Dot',
+    defaultCmplxFormat: 'rect',
+    recurEnabled: true,
+    contrast: 5,
     insertMode: true,
     expression: '',
     cursor: 0,
@@ -386,6 +423,7 @@ export function createInitialState(): CalculatorState {
     clearTarget: null,
     variables: zeroVariables(),
     ans: zeroStored(),
+    preAns: zeroStored(),
     history: [],
     historyIndex: null,
     statementRun: null,
@@ -417,12 +455,15 @@ const extraModes: ActiveMode[] = ['INEQ', 'VERIF', 'DIST'];
 const ATOMIC_TOKENS = [
   ...Object.keys(STAT_TOKEN_LABELS),
   'MatAns', 'MatA', 'MatB', 'MatC', 'VctAns', 'VctA', 'VctB', 'VctC',
-  'Conjg(', 'arg(', 'det(', 'Trn(', '▸r∠θ', '▸a+bi', '▸yhat', '▸xhat',
+  'Conjg(', 'Angle(', 'Rref(', 'Ref(', 'arg(', 'det(', 'Trn(',
+  'StatP(', 'StatQ(', 'StatR(', 'Intg(', 'GCD(', 'LCM(', 'Int(',
+  '▸xhat2', '▸r∠θ', '▸a+bi', '▸yhat', '▸xhat', '▸t', '÷R',
   'RanInt(', 'mfrac(', 'deriv(', 'integ(', 'sigma(', 'prod(',
   'asinh(', 'acosh(', 'atanh(', 'logb(', 'sqrt(', 'cbrt(', 'frac(', 'root(',
   'sinh(', 'cosh(', 'tanh(', 'asin(', 'acos(', 'atan(',
   'Pol(', 'Rec(', 'Rnd(', 'sin(', 'cos(', 'tan(', 'abs(', 'log(', 'ln(',
-  'Not(', 'Neg(', '×10^(', '10^(', 'e^(', 'xnor', 'and', 'xor', 'or', 'dot', 'nCr', 'nPr', 'Ans',
+  'Not(', 'Neg(', '×10^(', '10^(', 'e^(', 'PreAns',
+  'xnor', 'and', 'xor', 'or', 'dot', 'nCr', 'nPr', 'Ans', 'r(',
 ].sort((a, b) => b.length - a.length);
 
 function findAtomicSpans(source: string): Array<[number, number]> {
@@ -542,6 +583,18 @@ function insert(
   };
 }
 
+function insertRecurringTemplate(s: CalculatorState): CalculatorState {
+  const before = s.phase === 'editing' ? s.expression.slice(0, s.cursor) : '';
+  const hasDecimalPrefix = /(?:\d+\.\d*|\.\d*)$/.test(before);
+  if (hasDecimalPrefix) {
+    return insert(s, 'r()', 'fresh', 2);
+  }
+  if (/\d+$/.test(before)) {
+    return insert(s, '.r()', 'fresh', 3);
+  }
+  return insert(s, '0.r()', 'fresh', 4);
+}
+
 function functionTemplate(s: CalculatorState, name: string): CalculatorState {
   const text = `${name}()`;
   return insert(s, text, 'fresh', text.length - 1);
@@ -557,6 +610,11 @@ function ternaryTemplate(s: CalculatorState, name: string): CalculatorState {
 function powerTemplate(s: CalculatorState, prefix: string): CalculatorState {
   const text = `${prefix}()`;
   return insert(s, text, prefix === '^' || prefix === '×10^' ? 'continue' : 'fresh', text.length - 1);
+}
+
+function effectiveResultFormat(s: CalculatorState, naturalFormat: ResultFormat): ResultFormat {
+  if (s.ioMode === 'Line' || s.mathOutputMode === 'LineO') return 'decimal';
+  return naturalFormat;
 }
 
 function errorState(s: CalculatorState, error: unknown): CalculatorState {
@@ -589,6 +647,7 @@ function evalContext(s: CalculatorState, random?: number) {
     angle: s.angle,
     variables: s.variables,
     ans: s.ans,
+    preAns: s.preAns,
     random,
     numberFormat: s.numberFormat,
     statContext,
@@ -608,14 +667,25 @@ function evaluateSingleStatement(
 
   if (outcome.pairKind && outcome.secondary) {
     const secStored = serialize(outcome.secondary);
-    variables = { ...s.variables, X: primaryStored, Y: secStored };
-    pairResult = {
-      type: 'pair',
-      label1: outcome.pairKind === 'pol' ? 'r' : 'X',
-      value1: formatDecimal(outcome.primary, s.numberFormat),
-      label2: outcome.pairKind === 'pol' ? 'θ' : 'Y',
-      value2: formatDecimal(outcome.secondary, s.numberFormat),
-    };
+    if (outcome.pairKind === 'divr') {
+      variables = { ...s.variables, E: primaryStored, F: secStored };
+      pairResult = {
+        type: 'pair',
+        label1: 'Q',
+        value1: formatDecimal(outcome.primary, s.numberFormat, s.decimalMark),
+        label2: 'R',
+        value2: formatDecimal(outcome.secondary, s.numberFormat, s.decimalMark),
+      };
+    } else {
+      variables = { ...s.variables, X: primaryStored, Y: secStored };
+      pairResult = {
+        type: 'pair',
+        label1: outcome.pairKind === 'pol' ? 'r' : 'X',
+        value1: formatDecimal(outcome.primary, s.numberFormat, s.decimalMark),
+        label2: outcome.pairKind === 'pol' ? 'θ' : 'Y',
+        value2: formatDecimal(outcome.secondary, s.numberFormat, s.decimalMark),
+      };
+    }
   }
 
   const history = [...s.history, { expression: recordExpr, result: primaryStored }].slice(-40);
@@ -624,9 +694,10 @@ function evaluateSingleStatement(
     phase: 'result',
     result: primaryStored,
     pairResult,
+    preAns: s.ans,
     ans: primaryStored,
     variables,
-    resultFormat: defaultResultFormat(outcome.primary),
+    resultFormat: effectiveResultFormat(s, defaultResultFormat(outcome.primary)),
     fractionStyle: s.defaultFractionStyle,
     error: null,
     shift: false,
@@ -670,12 +741,13 @@ function calculate(s: CalculatorState, random?: number): CalculatorState {
         ...resetResultModifiers(s),
         phase: 'result',
         result: storedZ.re,
+        preAns: s.ans,
         ans: storedZ.re,
-        resultFormat: 'exact',
+        resultFormat: effectiveResultFormat(s, 'exact'),
         cmplx: {
           ans: storedZ,
           result: storedZ,
-          format: out.preferredFormat ?? 'rect',
+          format: out.preferredFormat ?? s.defaultCmplxFormat,
         },
         error: null,
         shift: false,
@@ -698,8 +770,9 @@ function calculate(s: CalculatorState, random?: number): CalculatorState {
           ...resetResultModifiers(s),
           phase: 'result',
           result: stored,
+          preAns: s.ans,
           ans: stored,
-          resultFormat: defaultResultFormat(out.scalar),
+          resultFormat: effectiveResultFormat(s, defaultResultFormat(out.scalar)),
           error: null,
           shift: false,
           alpha: false,
@@ -727,6 +800,7 @@ function calculate(s: CalculatorState, random?: number): CalculatorState {
         vectors: s.vector.vectors,
         variables: s.variables,
         ans: s.ans,
+        angle: s.angle,
       });
       if (out.kind === 'scalar') {
         const stored = serialize(out.scalar);
@@ -734,8 +808,9 @@ function calculate(s: CalculatorState, random?: number): CalculatorState {
           ...resetResultModifiers(s),
           phase: 'result',
           result: stored,
+          preAns: s.ans,
           ans: stored,
-          resultFormat: defaultResultFormat(out.scalar),
+          resultFormat: effectiveResultFormat(s, defaultResultFormat(out.scalar)),
           error: null,
           shift: false,
           alpha: false,
@@ -853,6 +928,7 @@ export function activateModeByName(s: CalculatorState, label: string): Calculato
   const baseReset: CalculatorState = {
     ...resetResultModifiers(closeLatches(s)),
     screen: 'normal',
+    menuPage: 0,
     phase: 'editing',
     expression: '',
     cursor: 0,
@@ -870,7 +946,7 @@ export function activateModeByName(s: CalculatorState, label: string): Calculato
     case 'COMP':
       return { ...baseReset, mode: 'COMP' };
     case 'CMPLX':
-      return { ...baseReset, mode: 'CMPLX', cmplx: createDefaultCmplx() };
+      return { ...baseReset, mode: 'CMPLX', cmplx: createDefaultCmplx(s.defaultCmplxFormat) };
     case 'STAT':
       return { ...baseReset, mode: 'STAT', screen: 'stat-type-menu' };
     case 'BASE-N':
@@ -890,7 +966,7 @@ export function activateModeByName(s: CalculatorState, label: string): Calculato
       return {
         ...baseReset,
         mode: 'VECTOR',
-        vector: { ...s.vector, editingTarget: null, showingVectorResult: false },
+        vector: { ...s.vector, editingTarget: null, dimAction: 'define', showingVectorResult: false },
         screen: 'vector-target-menu',
       };
     case 'INEQ':
@@ -907,21 +983,21 @@ export function activateModeByName(s: CalculatorState, label: string): Calculato
 function handleMenu(s: CalculatorState, id: string): CalculatorState {
   if (id === 'ac') {
     if (s.screen === 'matrix-target-menu' || s.screen === 'matrix-dim-menu') {
-      return { ...s, screen: 'normal', matrix: { ...s.matrix, editingTarget: null } };
+      return { ...s, screen: 'normal', menuPage: 0, matrix: { ...s.matrix, editingTarget: null } };
     }
     if (s.screen === 'vector-target-menu' || s.screen === 'vector-dim-menu') {
-      return { ...s, screen: 'normal', vector: { ...s.vector, editingTarget: null } };
+      return { ...s, screen: 'normal', menuPage: 0, vector: { ...s.vector, editingTarget: null } };
     }
     if (s.screen === 'stat-type-menu') {
-      return { ...s, screen: 'normal', stat: { ...s.stat, editingTable: false } };
+      return { ...s, screen: 'normal', menuPage: 0, stat: { ...s.stat, editingTable: false } };
     }
     if (s.screen === 'eqn-menu' || s.screen === 'ineq-deg-menu' || s.screen === 'ineq-rel-menu' || s.screen === 'dist-menu') {
-      return { ...s, mode: 'COMP', screen: 'normal', eqn: null, ineq: null, dist: null };
+      return { ...s, mode: 'COMP', screen: 'normal', menuPage: 0, eqn: null, ineq: null, dist: null };
     }
-    return { ...s, screen: 'normal', clearTarget: null, codeDigits: '', notice: null, shift: false, alpha: false };
+    return { ...s, screen: 'normal', menuPage: 0, clearTarget: null, codeDigits: '', notice: null, shift: false, alpha: false };
   }
   if (id === 'mode') {
-    return { ...s, screen: 'normal', clearTarget: null, codeDigits: '', notice: null, shift: false, alpha: false };
+    return { ...s, screen: 'normal', menuPage: 0, clearTarget: null, codeDigits: '', notice: null, shift: false, alpha: false };
   }
 
   // MODE Menu (Page 0 & Page 1)
@@ -993,17 +1069,24 @@ function handleMenu(s: CalculatorState, id: string): CalculatorState {
     return s;
   }
 
-  // BASE-N Menu (SHIFT + 3)
+  // BASE-N Menu (SHIFT + 3): Page 0 Logic, Page 1 Base Prefixes (d, h, b, o)
   if (s.screen === 'basen-menu') {
-    const map: Record<string, () => CalculatorState> = {
-      '1': () => insert({ ...s, screen: 'normal' }, 'and', 'continue'),
-      '2': () => insert({ ...s, screen: 'normal' }, 'or', 'continue'),
-      '3': () => insert({ ...s, screen: 'normal' }, 'xor', 'continue'),
-      '4': () => insert({ ...s, screen: 'normal' }, 'xnor', 'continue'),
-      '5': () => functionTemplate({ ...s, screen: 'normal' }, 'Not'),
-      '6': () => functionTemplate({ ...s, screen: 'normal' }, 'Neg'),
-    };
-    return map[id] ? map[id]() : s;
+    if (id === 'down' || id === 'right') return { ...s, menuPage: 1 };
+    if (id === 'up' || id === 'left') return { ...s, menuPage: 0 };
+    if (s.menuPage === 0) {
+      const map: Record<string, () => CalculatorState> = {
+        '1': () => insert({ ...s, screen: 'normal', menuPage: 0 }, 'and', 'continue'),
+        '2': () => insert({ ...s, screen: 'normal', menuPage: 0 }, 'or', 'continue'),
+        '3': () => insert({ ...s, screen: 'normal', menuPage: 0 }, 'xor', 'continue'),
+        '4': () => insert({ ...s, screen: 'normal', menuPage: 0 }, 'xnor', 'continue'),
+        '5': () => functionTemplate({ ...s, screen: 'normal', menuPage: 0 }, 'Not'),
+        '6': () => functionTemplate({ ...s, screen: 'normal', menuPage: 0 }, 'Neg'),
+      };
+      return map[id] ? map[id]() : s;
+    }
+    const prefMap: Record<string, string> = { '1': 'd', '2': 'h', '3': 'b', '4': 'o' };
+    if (prefMap[id]) return insert({ ...s, screen: 'normal', menuPage: 0 }, prefMap[id]);
+    return s;
   }
 
   // STAT Menus
@@ -1028,8 +1111,10 @@ function handleMenu(s: CalculatorState, id: string): CalculatorState {
     if (id === '2') return { ...s, screen: 'normal', stat: { ...s.stat, editingTable: true, editingCell: false, cellInput: '' } };
     if (id === '3') return { ...s, screen: 'stat-sub-sum' };
     if (id === '4') return { ...s, screen: 'stat-sub-var' };
-    if (id === '5' && s.stat.subMode !== '1-VAR') return { ...s, screen: 'stat-sub-reg' };
-    if (id === '6' || (id === '5' && s.stat.subMode === '1-VAR')) return { ...s, screen: 'stat-sub-minmax' };
+    if (id === '5') {
+      return { ...s, screen: s.stat.subMode === '1-VAR' ? 'stat-sub-distr' : 'stat-sub-reg' };
+    }
+    if (id === '6') return { ...s, screen: 'stat-sub-minmax' };
     return s;
   }
 
@@ -1037,6 +1122,7 @@ function handleMenu(s: CalculatorState, id: string): CalculatorState {
     const map1: Record<string, string> = { '1': 'statSumX2', '2': 'statSumX' };
     const map2: Record<string, string> = {
       '1': 'statSumX2', '2': 'statSumX', '3': 'statSumY2', '4': 'statSumY', '5': 'statSumXY',
+      '6': 'statSumX3', '7': 'statSumX2Y', '8': 'statSumX4',
     };
     const tok = (s.stat.subMode === '1-VAR' ? map1 : map2)[id];
     return tok ? insert({ ...s, screen: 'normal' }, tok) : s;
@@ -1052,11 +1138,19 @@ function handleMenu(s: CalculatorState, id: string): CalculatorState {
     return tok ? insert({ ...s, screen: 'normal' }, tok) : s;
   }
 
+  if (s.screen === 'stat-sub-distr') {
+    if (id === '1') return functionTemplate({ ...s, screen: 'normal' }, 'StatP');
+    if (id === '2') return functionTemplate({ ...s, screen: 'normal' }, 'StatQ');
+    if (id === '3') return functionTemplate({ ...s, screen: 'normal' }, 'StatR');
+    if (id === '4') return insert({ ...s, screen: 'normal' }, '▸t', 'continue');
+    return s;
+  }
+
   if (s.screen === 'stat-sub-reg') {
     if (s.stat.subMode === '_+CX2') {
       const mapQ: Record<string, { tok: string; cont?: boolean }> = {
         '1': { tok: 'statRegA' }, '2': { tok: 'statRegB' }, '3': { tok: 'statRegC' },
-        '4': { tok: '▸xhat', cont: true }, '5': { tok: '▸yhat', cont: true },
+        '4': { tok: '▸xhat', cont: true }, '5': { tok: '▸xhat2', cont: true }, '6': { tok: '▸yhat', cont: true },
       };
       const hit = mapQ[id];
       return hit ? insert({ ...s, screen: 'normal' }, hit.tok, hit.cont ? 'continue' : 'fresh') : s;
@@ -1125,6 +1219,13 @@ function handleMenu(s: CalculatorState, id: string): CalculatorState {
   }
 
   if (s.screen === 'matrix-menu') {
+    if (id === 'down' || id === 'right') return { ...s, menuPage: 1 };
+    if (id === 'up' || id === 'left') return { ...s, menuPage: 0 };
+    if (s.menuPage === 1) {
+      if (id === '1') return functionTemplate({ ...s, screen: 'normal', menuPage: 0 }, 'Ref');
+      if (id === '2') return functionTemplate({ ...s, screen: 'normal', menuPage: 0 }, 'Rref');
+      return s;
+    }
     if (id === '1') return { ...s, screen: 'matrix-target-menu', matrix: { ...s.matrix, dimAction: 'define' } };
     if (id === '2') return { ...s, screen: 'matrix-target-menu', matrix: { ...s.matrix, dimAction: 'edit' } };
     if (id === '3') return insert({ ...s, screen: 'normal' }, 'MatA');
@@ -1141,6 +1242,13 @@ function handleMenu(s: CalculatorState, id: string): CalculatorState {
     const targets: Record<string, 'VctA' | 'VctB' | 'VctC'> = { '1': 'VctA', '2': 'VctB', '3': 'VctC' };
     const t = targets[id];
     if (!t) return s;
+    if (s.vector.dimAction === 'edit' && s.vector.vectors[t]) {
+      return {
+        ...s,
+        screen: 'normal',
+        vector: { ...s.vector, editingTarget: t, coordIdx: 0, cellInput: '', editingCell: false, showingVectorResult: false },
+      };
+    }
     return { ...s, screen: 'vector-dim-menu', vector: { ...s.vector, pendingTarget: t } };
   }
 
@@ -1166,17 +1274,14 @@ function handleMenu(s: CalculatorState, id: string): CalculatorState {
   }
 
   if (s.screen === 'vector-menu') {
-    if (id === '1') return { ...s, screen: 'vector-target-menu' };
-    if (id === '2') {
-      const existing = (['VctA', 'VctB', 'VctC'] as const).find((k) => s.vector.vectors[k] !== null);
-      if (!existing) return { ...s, screen: 'vector-target-menu' };
-      return { ...s, screen: 'normal', vector: { ...s.vector, editingTarget: existing, coordIdx: 0, cellInput: '', editingCell: false } };
-    }
+    if (id === '1') return { ...s, screen: 'vector-target-menu', vector: { ...s.vector, dimAction: 'define' } };
+    if (id === '2') return { ...s, screen: 'vector-target-menu', vector: { ...s.vector, dimAction: 'edit' } };
     if (id === '3') return insert({ ...s, screen: 'normal' }, 'VctA');
     if (id === '4') return insert({ ...s, screen: 'normal' }, 'VctB');
     if (id === '5') return insert({ ...s, screen: 'normal' }, 'VctC');
     if (id === '6') return insert({ ...s, screen: 'normal' }, 'VctAns');
     if (id === '7') return insert({ ...s, screen: 'normal' }, '·', 'continue');
+    if (id === '8') return binaryTemplate({ ...s, screen: 'normal' }, 'Angle');
     return s;
   }
 
@@ -1210,7 +1315,10 @@ function handleMenu(s: CalculatorState, id: string): CalculatorState {
       '4': 'binom-pd', '5': 'binom-cd', '6': 'poisson-pd', '7': 'poisson-cd',
     };
     if (map[id]) {
-      return { ...s, mode: 'DIST', screen: 'normal', dist: createDistState(map[id]) };
+      return { ...s, mode: 'DIST', screen: 'normal', dist: createDistState(map[id], false) };
+    }
+    if (id === '8' && s.dist) {
+      return { ...s, mode: 'DIST', screen: 'normal', dist: createDistState(s.dist.subMode, !s.dist.listMode) };
     }
     return s;
   }
@@ -1223,27 +1331,35 @@ function handleMenu(s: CalculatorState, id: string): CalculatorState {
     return s;
   }
 
-  // SETUP Menu
+  // SETUP Menu (Page 0 & Page 1)
   if (s.screen === 'setup') {
     if (id === 'down' || id === 'right') return { ...s, menuPage: 1 };
     if (id === 'up' || id === 'left') return { ...s, menuPage: 0 };
     if (s.menuPage === 0 && /^[1-8]$/.test(id)) {
-      if (id === '1') return { ...s, screen: 'normal', ioMode: 'Math' };
-      if (id === '2') return { ...s, screen: 'normal', ioMode: 'Line' };
+      if (id === '1') return { ...s, ioMode: 'Math', screen: 'setup-matho', menuPage: 0 };
+      if (id === '2') return { ...s, screen: 'normal', menuPage: 0, ioMode: 'Line' };
       const angles: Record<string, AngleUnit> = { '3': 'DEG', '4': 'RAD', '5': 'GRA' };
-      if (angles[id]) return { ...s, screen: 'normal', angle: angles[id] };
-      if (id === '6') return { ...s, screen: 'setup-fix' };
-      if (id === '7') return { ...s, screen: 'setup-sci' };
-      if (id === '8') return { ...s, screen: 'setup-norm' };
+      if (angles[id]) return { ...s, screen: 'normal', menuPage: 0, angle: angles[id] };
+      if (id === '6') return { ...s, screen: 'setup-fix', menuPage: 0 };
+      if (id === '7') return { ...s, screen: 'setup-sci', menuPage: 0 };
+      if (id === '8') return { ...s, screen: 'setup-norm', menuPage: 0 };
     }
     if (s.menuPage === 1) {
-      if (id === '1') return { ...s, screen: 'setup-abdc' };
-      if (id === '2') return { ...s, screen: 'setup-table' };
-      if (id === '3') return { ...s, screen: 'setup-stat-freq' };
+      if (id === '1') return { ...s, screen: 'normal', menuPage: 0, defaultFractionStyle: 'mixed', fractionStyle: 'mixed' };
+      if (id === '2') return { ...s, screen: 'normal', menuPage: 0, defaultFractionStyle: 'improper', fractionStyle: 'improper' };
+      if (id === '3') return { ...s, screen: 'setup-cmplx', menuPage: 0 };
+      if (id === '4') return { ...s, screen: 'setup-stat-freq', menuPage: 0 };
+      if (id === '5') return { ...s, screen: 'setup-disp', menuPage: 0 };
+      if (id === '6') return { ...s, screen: 'setup-table', menuPage: 0 };
+      if (id === '7') return { ...s, screen: 'setup-recur', menuPage: 0 };
+      if (id === '8') return { ...s, screen: 'setup-contrast', menuPage: 0 };
     }
     return s;
   }
 
+  if (s.screen === 'setup-matho' && (id === '1' || id === '2')) {
+    return { ...s, screen: 'normal', ioMode: 'Math', mathOutputMode: id === '1' ? 'MathO' : 'LineO' };
+  }
   if (s.screen === 'setup-fix' && /^[0-9]$/.test(id)) {
     return { ...s, screen: 'normal', numberFormat: { mode: 'Fix', digits: Number(id) } };
   }
@@ -1253,15 +1369,27 @@ function handleMenu(s: CalculatorState, id: string): CalculatorState {
   if (s.screen === 'setup-norm' && (id === '1' || id === '2')) {
     return { ...s, screen: 'normal', numberFormat: { mode: 'Norm', sub: id === '1' ? 1 : 2 } };
   }
-  if (s.screen === 'setup-abdc' && (id === '1' || id === '2')) {
-    const style: FractionStyle = id === '1' ? 'mixed' : 'improper';
-    return { ...s, screen: 'normal', defaultFractionStyle: style, fractionStyle: style };
+  if (s.screen === 'setup-cmplx' && (id === '1' || id === '2')) {
+    const fmt: ComplexFormat = id === '1' ? 'rect' : 'polar';
+    return { ...s, screen: 'normal', defaultCmplxFormat: fmt, cmplx: { ...s.cmplx, format: fmt } };
+  }
+  if (s.screen === 'setup-disp' && (id === '1' || id === '2')) {
+    return { ...s, screen: 'normal', decimalMark: id === '1' ? 'Dot' : 'Comma' };
   }
   if (s.screen === 'setup-table' && (id === '1' || id === '2')) {
     return { ...s, screen: 'normal', tableUseG: id === '2' };
   }
   if (s.screen === 'setup-stat-freq' && (id === '1' || id === '2')) {
     return { ...s, screen: 'normal', stat: { ...s.stat, useFreq: id === '1' } };
+  }
+  if (s.screen === 'setup-recur' && (id === '1' || id === '2')) {
+    return { ...s, screen: 'normal', recurEnabled: id === '1' };
+  }
+  if (s.screen === 'setup-contrast') {
+    if (id === 'left') return { ...s, contrast: Math.max(1, s.contrast - 1) };
+    if (id === 'right') return { ...s, contrast: Math.min(10, s.contrast + 1) };
+    if (id === 'equals') return { ...s, screen: 'normal' };
+    return s;
   }
 
   if (s.screen === 'drg') {
@@ -1281,8 +1409,9 @@ function handleMenu(s: CalculatorState, id: string): CalculatorState {
         screen: 'normal',
         variables: zeroVariables(),
         ans: zeroStored(),
+        preAns: zeroStored(),
         baseN: createDefaultBaseN(),
-        cmplx: createDefaultCmplx(),
+        cmplx: createDefaultCmplx(s.defaultCmplxFormat),
         matrix: createDefaultMatrix(),
         vector: createDefaultVector(),
         clearTarget: null,
@@ -1293,6 +1422,11 @@ function handleMenu(s: CalculatorState, id: string): CalculatorState {
       screen: 'normal',
       angle: 'DEG',
       ioMode: 'Math',
+      mathOutputMode: 'MathO',
+      decimalMark: 'Dot',
+      defaultCmplxFormat: 'rect',
+      recurEnabled: true,
+      contrast: 5,
       numberFormat: DEFAULT_NUMBER_FORMAT,
       defaultFractionStyle: 'improper',
       fractionStyle: 'improper',
@@ -1308,15 +1442,28 @@ function simpleInputChar(id: string, shift: boolean, alpha: boolean): string | n
   if (shift && id === 'exp') return 'π';
   if (alpha && id === 'exp') return 'e';
   if (alpha && ALPHA_KEYS[id]) return ALPHA_KEYS[id];
+  if (shift && id === 'sin') return 'asin(';
+  if (shift && id === 'cos') return 'acos(';
+  if (shift && id === 'tan') return 'atan(';
+  if (shift && id === 'sqrt') return 'cbrt(';
   switch (id) {
     case 'dot': return '.';
     case 'neg': case 'subtract': return '-';
     case 'add': return '+';
     case 'multiply': return '×';
-    case 'divide': return '÷';
+    case 'divide': case 'frac': return '÷';
+    case 'square': return '^2';
+    case 'cube': return '^3';
+    case 'power': return '^';
     case 'open': return '(';
     case 'close': return ')';
     case 'sqrt': return 'sqrt(';
+    case 'sin': return 'sin(';
+    case 'cos': return 'cos(';
+    case 'tan': return 'tan(';
+    case 'log': return 'log(';
+    case 'ln': return 'ln(';
+    case 'ans': return 'Ans';
     case 'exp': return '×10^(';
     case 'pi': return 'π';
     case 'e': return 'e';
@@ -1402,14 +1549,15 @@ function handleSolvePrompt(s: CalculatorState, id: string, random?: number): Cal
         ...s,
         phase: 'result',
         result: rootStored,
+        preAns: s.ans,
         ans: rootStored,
         variables: { ...s.variables, X: rootStored },
         pairResult: {
           type: 'pair',
           label1: 'X',
-          value1: formatDecimal(outcome.root, s.numberFormat),
+          value1: formatDecimal(outcome.root, s.numberFormat, s.decimalMark),
           label2: 'L−R',
-          value2: formatDecimal(outcome.residual, s.numberFormat),
+          value2: formatDecimal(outcome.residual, s.numberFormat, s.decimalMark),
         },
         solvePrompt: { sourceExpr: sp.sourceExpr, stage: 'solved', input: '', root: rootStored, residual: resStored },
       };
@@ -1440,7 +1588,7 @@ function handleEqnMode(s: CalculatorState, id: string, random?: number): Calcula
         return {
           ...s,
           result: item.scalar ? serialize(item.scalar) : null,
-          resultFormat: item.scalar ? defaultResultFormat(item.scalar) : 'decimal',
+          resultFormat: item.scalar ? effectiveResultFormat(s, defaultResultFormat(item.scalar)) : 'decimal',
           eqn: { ...eqn, solutionIndex: nextIdx },
         };
       }
@@ -1450,7 +1598,7 @@ function handleEqnMode(s: CalculatorState, id: string, random?: number): Calcula
         return {
           ...s,
           result: item.scalar ? serialize(item.scalar) : null,
-          resultFormat: item.scalar ? defaultResultFormat(item.scalar) : 'decimal',
+          resultFormat: item.scalar ? effectiveResultFormat(s, defaultResultFormat(item.scalar)) : 'decimal',
           eqn: { ...eqn, solutionIndex: prevIdx },
         };
       }
@@ -1491,7 +1639,7 @@ function handleEqnMode(s: CalculatorState, id: string, random?: number): Calcula
         ...s,
         phase: 'result',
         result: firstScalar ? serialize(firstScalar) : null,
-        resultFormat: firstScalar ? defaultResultFormat(firstScalar) : 'decimal',
+        resultFormat: firstScalar ? effectiveResultFormat(s, defaultResultFormat(firstScalar)) : 'decimal',
         eqn: { ...eqn, coeffs: nextCoeffs, input: '', editingCell: false, outcome, solutionIndex: 0 },
       };
     } catch (err) {
@@ -1540,17 +1688,16 @@ function handleIneqMode(s: CalculatorState, id: string, random?: number): Calcul
     try {
       const nextCoeffs = [...ineq.coeffs];
       if (ineq.editingCell && ineq.input.trim()) {
-        nextCoeffs[ineq.cursorIndex] = serialize(evaluateExpression(ineq.input, evalContext(s, random)));
+        nextCoeffs[ineq.cursorIndex] = serialize(evaluateExpression(eqnOrIneqInput(ineq.input), evalContext(s, random)));
       }
       if (ineq.cursorIndex + 1 < nextCoeffs.length) {
         return { ...s, ineq: { ...ineq, coeffs: nextCoeffs, cursorIndex: ineq.cursorIndex + 1, input: '', editingCell: false } };
       }
-      // Validate solvability
       solveInequality(ineq.degree, ineq.relation, nextCoeffs.map(deserialize));
       return {
         ...s,
         phase: 'result',
-        resultFormat: 'exact',
+        resultFormat: effectiveResultFormat(s, 'exact'),
         ineq: { ...ineq, coeffs: nextCoeffs, input: '', editingCell: false, solved: true },
       };
     } catch (err) {
@@ -1563,6 +1710,10 @@ function handleIneqMode(s: CalculatorState, id: string, random?: number): Calcul
     return { ...s, shift: false, alpha: false, ineq: { ...ineq, input: (ineq.editingCell ? ineq.input : '') + ch, editingCell: true } };
   }
   return s;
+}
+
+function eqnOrIneqInput(raw: string): string {
+  return raw;
 }
 
 function handleStatTableEditor(s: CalculatorState, id: string, random?: number): CalculatorState {
@@ -1643,7 +1794,7 @@ function handleMatrixCellEditor(s: CalculatorState, id: string, random?: number)
   const mat = mt.matrices[target]!;
 
   if (id === 'mode') return { ...closeLatches(s), screen: s.shift ? 'setup' : 'mode', menuPage: 0 };
-  if (s.shift && id === '4') return { ...closeLatches(s), screen: 'matrix-menu', matrix: { ...mt, editingTarget: null } };
+  if (s.shift && id === '4') return { ...closeLatches(s), screen: 'matrix-menu', menuPage: 0, matrix: { ...mt, editingTarget: null } };
   if (id === 'shift') return { ...s, shift: !s.shift, alpha: false };
   if (id === 'alpha') return { ...s, alpha: !s.alpha, shift: false };
 
@@ -1745,12 +1896,34 @@ function handleVectorCellEditor(s: CalculatorState, id: string, random?: number)
   return s;
 }
 
+function evalSingleDistScalar(subMode: DistSubMode, xVal: ReturnType<typeof evaluateExpression>, rest: Array<ReturnType<typeof evaluateExpression>>) {
+  switch (subMode) {
+    case 'norm-pd': return normalPd(xVal, rest[1], rest[0]);
+    case 'binom-pd': return binomialPd(xVal, rest[0], rest[1]);
+    case 'binom-cd': return binomialCd(xVal, rest[0], rest[1]);
+    case 'poisson-pd': return poissonPd(xVal, rest[0]);
+    case 'poisson-cd': return poissonCd(xVal, rest[0]);
+    default: return xVal;
+  }
+}
+
 function handleDistMode(s: CalculatorState, id: string, random?: number): CalculatorState {
   const ds = s.dist!;
   if (id === 'mode') return { ...closeLatches(s), screen: s.shift ? 'setup' : 'mode', menuPage: 0 };
   if (s.shift && id === '1') return { ...closeLatches(s), screen: 'dist-menu' };
   if (id === 'shift') return { ...s, shift: !s.shift, alpha: false };
   if (id === 'alpha') return { ...s, alpha: !s.alpha, shift: false };
+
+  if (ds.listResults) {
+    if (id === 'ac') {
+      return { ...s, phase: 'editing', dist: { ...ds, listResults: null, paramIdx: 0, input: '', editingParam: false } };
+    }
+    if (id === 'up') return { ...s, dist: { ...ds, listRowIdx: Math.max(0, ds.listRowIdx - 1) } };
+    if (id === 'down' || id === 'equals') {
+      return { ...s, dist: { ...ds, listRowIdx: Math.min(ds.listResults.length - 1, ds.listRowIdx + 1) } };
+    }
+    return s;
+  }
 
   if (ds.result) {
     if (id === 'ac' || id === 'equals') {
@@ -1767,20 +1940,49 @@ function handleDistMode(s: CalculatorState, id: string, random?: number): Calcul
     const next = ds.input.slice(0, -1);
     return { ...s, dist: { ...ds, input: next, editingParam: next.length > 0 } };
   }
+
+  // Toggle Var / List mode with left/right when on first row and not editing
+  if (!ds.editingParam && (id === 'left' || id === 'right') && ds.subMode !== 'norm-cd' && ds.subMode !== 'inv-norm') {
+    return { ...s, dist: createDistState(ds.subMode, !ds.listMode) };
+  }
+
+  const totalSlots = (ds.listMode ? ds.listX.length : 0) + ds.params.length;
   if (!ds.editingParam) {
     if (id === 'up') return { ...s, dist: { ...ds, paramIdx: Math.max(0, ds.paramIdx - 1) } };
-    if (id === 'down') return { ...s, dist: { ...ds, paramIdx: Math.min(ds.params.length - 1, ds.paramIdx + 1) } };
+    if (id === 'down') return { ...s, dist: { ...ds, paramIdx: Math.min(totalSlots - 1, ds.paramIdx + 1) } };
   }
+
   if (id === 'equals') {
     try {
+      const nextListX = [...ds.listX];
       const nextParams = ds.params.map((p) => ({ ...p }));
       if (ds.editingParam && ds.input.trim()) {
         const sc = evaluateExpression(ds.input, evalContext(s, random));
-        nextParams[ds.paramIdx].value = sc.decimal.toString();
+        if (ds.listMode && ds.paramIdx < nextListX.length) {
+          nextListX[ds.paramIdx] = sc.decimal.toString();
+        } else {
+          const pIdx = ds.listMode ? ds.paramIdx - nextListX.length : ds.paramIdx;
+          nextParams[pIdx].value = sc.decimal.toString();
+        }
       }
-      if (ds.paramIdx + 1 < nextParams.length) {
-        return { ...s, dist: { ...ds, params: nextParams, paramIdx: ds.paramIdx + 1, input: '', editingParam: false } };
+      if (ds.paramIdx + 1 < totalSlots) {
+        return { ...s, dist: { ...ds, listX: nextListX, params: nextParams, paramIdx: ds.paramIdx + 1, input: '', editingParam: false } };
       }
+
+      if (ds.listMode) {
+        const restVals = nextParams.map((p) => evaluateExpression(p.value, evalContext(s, random)));
+        const listResults = nextListX.map((xStr) => {
+          const xVal = evaluateExpression(xStr, evalContext(s, random));
+          const pVal = evalSingleDistScalar(ds.subMode, xVal, restVals);
+          return { x: formatDecimal(xVal, s.numberFormat, s.decimalMark), p: formatDecimal(pVal, s.numberFormat, s.decimalMark) };
+        });
+        return {
+          ...s,
+          phase: 'result',
+          dist: { ...ds, listX: nextListX, params: nextParams, input: '', editingParam: false, listResults, listRowIdx: 0 },
+        };
+      }
+
       const vals = nextParams.map((p) => evaluateExpression(p.value, evalContext(s, random)));
       let outScalar;
       switch (ds.subMode) {
@@ -1797,6 +1999,7 @@ function handleDistMode(s: CalculatorState, id: string, random?: number): Calcul
         ...s,
         phase: 'result',
         result: stored,
+        preAns: s.ans,
         ans: stored,
         resultFormat: 'decimal',
         dist: { ...ds, params: nextParams, input: '', editingParam: false, result: stored },
@@ -1818,7 +2021,7 @@ function handleTableMode(s: CalculatorState, id: string, random?: number): Calcu
 
   if (tbl.stage === 'view') {
     if (id === 'ac') {
-      return { ...s, phase: 'editing', expression: tbl.fExpr, cursor: tbl.fExpr.length, table: { ...tbl, stage: 'f' } };
+      return { ...s, phase: 'editing', expression: tbl.fExpr, cursor: tbl.fExpr.length, table: { ...tbl, stage: 'f', editingField: false } };
     }
     if (id === 'down') return { ...s, table: { ...tbl, selectedRow: Math.min(tbl.rows.length - 1, tbl.selectedRow + 1) } };
     if (id === 'up') return { ...s, table: { ...tbl, selectedRow: Math.max(0, tbl.selectedRow - 1) } };
@@ -1828,25 +2031,31 @@ function handleTableMode(s: CalculatorState, id: string, random?: number): Calcu
   if (tbl.stage === 'start' || tbl.stage === 'end' || tbl.stage === 'step') {
     const field = tbl.stage === 'start' ? 'startInput' : tbl.stage === 'end' ? 'endInput' : 'stepInput';
     if (id === 'ac') {
-      return { ...s, expression: tbl.fExpr, cursor: tbl.fExpr.length, table: { ...tbl, stage: 'f' } };
+      return { ...s, expression: tbl.fExpr, cursor: tbl.fExpr.length, table: { ...tbl, stage: 'f', editingField: false } };
     }
-    if (id === 'del') return { ...s, table: { ...tbl, [field]: tbl[field].slice(0, -1) } };
+    if (id === 'del') {
+      const nextVal = tbl.editingField ? tbl[field].slice(0, -1) : '';
+      return { ...s, table: { ...tbl, [field]: nextVal, editingField: true } };
+    }
     if (id === 'equals') {
-      if (tbl.stage === 'start') return { ...s, table: { ...tbl, stage: 'end' } };
-      if (tbl.stage === 'end') return { ...s, table: { ...tbl, stage: 'step' } };
+      if (tbl.stage === 'start') return { ...s, table: { ...tbl, stage: 'end', editingField: false } };
+      if (tbl.stage === 'end') return { ...s, table: { ...tbl, stage: 'step', editingField: false } };
       try {
         const ctx = evalContext(s, random);
         const start = evaluateExpression(tbl.startInput || '1', ctx);
         const end = evaluateExpression(tbl.endInput || '5', ctx);
         const step = evaluateExpression(tbl.stepInput || '1', ctx);
         const rows = generateFunctionTable(tbl.fExpr, s.tableUseG ? tbl.gExpr : null, start, end, step, ctx);
-        return { ...s, phase: 'result', table: { ...tbl, stage: 'view', rows, selectedRow: 0 } };
+        return { ...s, phase: 'result', table: { ...tbl, stage: 'view', editingField: false, rows, selectedRow: 0 } };
       } catch (err) {
         return errorState(s, err);
       }
     }
     const ch = simpleInputChar(id, s.shift, s.alpha);
-    if (ch !== null) return { ...s, shift: false, alpha: false, table: { ...tbl, [field]: tbl[field] + ch } };
+    if (ch !== null) {
+      const nextVal = (tbl.editingField ? tbl[field] : '') + ch;
+      return { ...s, shift: false, alpha: false, table: { ...tbl, [field]: nextVal, editingField: true } };
+    }
     if (id === 'shift') return { ...s, shift: !s.shift, alpha: false };
     if (id === 'alpha') return { ...s, alpha: !s.alpha, shift: false };
     return s;
@@ -1856,11 +2065,11 @@ function handleTableMode(s: CalculatorState, id: string, random?: number): Calcu
     if (tbl.stage === 'f') {
       if (!s.expression.trim()) return s;
       if (s.tableUseG) {
-        return { ...closeLatches(s), expression: tbl.gExpr, cursor: tbl.gExpr.length, table: { ...tbl, stage: 'g', fExpr: s.expression } };
+        return { ...closeLatches(s), expression: tbl.gExpr, cursor: tbl.gExpr.length, table: { ...tbl, stage: 'g', fExpr: s.expression, editingField: false } };
       }
-      return { ...closeLatches(s), table: { ...tbl, stage: 'start', fExpr: s.expression } };
+      return { ...closeLatches(s), table: { ...tbl, stage: 'start', fExpr: s.expression, editingField: false } };
     }
-    return { ...closeLatches(s), table: { ...tbl, stage: 'start', gExpr: s.expression } };
+    return { ...closeLatches(s), table: { ...tbl, stage: 'start', gExpr: s.expression, editingField: false } };
   }
   return null;
 }
@@ -2018,13 +2227,20 @@ export function calculatorReducer(state: CalculatorState, action: CalculatorActi
         cursor: state.phase === 'result' ? 0 : state.cursor,
       };
     }
-    if (state.baseN.base === 'HEX' && BASEN_HEX_KEYS[id]) {
+    // Check if an explicit base prefix (d, h, b, o) precedes cursor (not part of 'and' etc.)
+    const before = state.phase === 'editing' ? state.expression.slice(0, state.cursor) : '';
+    const prefMatch = before.match(/(?:^|[^a-zA-Z])([dhbo])[0-9A-F]*$/);
+    const activeBase: BaseMode = prefMatch
+      ? (prefMatch[1] === 'd' ? 'DEC' : prefMatch[1] === 'h' ? 'HEX' : prefMatch[1] === 'b' ? 'BIN' : 'OCT')
+      : state.baseN.base;
+
+    if (activeBase === 'HEX' && BASEN_HEX_KEYS[id]) {
       return insert(state, BASEN_HEX_KEYS[id]);
     }
     if (/^[0-9]$/.test(id)) {
       const digit = Number(id);
-      if (state.baseN.base === 'BIN' && digit > 1) return state;
-      if (state.baseN.base === 'OCT' && digit > 7) return state;
+      if (activeBase === 'BIN' && digit > 1) return state;
+      if (activeBase === 'OCT' && digit > 7) return state;
       return insert(state, id);
     }
     if (!['add', 'subtract', 'multiply', 'divide', 'open', 'close', 'ans', 'basen-and', 'basen-or', 'basen-xor', 'basen-xnor', 'basen-not', 'basen-neg'].includes(id)) {
@@ -2038,6 +2254,13 @@ export function calculatorReducer(state: CalculatorState, action: CalculatorActi
     if (id === 'cube') return insert(s, ':', 'continue');
     if (id === 'dot') return binaryTemplate(s, 'RanInt');
     if (id === 'calc') return insert(s, '=', 'continue');
+    if (id === 'multiply') return binaryTemplate(s, 'GCD');
+    if (id === 'divide') return binaryTemplate(s, 'LCM');
+    if (id === 'add') return functionTemplate(s, 'Int');
+    if (id === 'subtract') return functionTemplate(s, 'Intg');
+    if (id === 'frac') return insert(s, '÷R', 'continue');
+    if (id === 'sqrt') return insertRecurringTemplate(s);
+    if (id === 'ans') return insert(s, 'PreAns');
     const variable = ALPHA_KEYS[id];
     return variable ? insert(s, variable) : s;
   }
@@ -2054,10 +2277,10 @@ export function calculatorReducer(state: CalculatorState, action: CalculatorActi
         if (s.mode === 'CMPLX') return { ...s, screen: 'cmplx-menu' };
         return activateModeByName(s, 'CMPLX');
       case '3':
-        if (s.mode === 'BASE-N') return { ...s, screen: 'basen-menu' };
+        if (s.mode === 'BASE-N') return { ...s, screen: 'basen-menu', menuPage: 0 };
         return activateModeByName(s, 'BASE-N');
       case '4':
-        if (s.mode === 'MATRIX') return { ...s, screen: 'matrix-menu' };
+        if (s.mode === 'MATRIX') return { ...s, screen: 'matrix-menu', menuPage: 0 };
         return activateModeByName(s, 'MATRIX');
       case '5':
         if (s.mode === 'VECTOR') return { ...s, screen: 'vector-menu' };
@@ -2202,10 +2425,22 @@ export function calculatorReducer(state: CalculatorState, action: CalculatorActi
       if (s.mode === 'VECTOR' && s.vector.vectors.VctAns) return insert(s, 'VctAns');
       return insert(s, 'Ans');
     case 'exp': return powerTemplate(s, '×10^');
-    case 'sd':
+    case 'sd': {
       if (s.phase !== 'result') return s;
-      if (s.displayOverride !== 'none') return { ...s, displayOverride: 'none', engExponent: null, factoredText: null };
+      if (s.displayOverride === 'recur') {
+        return { ...s, displayOverride: 'none', resultFormat: 'decimal', pairResult: null };
+      }
+      if (s.displayOverride !== 'none') {
+        return { ...s, displayOverride: 'none', engExponent: null, factoredText: null };
+      }
+      if (s.result && s.recurEnabled && s.resultFormat === 'exact') {
+        const sc = deserialize(s.result);
+        if (sc.exact && sc.exact.d > 1n && computeRecurringDecimal(sc.exact.n, sc.exact.d)) {
+          return { ...s, displayOverride: 'recur', pairResult: null };
+        }
+      }
       return { ...s, resultFormat: s.resultFormat === 'exact' ? 'decimal' : 'exact', pairResult: null };
+    }
     case 'comma': {
       if (s.phase === 'editing' && s.expression[s.cursor] === ',') {
         return { ...s, cursor: s.cursor + 1 };
@@ -2216,13 +2451,20 @@ export function calculatorReducer(state: CalculatorState, action: CalculatorActi
     case 'eq-sign': return insert(s, '=', 'continue');
     case 'imag-i': return insert(s, 'i');
     case 'phasor': return insert(s, '∠', 'continue');
+    case 'divr': return insert(s, '÷R', 'continue');
+    case 'recur': return insertRecurringTemplate(s);
+    case 'gcd': return binaryTemplate(s, 'GCD');
+    case 'lcm': return binaryTemplate(s, 'LCM');
+    case 'int-fn': return functionTemplate(s, 'Int');
+    case 'intg-fn': return functionTemplate(s, 'Intg');
+    case 'preans': return insert(s, 'PreAns');
     case 'const-menu': return { ...s, screen: 'const-picker', codeDigits: '', pickerIndex: 0 };
     case 'conv-menu': return { ...s, screen: 'conv-picker', codeDigits: '', pickerIndex: 0 };
     case 'context-menu': {
       if (s.mode === 'STAT') return { ...s, screen: 'stat-menu' };
       if (s.mode === 'CMPLX') return { ...s, screen: 'cmplx-menu' };
-      if (s.mode === 'BASE-N') return { ...s, screen: 'basen-menu' };
-      if (s.mode === 'MATRIX') return { ...s, screen: 'matrix-menu' };
+      if (s.mode === 'BASE-N') return { ...s, screen: 'basen-menu', menuPage: 0 };
+      if (s.mode === 'MATRIX') return { ...s, screen: 'matrix-menu', menuPage: 0 };
       if (s.mode === 'VECTOR') return { ...s, screen: 'vector-menu' };
       if (s.mode === 'VERIF') return { ...s, screen: 'verif-menu' };
       if (s.mode === 'DIST') return { ...s, screen: 'dist-menu' };
@@ -2257,6 +2499,11 @@ export interface PersistentCalculator {
   version: 1;
   angle: AngleUnit;
   ioMode?: IoMode;
+  mathOutputMode?: MathOutputMode;
+  decimalMark?: DecimalMark;
+  defaultCmplxFormat?: ComplexFormat;
+  recurEnabled?: boolean;
+  contrast?: number;
   numberFormat?: NumberFormatSetting;
   defaultFractionStyle?: FractionStyle;
   variables: Record<VariableName, StoredScalar>;
@@ -2267,6 +2514,11 @@ export function saveableState(state: CalculatorState): PersistentCalculator {
     version: 1,
     angle: state.angle,
     ioMode: state.ioMode,
+    mathOutputMode: state.mathOutputMode,
+    decimalMark: state.decimalMark,
+    defaultCmplxFormat: state.defaultCmplxFormat,
+    recurEnabled: state.recurEnabled,
+    contrast: state.contrast,
     numberFormat: state.numberFormat,
     defaultFractionStyle: state.defaultFractionStyle,
     variables: state.variables,
@@ -2284,6 +2536,11 @@ export function hydrateState(raw: string | null): CalculatorState {
       ...state,
       angle: data.angle as AngleUnit,
       ioMode: data.ioMode === 'Line' ? 'Line' : 'Math',
+      mathOutputMode: data.mathOutputMode === 'LineO' ? 'LineO' : 'MathO',
+      decimalMark: data.decimalMark === 'Comma' ? 'Comma' : 'Dot',
+      defaultCmplxFormat: data.defaultCmplxFormat === 'polar' ? 'polar' : 'rect',
+      recurEnabled: data.recurEnabled !== false,
+      contrast: typeof data.contrast === 'number' ? Math.max(1, Math.min(10, data.contrast)) : 5,
       numberFormat: data.numberFormat ?? DEFAULT_NUMBER_FORMAT,
       defaultFractionStyle: data.defaultFractionStyle === 'mixed' ? 'mixed' : 'improper',
       fractionStyle: data.defaultFractionStyle === 'mixed' ? 'mixed' : 'improper',
@@ -2292,6 +2549,18 @@ export function hydrateState(raw: string | null): CalculatorState {
   } catch {
     return state;
   }
+}
+
+export function formatActiveInequalityDisplay(state: CalculatorState): DisplayValue | null {
+  if (state.mode !== 'INEQ' || !state.ineq?.solved) return null;
+  const res = solveInequality(state.ineq.degree, state.ineq.relation, state.ineq.coeffs.map(deserialize));
+  if (state.ioMode === 'Line') {
+    return {
+      type: 'text',
+      text: formatInequalityResult(res, state.resultFormat === 'exact', state.numberFormat, state.decimalMark),
+    };
+  }
+  return formatInequalityDisplay(res, state.resultFormat === 'exact', state.numberFormat, state.decimalMark);
 }
 
 export function formatActiveResult(state: CalculatorState): DisplayValue | null {
@@ -2309,7 +2578,7 @@ export function formatActiveResult(state: CalculatorState): DisplayValue | null 
       state.resultFormat === 'exact',
       state.numberFormat,
     );
-    return { type: 'text', text };
+    return { type: 'text', text: state.decimalMark === 'Comma' ? text.replace(/\./g, ',') : text };
   }
   if (state.mode === 'VERIF') {
     if (state.verifResult === null) return null;
@@ -2317,7 +2586,10 @@ export function formatActiveResult(state: CalculatorState): DisplayValue | null 
   }
   if (state.mode === 'INEQ' && state.ineq?.solved) {
     const res = solveInequality(state.ineq.degree, state.ineq.relation, state.ineq.coeffs.map(deserialize));
-    return { type: 'text', text: formatInequalityResult(res, state.resultFormat === 'exact') };
+    return {
+      type: 'text',
+      text: formatInequalityResult(res, state.resultFormat === 'exact', state.numberFormat, state.decimalMark),
+    };
   }
   if (state.pairResult) return state.pairResult;
   if (!state.result) return null;
@@ -2327,5 +2599,6 @@ export function formatActiveResult(state: CalculatorState): DisplayValue | null 
     override: state.displayOverride,
     engExponent: state.engExponent,
     factoredText: state.factoredText,
+    decimalMark: state.decimalMark,
   });
 }
