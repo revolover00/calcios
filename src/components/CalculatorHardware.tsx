@@ -291,11 +291,33 @@ function CalcKey({
   );
 }
 
+export type CasioBodyTheme = 'black' | 'pink' | 'blue';
+
+function loadBodyTheme(): CasioBodyTheme {
+  try {
+    const saved = window.localStorage.getItem('casio-body-theme');
+    if (saved === 'black' || saved === 'pink' || saved === 'blue') return saved;
+  } catch {
+    // ignore storage errors
+  }
+  return 'black';
+}
+
 export function CalculatorHardware({
   state,
   dispatch,
 }: CalculatorHardwareProps): React.ReactElement {
   const [fnTrayOpen, setFnTrayOpen] = useState(false);
+  const [bodyTheme, setBodyTheme] = useState<CasioBodyTheme>(loadBodyTheme);
+
+  const selectTheme = (next: CasioBodyTheme) => {
+    setBodyTheme(next);
+    try {
+      window.localStorage.setItem('casio-body-theme', next);
+    } catch {
+      // ignore storage errors
+    }
+  };
 
   const handlePress = (id: string) => {
     setFnTrayOpen(false);
@@ -307,30 +329,79 @@ export function CalculatorHardware({
   const isShift = state.shift;
   const isAlpha = state.alpha;
   const poweredOn = state.screen !== 'off';
+  const hasSolar = bodyTheme === 'pink' || bodyTheme === 'blue';
 
   return (
-    <div className="casio-casing" dir="ltr" data-testid="calculator-hardware">
+    <div
+      className={`casio-casing theme-${bodyTheme}`}
+      dir="ltr"
+      data-testid="calculator-hardware"
+      data-theme={bodyTheme}
+    >
       <div className="casio-inner-rim">
-        {/* Top Brand & Edition Header */}
-        <header className="casio-header">
-          <div className="casio-brand-row">
-            <span className="casio-logo">CASIO</span>
-            <span className="casio-model">fx-95ES PLUS</span>
-          </div>
-          <div className="casio-vpam-row">
-            <span className="casio-vpam">NATURAL-V.P.A.M.</span>
-          </div>
+        {/* Top Brand, Solar Window (on 991ES Pink/Blue) & Edition Header */}
+        <header className={hasSolar ? 'casio-header has-solar' : 'casio-header'}>
+          {hasSolar ? (
+            <div className="casio-solar-top">
+              <div className="casio-brand-stack">
+                <span className="casio-logo">CASIO</span>
+                <span className="casio-model">fx-991ES PLUS</span>
+                <span className="casio-vpam">NATURAL-V.P.A.M.</span>
+              </div>
+              <div className="casio-solar-bezel" aria-hidden="true">
+                <div className="casio-solar-cell" />
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="casio-brand-row">
+                <span className="casio-logo">CASIO</span>
+                <span className="casio-model">fx-95ES PLUS</span>
+              </div>
+              <div className="casio-vpam-row">
+                <span className="casio-vpam">NATURAL-V.P.A.M.</span>
+              </div>
+            </>
+          )}
           <div className="casio-edition-row">
-            <button
-              type="button"
-              className={fnTrayOpen ? 'casio-fn-badge active' : 'casio-fn-badge'}
-              data-testid="fn-tray-toggle"
-              aria-label="اختصارات إضافية سريعة"
-              aria-expanded={fnTrayOpen}
-              onClick={() => setFnTrayOpen((v) => !v)}
-            >
-              991+
-            </button>
+            <div className="casio-edition-controls">
+              <button
+                type="button"
+                className={fnTrayOpen ? 'casio-fn-badge active' : 'casio-fn-badge'}
+                data-testid="fn-tray-toggle"
+                aria-label="اختصارات إضافية سريعة"
+                aria-expanded={fnTrayOpen}
+                onClick={() => setFnTrayOpen((v) => !v)}
+              >
+                991+
+              </button>
+              <div className="casio-theme-dots" role="group" aria-label="ألوان الآلة الحاسبة">
+                <button
+                  type="button"
+                  className={bodyTheme === 'black' ? 'theme-dot dot-black active' : 'theme-dot dot-black'}
+                  data-testid="theme-black"
+                  aria-label="اللون الأسود الكلاسيكي"
+                  aria-pressed={bodyTheme === 'black'}
+                  onClick={() => selectTheme('black')}
+                />
+                <button
+                  type="button"
+                  className={bodyTheme === 'pink' ? 'theme-dot dot-pink active' : 'theme-dot dot-pink'}
+                  data-testid="theme-pink"
+                  aria-label="اللون الوردي (Pink)"
+                  aria-pressed={bodyTheme === 'pink'}
+                  onClick={() => selectTheme('pink')}
+                />
+                <button
+                  type="button"
+                  className={bodyTheme === 'blue' ? 'theme-dot dot-blue active' : 'theme-dot dot-blue'}
+                  data-testid="theme-blue"
+                  aria-label="اللون الأزرق (Ice Blue)"
+                  aria-pressed={bodyTheme === 'blue'}
+                  onClick={() => selectTheme('blue')}
+                />
+              </div>
+            </div>
             <span className="casio-edition">2nd edition</span>
           </div>
         </header>

@@ -289,4 +289,51 @@ describe('Calculator-Only Viewport & fx-991ES PLUS C Integration', () => {
     expect(screen.getByTestId('lcd-result').textContent).toContain('1');
     expect(screen.getByTestId('lcd-result').textContent).toContain('2');
   });
+
+  it('switches between Black, Pink, and Blue hardware editions and evaluates ∫_0^(π/2) cos(X)dx = 1 in Radian mode', () => {
+    window.localStorage.removeItem('casio-body-theme');
+    const { container } = render(<App />);
+
+    const hw = screen.getByTestId('calculator-hardware');
+    expect(hw).toHaveAttribute('data-theme', 'black');
+    expect(screen.getByText('fx-95ES PLUS')).toBeVisible();
+
+    // Switch to Dusty Rose Pink edition -> fx-991ES PLUS with solar panel
+    fireEvent.click(screen.getByTestId('theme-pink'));
+    expect(hw).toHaveAttribute('data-theme', 'pink');
+    expect(screen.getByText('fx-991ES PLUS')).toBeVisible();
+    expect(container.querySelector('.casio-solar-cell')).not.toBeNull();
+
+    // Switch to Ice Steel Blue edition
+    fireEvent.click(screen.getByTestId('theme-blue'));
+    expect(hw).toHaveAttribute('data-theme', 'blue');
+    expect(container.querySelectorAll('img')).toHaveLength(0);
+    expect(screen.getByTestId('calc-viewport').children).toHaveLength(1);
+
+    // Switch angle unit to Rad (SHIFT + MODE -> 4:Rad), then compute ∫_0^(π/2) cos(X)dx = 1
+    clickHardwareKey(container, 'shift');
+    clickHardwareKey(container, 'mode');
+    clickHardwareKey(container, '4'); // Rad
+
+    clickHardwareKey(container, 'integ');
+    clickHardwareKey(container, 'cos');
+    clickHardwareKey(container, 'alpha');
+    clickHardwareKey(container, 'close'); // X
+    clickHardwareKey(container, 'close'); // )
+    clickHardwareKey(container, 'right'); // lower limit
+    clickHardwareKey(container, '0');
+    clickHardwareKey(container, 'right'); // upper limit
+    clickHardwareKey(container, 'frac');
+    clickHardwareKey(container, 'shift');
+    clickHardwareKey(container, 'exp'); // π
+    clickHardwareKey(container, 'down');
+    clickHardwareKey(container, '2');
+    clickHardwareKey(container, 'equals');
+
+    expect(screen.getByTestId('lcd-result').textContent).toBe('1');
+
+    // Reset back to Black edition
+    fireEvent.click(screen.getByTestId('theme-black'));
+    expect(hw).toHaveAttribute('data-theme', 'black');
+  });
 });
