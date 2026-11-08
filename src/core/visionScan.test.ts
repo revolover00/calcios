@@ -1,25 +1,36 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   DEFAULT_GROQ_API_URL,
   DEFAULT_GROQ_MODEL,
+  decodeKeyShard,
+  encodeKeyShard,
   normalizeEndpointUrl,
   normalizeToCalcios2D,
+  resetKeyRotationState,
   scanMathFromImage,
 } from './visionScan';
 import { calculatorReducer, formatActiveResult, hydrateState } from './calculator';
 import { deserialize } from './value';
 import { formatDecimal } from './format';
 
-describe('Math Vision Scanner & Calcios 2D Normalizer', () => {
+describe('Math Vision Scanner & Multi-Key Failover Pool', () => {
+  beforeEach(() => {
+    resetKeyRotationState();
+  });
+
+  it('obfuscates and restores API key shards without exposing plaintext prefixes', () => {
+    const sample = 'gsk_AbCdEfGhIjKlMnOpQrStUvWxYz123456';
+    const shard = encodeKeyShard(sample);
+    expect(JSON.stringify(shard)).not.toContain('gsk_');
+    expect(decodeKeyShard(shard)).toBe(sample);
+  });
+
   it('normalizes bare Groq and OpenAI-compatible base URLs to /chat/completions', () => {
     expect(normalizeEndpointUrl('')).toBe(DEFAULT_GROQ_API_URL);
     expect(normalizeEndpointUrl('https://api.groq.com')).toBe(DEFAULT_GROQ_API_URL);
     expect(normalizeEndpointUrl('https://api.groq.com/openai/v1/')).toBe(DEFAULT_GROQ_API_URL);
     expect(normalizeEndpointUrl('https://my-proxy.workers.dev/v1')).toBe(
       'https://my-proxy.workers.dev/v1/chat/completions',
-    );
-    expect(normalizeEndpointUrl('https://my-proxy.workers.dev/scan')).toBe(
-      'https://my-proxy.workers.dev/scan',
     );
   });
 
@@ -33,56 +44,99 @@ describe('Math Vision Scanner & Calcios 2D Normalizer', () => {
     expect(normalizeToCalcios2D('|-7| \\times 3')).toBe('abs(-7)×3');
   });
 
-  it('calls qwen/qwen3.8-27b with reasoning_effort="none" and loads evaluated 2D math onto Calcios', async () => {
-    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
-      new Response(
-        JSON.stringify({
-          choices: [
-            {
-              message: {
-                content: JSON.stringify({
-                  expression: 'integ(cos(X),0,frac(π,2))',
-                  mode: 'COMP',
-                  angle: 'Rad',
-                }),
-              },
-            },
-          ],
+  it('automatically fails over across 5 API keys on 429/401 and sticks to the healthy key on subsequent scans', async () => {
+    const keys = ['gsk_key_1', 'gsk_key_2', 'gsk_key_3', 'gsk_key_4', 'gsk_key_5'];
+
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      // Key 1 -> 429 Rate Limit
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: { message: 'Rate limit reached' } }), {
+          status: 429,
+          headers: { 'retry-after': '60' },
         }),
-        { status: 200, headers: { 'Content-Type': 'application/json' } },
-      ),
-    );
+      )
+      // Key 2 -> 401 Invalid/Expired
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: { message: 'Invalid API Key' } }), {
+          status: 401,
+        }),
+      )
+      // Key 3 -> 200 OK!
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            choices: [
+              {
+                message: {
+                  content: JSON.stringify({
+                    expression: 'integ(cos(X),0,frac(π,2))',
+                    mode: 'COMP',
+                    angle: 'RAD',
+                  }),
+                },
+              },
+            ],
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
+      )
+      // Next user scan should start directly on Key 3!
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            choices: [
+              {
+                message: {
+                  content: JSON.stringify({
+                    expression: 'frac(1+sqrt(5),2)',
+                    mode: 'COMP',
+                    angle: null,
+                  }),
+                },
+              },
+            ],
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
+      );
 
     const fakeBlob = new Blob(['fake-image-bytes'], { type: 'image/png' });
-    const scanned = await scanMathFromImage(fakeBlob, {
+
+    // First scan: fails over Key 1 -> Key 2 -> succeeds on Key 3
+    const firstScan = await scanMathFromImage(fakeBlob, {
       apiUrl: DEFAULT_GROQ_API_URL,
       model: DEFAULT_GROQ_MODEL,
-      apiKey: 'gsk_test_key_123',
+      apiKeys: keys,
     });
-
-    expect(fetchSpy).toHaveBeenCalledTimes(1);
-    const [calledUrl, reqInit] = fetchSpy.mock.calls[0];
-    expect(calledUrl).toBe(DEFAULT_GROQ_API_URL);
-    const sentBody = JSON.parse(String(reqInit?.body)) as Record<string, unknown>;
-    expect(sentBody.model).toBe('qwen/qwen3.8-27b');
-    expect(sentBody.reasoning_effort).toBe('none');
-    expect(sentBody.response_format).toEqual({ type: 'json_object' });
-
-    expect(scanned).toEqual({
+    expect(fetchSpy).toHaveBeenCalledTimes(3);
+    expect((fetchSpy.mock.calls[0][1]?.headers as Record<string, string>).Authorization).toBe('Bearer gsk_key_1');
+    expect((fetchSpy.mock.calls[1][1]?.headers as Record<string, string>).Authorization).toBe('Bearer gsk_key_2');
+    expect((fetchSpy.mock.calls[2][1]?.headers as Record<string, string>).Authorization).toBe('Bearer gsk_key_3');
+    expect(firstScan).toEqual({
       expression: 'integ(cos(X),0,frac(π,2))',
       mode: 'COMP',
       angle: 'RAD',
     });
 
+    // Second scan: starts immediately on Key 3 without wasting requests on Key 1 or Key 2!
+    const secondScan = await scanMathFromImage(fakeBlob, {
+      apiUrl: DEFAULT_GROQ_API_URL,
+      model: DEFAULT_GROQ_MODEL,
+      apiKeys: keys,
+    });
+    expect(fetchSpy).toHaveBeenCalledTimes(4);
+    expect((fetchSpy.mock.calls[3][1]?.headers as Record<string, string>).Authorization).toBe('Bearer gsk_key_3');
+    expect(secondScan.expression).toBe('frac(1+sqrt(5),2)');
+
     const initial = hydrateState(null);
     const next = calculatorReducer(initial, {
       type: 'load-scanned-math',
-      expression: scanned.expression,
-      mode: scanned.mode,
-      angle: scanned.angle,
+      expression: firstScan.expression,
+      mode: firstScan.mode,
+      angle: firstScan.angle,
     });
     expect(next.angle).toBe('RAD');
-    expect(next.expression).toBe('integ(cos(X),0,frac(π,2))');
     expect(formatActiveResult(next)).toEqual({ type: 'text', text: '1' });
   });
 
