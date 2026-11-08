@@ -1,0 +1,1590 @@
+:root {
+  --desk-bg: #efeee9;
+  --desk-surface: #faf9f6;
+  --desk-border: #dcdad2;
+  --ink-primary: #1a1d1f;
+  --ink-muted: #5a6065;
+  --casio-gold: #e0b766;
+  --casio-pink: #e07b92;
+  --casio-lime-top: #96bb50;
+  --casio-lime-bot: #7ea23b;
+  --lcd-bg-top: #d8e7eb;
+  --lcd-bg-bot: #cde0e5;
+  --lcd-ink: #131c1f;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+  background: radial-gradient(circle at 20% 10%, #f7f6f2 0%, #eae8e1 100%);
+  color: var(--ink-primary);
+  font-family: 'Cairo', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Studio Layout */
+.app-shell {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 18px 16px 36px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.app-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 16px;
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--desk-border);
+  border-radius: 16px;
+}
+
+.app-title-block h1 {
+  margin: 0;
+  font-size: 1.08rem;
+  font-weight: 800;
+  color: #181a1c;
+}
+
+.app-title-block p {
+  margin: 2px 0 0;
+  font-size: 0.8rem;
+  color: var(--ink-muted);
+}
+
+.app-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.panel-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 13px;
+  border-radius: 10px;
+  border: 1px solid #2b2f33;
+  background: #202326;
+  color: #f5f6f7;
+  font-size: 0.82rem;
+  font-weight: 700;
+  transition: transform 0.12s ease, background 0.15s ease;
+}
+
+.panel-toggle-btn:hover {
+  background: #2d3136;
+}
+
+.workspace-grid {
+  display: grid;
+  grid-template-columns: auto minmax(320px, 1fr);
+  gap: 24px;
+  align-items: start;
+  justify-content: center;
+}
+
+.workspace-grid.panel-collapsed {
+  grid-template-columns: auto;
+}
+
+.hardware-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.notice-banner {
+  width: 100%;
+  max-width: 372px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 11px;
+  background: #22262a;
+  color: #f2f4f5;
+  font-size: 0.82rem;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
+}
+
+.notice-close {
+  border: none;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 0.75rem;
+}
+
+/* ==========================================================================
+   Code-Drawn Casio fx-95ES PLUS (2nd edition) Hardware Shell
+   ========================================================================== */
+.casio-casing {
+  width: 368px;
+  max-width: 100%;
+  padding: 9px;
+  border-radius: 36px 36px 40px 40px;
+  background: linear-gradient(165deg, #2d3035 0%, #191b1e 48%, #111315 100%);
+  box-shadow:
+    0 24px 48px rgba(15, 17, 20, 0.34),
+    0 6px 14px rgba(15, 17, 20, 0.22),
+    inset 0 1.5px 1px rgba(255, 255, 255, 0.22),
+    inset 0 -3px 6px rgba(0, 0, 0, 0.8);
+  font-family: 'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace;
+}
+
+.casio-inner-rim {
+  padding: 15px 15px 20px;
+  border-radius: 29px 29px 33px 33px;
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(255, 255, 255, 0.05) 0%, transparent 55%),
+    linear-gradient(180deg, #212428 0%, #1a1c20 55%, #16181b 100%);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.55);
+}
+
+/* Branding Header */
+.casio-header {
+  padding: 2px 4px 8px;
+}
+
+.casio-brand-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.casio-logo {
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-weight: 900;
+  font-size: 1.24rem;
+  letter-spacing: 0.09em;
+  color: #eef1f3;
+}
+
+.casio-model {
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-weight: 600;
+  font-size: 0.92rem;
+  letter-spacing: 0.02em;
+  color: #e4e8ec;
+}
+
+.casio-sub-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 4px;
+  min-height: 18px;
+}
+
+.casio-vpam {
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-style: italic;
+  font-weight: 800;
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  color: #bedcd4;
+}
+
+.casio-edition {
+  position: absolute;
+  right: 0;
+  bottom: -2px;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #dce1e5;
+}
+
+/* LCD Screen Bezel & Glass */
+.lcd-bezel {
+  margin-top: 4px;
+  padding: 7px 8px;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #0d0f11 0%, #1c1f23 100%);
+  box-shadow:
+    inset 0 3px 6px rgba(0, 0, 0, 0.9),
+    0 1px 0 rgba(255, 255, 255, 0.09);
+}
+
+.lcd-glass {
+  min-height: 118px;
+  padding: 6px 9px 8px;
+  border-radius: 5px;
+  background: linear-gradient(180deg, var(--lcd-bg-top) 0%, var(--lcd-bg-bot) 100%);
+  color: var(--lcd-ink);
+  box-shadow:
+    inset 0 2px 5px rgba(12, 26, 32, 0.26),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.45);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  overflow: hidden;
+}
+
+.lcd-glass-off {
+  background: linear-gradient(180deg, #8b9a9d 0%, #819093 100%);
+  align-items: center;
+  justify-content: center;
+}
+
+.lcd-off-hint {
+  font-family: 'Cairo', sans-serif;
+  font-size: 0.78rem;
+  color: rgba(18, 26, 28, 0.55);
+}
+
+/* LCD Status Bar */
+.lcd-status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding-bottom: 3px;
+  border-bottom: 1px solid rgba(19, 28, 31, 0.1);
+}
+
+.lcd-status-left,
+.lcd-status-center,
+.lcd-status-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.lcd-ind {
+  opacity: 0.13;
+  transition: opacity 0.1s ease;
+}
+
+.lcd-ind.active {
+  opacity: 1;
+}
+
+.lcd-ind-box {
+  padding: 0 3px;
+  border-radius: 2px;
+  background: var(--lcd-ink);
+  color: var(--lcd-bg-top);
+  line-height: 1.25;
+}
+
+.lcd-math-flag {
+  font-family: system-ui, sans-serif;
+  font-weight: 700;
+}
+
+.lcd-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding-top: 4px;
+}
+
+.lcd-split {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.lcd-expr-area {
+  min-height: 40px;
+  font-size: 1.02rem;
+  font-weight: 600;
+  line-height: 1.35;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+}
+
+.lcd-expr-inner {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  white-space: nowrap;
+}
+
+.lcd-result-area {
+  min-height: 36px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.lcd-result-text {
+  font-size: 1.38rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.15;
+  text-align: right;
+  word-break: break-all;
+}
+
+.lcd-ten-pow {
+  font-size: 0.85em;
+  margin-left: 1px;
+}
+
+.lcd-exp {
+  font-size: 0.68em;
+  vertical-align: super;
+}
+
+.lcd-basen-tag {
+  font-size: 0.7rem;
+  font-weight: 700;
+  opacity: 0.78;
+  margin-right: auto;
+}
+
+/* Blinking LCD Caret */
+@keyframes lcd-blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+
+.lcd-caret {
+  display: inline-block;
+  width: 2px;
+  height: 1.12em;
+  background: var(--lcd-ink);
+  vertical-align: -0.15em;
+  margin: 0 1px;
+  animation: lcd-blink 1s infinite;
+}
+
+.lcd-caret-overwrite {
+  width: 0.52em;
+  opacity: 0.75;
+}
+
+/* 2D Natural-V.P.A.M. Math Structures */
+.math-seq {
+  display: inline-flex;
+  align-items: center;
+}
+
+.math-box-placeholder {
+  display: inline-block;
+  font-size: 0.86em;
+  opacity: 0.62;
+  padding: 0 1px;
+}
+
+.math-frac {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  vertical-align: middle;
+  margin: 0 3px;
+  font-size: 0.86em;
+  line-height: 1.08;
+}
+
+.math-frac-result {
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.math-frac-mini {
+  font-size: 0.72em;
+  margin-right: 2px;
+}
+
+.math-frac-num,
+.math-frac-den {
+  padding: 0 3px;
+  min-width: 12px;
+  text-align: center;
+}
+
+.math-frac-bar {
+  width: 100%;
+  height: 1.6px;
+  background: var(--lcd-ink);
+  margin: 1px 0;
+}
+
+.math-mfrac,
+.lcd-result-frac {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.lcd-mfrac-whole,
+.lcd-frac-sign {
+  font-size: 1.26rem;
+  font-weight: 700;
+}
+
+.math-sqrt {
+  display: inline-flex;
+  align-items: stretch;
+  vertical-align: middle;
+  margin: 0 2px;
+}
+
+.math-root-idx {
+  font-size: 0.66em;
+  margin-right: -2px;
+  align-self: flex-start;
+}
+
+.math-sqrt-glyph {
+  font-size: 1.12em;
+  line-height: 1;
+  padding-top: 1px;
+}
+
+.math-sqrt-body {
+  border-top: 1.6px solid var(--lcd-ink);
+  padding: 1px 3px 0 2px;
+}
+
+.math-sup {
+  font-size: 0.72em;
+  line-height: 1;
+  align-self: flex-start;
+  margin-top: -0.35em;
+}
+
+.math-sub {
+  font-size: 0.68em;
+  line-height: 1;
+  align-self: flex-end;
+  margin-bottom: -0.25em;
+}
+
+.math-abs {
+  display: inline-flex;
+  align-items: center;
+}
+
+.math-abs-bar {
+  font-weight: 700;
+  padding: 0 1px;
+}
+
+.math-bigop {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.math-bigop-limits {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 0.95;
+}
+
+.math-limit-top,
+.math-limit-bot {
+  font-size: 0.62em;
+}
+
+.math-bigop-sym {
+  font-size: 1.2em;
+  font-weight: 700;
+}
+
+.math-const {
+  font-style: italic;
+  font-weight: 700;
+  padding: 0 1px;
+}
+
+.math-conv {
+  font-size: 0.82em;
+  font-weight: 700;
+  padding: 0 3px;
+  margin-left: 2px;
+  border-radius: 3px;
+  background: rgba(19, 28, 31, 0.12);
+}
+
+/* LCD Menus, Prompts & Matrices */
+.lcd-menu {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px 8px;
+  padding-top: 2px;
+}
+
+.lcd-menu-single {
+  grid-template-columns: 1fr;
+}
+
+.lcd-menu-inline {
+  grid-template-columns: repeat(3, 1fr);
+  align-items: center;
+  padding-top: 20px;
+}
+
+.lcd-menu-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+
+.lcd-menu-item {
+  border: none;
+  background: transparent;
+  color: var(--lcd-ink);
+  text-align: left;
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.lcd-menu-item:hover {
+  background: rgba(19, 28, 31, 0.12);
+}
+
+.lcd-menu-dim {
+  opacity: 0.66;
+}
+
+.lcd-prompt-center {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.lcd-error-box {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 4px;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.lcd-error-title {
+  font-size: 0.96rem;
+  margin-bottom: 4px;
+}
+
+.lcd-pair-result {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.lcd-pair-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.lcd-prompt-tag,
+.lcd-fn-prefix,
+.lcd-eqn-sol-label {
+  font-weight: 800;
+}
+
+.lcd-eqn-sol-step {
+  font-size: 0.72rem;
+  margin-left: 6px;
+  opacity: 0.72;
+}
+
+.lcd-solve-eq {
+  font-size: 0.82rem;
+  opacity: 0.85;
+}
+
+.lcd-matrix {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.74rem;
+}
+
+.lcd-matrix th,
+.lcd-matrix td {
+  padding: 1px 4px;
+  text-align: right;
+  border-bottom: 1px solid rgba(19, 28, 31, 0.12);
+}
+
+.lcd-matrix-rowidx {
+  text-align: left !important;
+  opacity: 0.65;
+  font-weight: 700;
+}
+
+.lcd-matrix-cell.active,
+.lcd-table-row-active td {
+  background: var(--lcd-ink);
+  color: var(--lcd-bg-top);
+  border-radius: 2px;
+}
+
+.lcd-table-footer {
+  margin-top: 2px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-align: right;
+}
+
+/* ==========================================================================
+   Upper Deck: Metallic Round Keys + Sculpted 4-Way Replay Pad
+   ========================================================================== */
+.casio-upper-deck {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 104px 1fr;
+  align-items: start;
+  margin-top: 14px;
+  margin-bottom: 2px;
+}
+
+.casio-round-pair-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.casio-round-labels {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  text-align: center;
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+}
+
+.round-lbl-shift,
+.round-lbl-setup {
+  color: var(--casio-gold);
+}
+
+.round-lbl-alpha {
+  color: var(--casio-pink);
+}
+
+.round-lbl-mode,
+.round-lbl-on {
+  color: #e6eaee;
+}
+
+.round-lbl.active {
+  text-shadow: 0 0 8px currentColor;
+}
+
+.round-lbl-mode-group {
+  display: inline-flex;
+  justify-content: center;
+  gap: 3px;
+  font-size: 0.58rem;
+}
+
+.casio-pill-groove {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding: 5px 7px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #0f1113 0%, #1c1f23 100%);
+  box-shadow:
+    inset 0 2px 5px rgba(0, 0, 0, 0.9),
+    0 1px 0 rgba(255, 255, 255, 0.07);
+}
+
+.casio-metal-btn {
+  width: 27px;
+  height: 27px;
+  border-radius: 50%;
+  border: 1px solid #101214;
+  background: conic-gradient(
+    from 30deg,
+    #25282c 0deg,
+    #5d636a 45deg,
+    #202327 95deg,
+    #555b62 180deg,
+    #1f2226 260deg,
+    #5b6168 315deg,
+    #25282c 360deg
+  );
+  box-shadow:
+    0 2.5px 3px rgba(0, 0, 0, 0.85),
+    inset 0 1px 1px rgba(255, 255, 255, 0.28);
+  transition: transform 0.07s ease;
+}
+
+.casio-metal-btn:active,
+.casio-metal-btn.active {
+  transform: translateY(1.5px);
+  box-shadow:
+    0 1px 1px rgba(0, 0, 0, 0.9),
+    0 0 0 2px rgba(224, 183, 102, 0.45);
+}
+
+/* Central Sculpted 4-Way D-Pad */
+.casio-dpad-zone {
+  display: flex;
+  justify-content: center;
+  z-index: 3;
+  margin-top: 6px;
+  margin-bottom: -36px;
+}
+
+.casio-dpad-ring {
+  position: relative;
+  width: 96px;
+  height: 82px;
+  border-radius: 48px;
+  background:
+    repeating-linear-gradient(45deg, #16181b 0 2px, #202328 2px 4px),
+    radial-gradient(circle, #1d2024 0%, #101215 100%);
+  border: 2px solid #0d0f12;
+  box-shadow:
+    0 5px 10px rgba(0, 0, 0, 0.72),
+    inset 0 1px 2px rgba(255, 255, 255, 0.12);
+}
+
+.dpad-center-knurl {
+  position: absolute;
+  inset: 24px 30px;
+  border-radius: 50%;
+  background: repeating-conic-gradient(#17191d 0% 12.5%, #23272c 12.5% 25%);
+  opacity: 0.65;
+  pointer-events: none;
+}
+
+.dpad-lobe {
+  position: absolute;
+  border: 1px solid #0f1114;
+  background: conic-gradient(from 0deg, #24282c, #52585f, #1f2226, #50565d, #24282c);
+  color: rgba(236, 240, 244, 0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow:
+    0 2px 3px rgba(0, 0, 0, 0.8),
+    inset 0 1px 1px rgba(255, 255, 255, 0.24);
+  padding: 0;
+  transition: transform 0.06s ease;
+}
+
+.dpad-lobe:active {
+  transform: scale(0.95);
+}
+
+.dpad-up {
+  top: 3px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 28px;
+  height: 25px;
+  border-radius: 12px 12px 8px 8px;
+}
+
+.dpad-down {
+  bottom: 3px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 28px;
+  height: 25px;
+  border-radius: 8px 8px 12px 12px;
+}
+
+.dpad-up:active,
+.dpad-down:active {
+  transform: translateX(-50%) scale(0.95);
+}
+
+.dpad-left {
+  left: 3px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 27px;
+  height: 24px;
+  border-radius: 12px 8px 8px 12px;
+}
+
+.dpad-right {
+  right: 3px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 27px;
+  height: 24px;
+  border-radius: 8px 12px 12px 8px;
+}
+
+.dpad-left:active,
+.dpad-right:active {
+  transform: translateY(-50%) scale(0.95);
+}
+
+.dpad-arrow {
+  font-size: 0.52rem;
+  line-height: 1;
+}
+
+/* ==========================================================================
+   Scientific 6-Column Key Grid & Lower 5-Column Key Grid
+   ========================================================================== */
+.casio-sci-section {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 6px;
+}
+
+.casio-sci-row {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
+  align-items: end;
+}
+
+.casio-num-section {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 14px;
+}
+
+.casio-num-row {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+  align-items: end;
+}
+
+.calc-key-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.calc-key-legends {
+  min-height: 13px;
+  display: flex;
+  align-items: center;
+  padding: 0 2px;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-size: 0.6rem;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.legends-center {
+  justify-content: center;
+  gap: 4px;
+}
+
+.legends-split {
+  justify-content: space-between;
+}
+
+.legend-shift {
+  color: var(--casio-gold);
+}
+
+.legend-alpha {
+  color: var(--casio-pink);
+}
+
+.legend-basen {
+  color: #7cc9d8;
+  font-size: 0.55rem;
+}
+
+.legend-basen.active {
+  color: #4ef0b8;
+  text-decoration: underline;
+}
+
+/* Physical Keycap Variants */
+.calc-btn {
+  width: 100%;
+  border: 1px solid #0d0f11;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #f4f6f8;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  transition: transform 0.06s ease, filter 0.1s ease;
+  padding: 0 2px;
+}
+
+.calc-btn:hover {
+  filter: brightness(1.08);
+}
+
+.calc-btn:active {
+  transform: translateY(2px);
+}
+
+/* Dark Charcoal Scientific Keys */
+.calc-btn-sci {
+  height: 30px;
+  border-radius: 7px 7px 9px 9px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  background: linear-gradient(180deg, #2b2f35 0%, #1d2024 100%);
+  box-shadow:
+    0 3px 0 #0c0e10,
+    inset 0 1px 0 rgba(255, 255, 255, 0.16);
+}
+
+/* Lower Grey Numeric & Operator Keys */
+.calc-btn-num,
+.calc-btn-op {
+  height: 38px;
+  border-radius: 8px 8px 11px 11px;
+  background: linear-gradient(180deg, #6b7076 0%, #55595f 100%);
+  box-shadow:
+    0 3.5px 0 #23262a,
+    inset 0 1px 0 rgba(255, 255, 255, 0.26);
+}
+
+.calc-btn-num {
+  font-size: 1.24rem;
+  font-weight: 600;
+}
+
+.calc-btn-op {
+  font-size: 1.08rem;
+  font-weight: 600;
+}
+
+/* Iconic Casio Yellow-Olive-Green DEL / AC Keys */
+.calc-btn-accent {
+  height: 38px;
+  border-radius: 8px 8px 11px 11px;
+  font-size: 0.98rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #ffffff;
+  text-shadow: 0 1px 1px rgba(35, 48, 12, 0.45);
+  background: linear-gradient(180deg, var(--casio-lime-top) 0%, var(--casio-lime-bot) 100%);
+  box-shadow:
+    0 3.5px 0 #3f531b,
+    inset 0 1px 0 rgba(255, 255, 255, 0.36);
+}
+
+/* Keycap Math Glyphs */
+.key-glyph-frac {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5px;
+}
+
+.glyph-box {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 1px;
+}
+
+.glyph-box-solid {
+  background: #f2f4f7;
+}
+
+.glyph-box-hollow {
+  border: 1.3px solid #f2f4f7;
+}
+
+.glyph-frac-line {
+  width: 11px;
+  height: 1.3px;
+  background: #f2f4f7;
+}
+
+.key-glyph-inline {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.84rem;
+}
+
+.glyph-overbar {
+  border-top: 1.3px solid #f2f4f7;
+  padding: 1px 1px 0 1px;
+  display: inline-flex;
+}
+
+.key-glyph-math i {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-style: italic;
+}
+
+.key-glyph-math sup,
+.key-glyph-exp sup {
+  font-size: 0.65em;
+  margin-left: 1px;
+}
+
+.key-glyph-logb {
+  display: inline-flex;
+  align-items: baseline;
+  font-size: 0.74rem;
+  gap: 1px;
+}
+
+.glyph-sub-box .glyph-box {
+  width: 5px;
+  height: 5px;
+}
+
+.legend-mfrac {
+  display: inline-flex;
+  align-items: center;
+  gap: 1.5px;
+}
+
+.legend-box-solid {
+  width: 4px;
+  height: 4px;
+  background: var(--casio-gold);
+}
+
+.legend-frac-stack {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+}
+
+.legend-box-hollow {
+  width: 4px;
+  height: 3.5px;
+  border: 1px solid var(--casio-gold);
+}
+
+.legend-frac-bar {
+  width: 6px;
+  height: 1px;
+  background: var(--casio-gold);
+}
+
+/* ==========================================================================
+   Companion fx-991ES PLUS C Extra Panel
+   ========================================================================== */
+.extra-panel {
+  background: var(--desk-surface);
+  border: 1px solid var(--desk-border);
+  border-radius: 22px;
+  padding: 18px;
+  box-shadow: 0 12px 32px rgba(20, 22, 25, 0.07);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.extra-panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.extra-panel-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+.extra-panel-subtitle {
+  margin: 2px 0 0;
+  font-size: 0.8rem;
+  color: var(--ink-muted);
+}
+
+.extra-active-badges {
+  display: flex;
+  gap: 6px;
+}
+
+.status-pill {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #202428;
+  color: #eef2f5;
+}
+
+.extra-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  background: #eceae3;
+  padding: 5px;
+  border-radius: 13px;
+}
+
+.extra-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 8px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  color: #464b50;
+  font-size: 0.78rem;
+  font-weight: 700;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.extra-tab.active {
+  background: #ffffff;
+  color: #16181a;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+.extra-tab-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.extra-card {
+  background: #ffffff;
+  border: 1px solid #e6e4dc;
+  border-radius: 15px;
+  padding: 13px 14px;
+}
+
+.extra-card-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.extra-section-heading {
+  margin: 0 0 10px;
+  font-size: 0.86rem;
+  font-weight: 800;
+  color: #24282c;
+}
+
+.extra-card-row .extra-section-heading {
+  margin-bottom: 0;
+}
+
+.extra-key-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.extra-fn-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 9px 6px;
+  border-radius: 11px;
+  border: 1px solid #2b2f35;
+  background: linear-gradient(180deg, #2a2e34 0%, #1e2126 100%);
+  color: #f4f6f8;
+  box-shadow: 0 2px 0 #101215;
+}
+
+.extra-fn-btn:hover {
+  filter: brightness(1.1);
+}
+
+.extra-fn-btn.extra-fn-gold .extra-fn-main {
+  color: var(--casio-gold);
+}
+
+.extra-fn-btn.extra-fn-pink .extra-fn-main {
+  color: var(--casio-pink);
+}
+
+.extra-fn-main {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.extra-fn-sub {
+  font-size: 0.68rem;
+  color: #cfd5db;
+}
+
+.extra-hint {
+  margin: 10px 0 0;
+  font-size: 0.76rem;
+  color: var(--ink-muted);
+}
+
+.extra-hint kbd,
+.extra-hint code {
+  font-family: 'IBM Plex Mono', monospace;
+  background: #f0efe9;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 0.74rem;
+}
+
+.mini-action-btn {
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1px solid #2a2e33;
+  background: #202428;
+  color: #fff;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.extra-logic-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
+}
+
+.logic-chip {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 7px 4px;
+  border-radius: 8px;
+  border: 1px solid #d5d3ca;
+  background: #f7f6f2;
+  color: #1f2327;
+}
+
+.logic-chip:hover {
+  background: #eceae2;
+}
+
+.var-inspector-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+}
+
+.var-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 6px 8px;
+  border-radius: 9px;
+  border: 1px solid #e3e1d9;
+  background: #faf9f5;
+  overflow: hidden;
+}
+
+.var-chip:hover {
+  border-color: #262a2e;
+}
+
+.var-chip-ans {
+  background: #eef4e5;
+  border-color: #c7d9ab;
+}
+
+.var-chip-name {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #b54562;
+}
+
+.var-chip-val {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.74rem;
+  color: #1f2327;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Search & Lists for CONST / CONV */
+.extra-search-input {
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: 11px;
+  border: 1px solid #d5d3ca;
+  background: #ffffff;
+  font-family: inherit;
+  font-size: 0.84rem;
+}
+
+.extra-list {
+  max-height: 440px;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 7px;
+  padding-left: 2px;
+}
+
+.extra-list-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 11px;
+  border: 1px solid #e5e3db;
+  background: #ffffff;
+  text-align: right;
+}
+
+.extra-list-row:hover {
+  border-color: #23272b;
+  background: #f6f5f0;
+}
+
+.extra-code {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: #202428;
+  color: var(--casio-gold);
+}
+
+.extra-sym,
+.extra-conv-lbl {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #181b1f;
+  min-width: 44px;
+}
+
+.extra-desc {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.extra-desc strong {
+  font-size: 0.78rem;
+  color: #202428;
+}
+
+.extra-desc small {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.68rem;
+  color: var(--ink-muted);
+}
+
+/* Modes & Coverage */
+.modes-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.mode-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 9px 10px;
+  border-radius: 11px;
+  border: 1px solid #e2e0d8;
+  background: #faf9f6;
+  text-align: right;
+}
+
+.mode-card.active {
+  border-color: #1f2327;
+  background: #eef4e6;
+}
+
+.mode-card.pending {
+  opacity: 0.78;
+}
+
+.mode-card-top {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.mode-code {
+  background: #202428;
+  color: #fff;
+  padding: 1px 5px;
+  border-radius: 5px;
+  font-size: 0.68rem;
+}
+
+.mode-desc {
+  font-size: 0.73rem;
+  color: var(--ink-muted);
+}
+
+.mode-badge {
+  font-size: 0.66rem;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 999px;
+}
+
+.mode-badge.ready {
+  background: #dff0c8;
+  color: #2e4c11;
+}
+
+.mode-badge.wip {
+  background: #eeeae0;
+  color: #655f52;
+}
+
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.history-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid #e6e4dc;
+  background: #faf9f6;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.78rem;
+}
+
+.coverage-list {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.coverage-item {
+  padding-bottom: 8px;
+  border-bottom: 1px solid #efede6;
+}
+
+.coverage-item:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.coverage-item-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+}
+
+.coverage-item p {
+  margin: 3px 21px 0 0;
+  font-size: 0.74rem;
+  color: var(--ink-muted);
+}
+
+.cov-icon.verified {
+  color: #4f7f1d;
+  flex-shrink: 0;
+}
+
+.cov-icon.numerical {
+  color: #b97a16;
+  flex-shrink: 0;
+}
+
+.cov-icon.wip {
+  color: #6f757c;
+  flex-shrink: 0;
+}
+
+@media (max-width: 920px) {
+  .workspace-grid {
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+
+  .extra-panel {
+    width: 100%;
+    max-width: 560px;
+  }
+
+  .extra-tabs {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .extra-list,
+  .modes-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .extra-key-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .var-inspector-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 400px) {
+  .casio-casing {
+    width: 100%;
+    padding: 6px;
+  }
+
+  .casio-inner-rim {
+    padding: 12px 10px 16px;
+  }
+}
