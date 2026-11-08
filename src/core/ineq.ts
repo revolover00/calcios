@@ -1,6 +1,9 @@
 import { solveCubic } from './eqn';
 import { mathError } from './errors';
-import { formatDecimal, formatSymbolicLinear } from './format';
+import {
+  DEFAULT_NUMBER_FORMAT, formatDecimal, formatResult, formatSymbolicLinear,
+  type DecimalMark, type DisplayValue, type IneqSegmentDisplay, type NumberFormatSetting,
+} from './format';
 import { D, applyFunction, divide, multiply, negate, scalarFromInteger, subtract, type Scalar } from './value';
 
 export type IneqDegree = 2 | 3;
@@ -12,6 +15,15 @@ export interface IneqResult {
   relation: IneqRelation;
   coeffs: Scalar[];
 }
+
+type RawSegment =
+  | { kind: 'all' }
+  | { kind: 'none' }
+  | { kind: 'point'; at: Scalar }
+  | { kind: 'not-equal'; at: Scalar }
+  | { kind: 'left'; upper: Scalar }
+  | { kind: 'right'; lower: Scalar }
+  | { kind: 'between'; lower: Scalar; upper: Scalar };
 
 function evalPoly(coeffs: Scalar[], x: InstanceType<typeof D>): InstanceType<typeof D> {
   return coeffs.reduce((acc, c) => acc.times(x).plus(c.decimal), new D(0));
@@ -29,11 +41,6 @@ function uniqueSortedRealRoots(degree: IneqDegree, coeffs: Scalar[]): Scalar[] {
     } else if (disc.decimal.gt(0)) {
       const sq = applyFunction('sqrt', [disc], 'DEG');
       const twoA = multiply(scalarFromInteger(2), a);
-      rawRoots = [
-        divide(subtract(sq, b), twoA),
-        divide(negate(subtract(b, negate(sq))), twoA),
-      ];
-      // Cleaner: (-b - sq)/(2a) and (-b + sq)/(2a)
       rawRoots = [
         divide(subtract(negate(b), sq), twoA),
         divide(subtract(negate(b), negate(sq)), twoA),
@@ -61,13 +68,11 @@ export function solveInequality(degree: IneqDegree, relation: IneqRelation, coef
   return { roots, degree, relation, coeffs };
 }
 
-export function formatInequalityResult(res: IneqResult, preferExact: boolean): string {
+function computeInequalitySegments(res: IneqResult): { ltSym: '<' | '≤'; segments: RawSegment[] } {
   const { roots, relation, coeffs } = res;
   const inclusive = relation === '≥' || relation === '≤';
   const wantPositive = relation === '>' || relation === '≥';
-  const ltSym = inclusive ? '≤' : '<';
-
-  const fmt = (s: Scalar) => (preferExact && formatSymbolicLinear(s)) || formatDecimal(s);
+  const ltSym: '<' | '≤' = inclusive ? '≤' : '<';
 
   const satisfiesStrict = (val: InstanceType<typeof D>): boolean => {
     const y = evalPoly(coeffs, val);
@@ -75,10 +80,12 @@ export function formatInequalityResult(res: IneqResult, preferExact: boolean): s
   };
 
   if (roots.length === 0) {
-    return satisfiesStrict(new D(0)) ? 'All Real Numbers' : 'No Solution';
+    return {
+      ltSym,
+      segments: [{ kind: satisfiesStrict(new D(0)) ? 'all' : 'none' }],
+    };
   }
 
-  // Test intervals (-inf, r0), (r0, r1), ..., (rk, +inf)
   const samplePoints: InstanceType<typeof D>[] = [];
   samplePoints.push(roots[0].decimal.minus(1));
   for (let i = 0; i + 1 < roots.length; i++) {
@@ -88,32 +95,27 @@ export function formatInequalityResult(res: IneqResult, preferExact: boolean): s
 
   const intervalActive = samplePoints.map(satisfiesStrict);
 
-  // Merge adjacent intervals when inclusive root bridges two active intervals!
-  type Segment =
-    | { kind: 'all' }
-    | { kind: 'left'; upper: Scalar }
-    | { kind: 'right'; lower: Scalar }
-    | { kind: 'between'; lower: Scalar; upper: Scalar }
-    | { kind: 'point'; at: Scalar }
-    | { kind: 'not-equal'; at: Scalar };
-
-  // Special clean cases for single double-root quadratic:
   if (roots.length === 1) {
     const leftOk = intervalActive[0];
     const rightOk = intervalActive[1];
     if (leftOk && rightOk) {
-      return inclusive ? 'All Real Numbers' : `X≠${fmt(roots[0])}`;
+      return {
+        ltSym,
+        segments: [inclusive ? { kind: 'all' } : { kind: 'not-equal', at: roots[0] }],
+      };
     }
     if (!leftOk && !rightOk) {
-      return inclusive ? `X=${fmt(roots[0])}` : 'No Solution';
+      return {
+        ltSym,
+        segments: [inclusive ? { kind: 'point', at: roots[0] } : { kind: 'none' }],
+      };
     }
   }
 
-  const segments: Segment[] = [];
+  const segments: RawSegment[] = [];
   let i = 0;
   while (i < intervalActive.length) {
     if (!intervalActive[i]) {
-      // Check isolated point solution when inclusive and neither adjacent interval is active
       if (inclusive && i < roots.length && !intervalActive[i + 1]) {
         segments.push({ kind: 'point', at: roots[i] });
       }
@@ -130,7 +132,7 @@ export function formatInequalityResult(res: IneqResult, preferExact: boolean): s
     const hasLower = startInterval > 0;
     const hasUpper = endInterval < roots.length;
     if (!hasLower && !hasUpper) {
-      return 'All Real Numbers';
+      return { ltSym, segments: [{ kind: 'all' }] };
     }
     if (!hasLower && hasUpper) {
       segments.push({ kind: 'left', upper: roots[endInterval] });
@@ -142,16 +144,84 @@ export function formatInequalityResult(res: IneqResult, preferExact: boolean): s
     i = endInterval + 1;
   }
 
-  if (segments.length === 0) return 'No Solution';
+  if (segments.length === 0) return { ltSym, segments: [{ kind: 'none' }] };
+  return { ltSym, segments };
+}
+
+export function formatInequalityResult(
+  res: IneqResult,
+  preferExact: boolean,
+  numberFormat: NumberFormatSetting = DEFAULT_NUMBER_FORMAT,
+  decimalMark: DecimalMark = 'Dot',
+): string {
+  const { ltSym, segments } = computeInequalitySegments(res);
+  const fmt = (s: Scalar) =>
+    (preferExact && formatSymbolicLinear(s)) || formatDecimal(s, numberFormat, decimalMark);
 
   return segments
     .map((seg) => {
       if (seg.kind === 'all') return 'All Real Numbers';
+      if (seg.kind === 'none') return 'No Solution';
       if (seg.kind === 'point') return `X=${fmt(seg.at)}`;
       if (seg.kind === 'not-equal') return `X≠${fmt(seg.at)}`;
       if (seg.kind === 'left') return `X${ltSym}${fmt(seg.upper)}`;
       if (seg.kind === 'right') return `${fmt(seg.lower)}${ltSym}X`;
-      return `${fmt(seg.lower)}${ltSym}X${ltSym}${fmt(seg.upper)}`;
+      return `${fmt(seg.lower)}${ltSym}X${ltSym}${seg.upper ? fmt(seg.upper) : ''}`;
     })
     .join(', ');
+}
+
+/** Builds structured 2D inequality display with symbolic template header (e.g. X<A, B<X) + 2D roots! */
+export function formatInequalityDisplay(
+  res: IneqResult,
+  preferExact: boolean,
+  numberFormat: NumberFormatSetting = DEFAULT_NUMBER_FORMAT,
+  decimalMark: DecimalMark = 'Dot',
+): DisplayValue {
+  const { ltSym, segments } = computeInequalitySegments(res);
+  const letters = ['A', 'B', 'C', 'D'];
+  let letterIdx = 0;
+  const nextVar = () => letters[letterIdx++] ?? 'K';
+
+  const headerParts: string[] = [];
+  const dispSegments: IneqSegmentDisplay[] = [];
+
+  const fmtVal = (s: Scalar): DisplayValue =>
+    formatResult(s, preferExact ? 'exact' : 'decimal', {
+      numberFormat,
+      decimalMark,
+    });
+
+  for (const seg of segments) {
+    if (seg.kind === 'all') {
+      headerParts.push('All Real Numbers');
+      dispSegments.push({ kind: 'all' });
+    } else if (seg.kind === 'none') {
+      headerParts.push('No Solution');
+      dispSegments.push({ kind: 'none' });
+    } else if (seg.kind === 'point') {
+      headerParts.push(`X=${nextVar()}`);
+      dispSegments.push({ kind: 'eq', val: fmtVal(seg.at) });
+    } else if (seg.kind === 'not-equal') {
+      headerParts.push(`X≠${nextVar()}`);
+      dispSegments.push({ kind: 'neq', val: fmtVal(seg.at) });
+    } else if (seg.kind === 'left') {
+      headerParts.push(`X${ltSym}${nextVar()}`);
+      dispSegments.push({ kind: 'left', op: ltSym, upper: fmtVal(seg.upper) });
+    } else if (seg.kind === 'right') {
+      headerParts.push(`${nextVar()}${ltSym}X`);
+      dispSegments.push({ kind: 'right', op: ltSym, lower: fmtVal(seg.lower) });
+    } else {
+      const v1 = nextVar();
+      const v2 = nextVar();
+      headerParts.push(`${v1}${ltSym}X${ltSym}${v2}`);
+      dispSegments.push({ kind: 'between', op: ltSym, lower: fmtVal(seg.lower), upper: fmtVal(seg.upper) });
+    }
+  }
+
+  return {
+    type: 'ineq-2d',
+    header: headerParts.join(', '),
+    segments: dispSegments,
+  };
 }

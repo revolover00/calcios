@@ -275,11 +275,33 @@ export function estimateStatXHat(subMode: StatSubMode, summary: StatSummary, yVa
     case 'INV_X': if (y.eq(A)) mathError('Domain'); return sc(B.div(y.minus(A)));
     case '_+CX2': {
       const C = summary.regC?.decimal ?? new D(0);
-      if (C.isZero()) return sc(y.minus(A).div(B));
+      if (C.isZero()) {
+        if (B.isZero()) mathError('Slope is zero');
+        return sc(y.minus(A).div(B));
+      }
       const disc = B.pow(2).minus(C.times(4).times(A.minus(y)));
-      if (disc.lt(0)) mathError('Non-real x̂');
+      if (disc.lt(0)) mathError('Non-real x̂₁');
       return sc(B.neg().plus(disc.sqrt()).div(C.times(2)));
     }
     default: return mathError('x̂ unavailable in 1-VAR');
   }
+}
+
+export function estimateStatXHat2(subMode: StatSubMode, summary: StatSummary, yVal: Scalar): Scalar {
+  if (subMode !== '_+CX2' || !summary.regA || !summary.regB || !summary.regC) {
+    return mathError('x̂₂ only available in quadratic regression');
+  }
+  const A = summary.regA.decimal;
+  const B = summary.regB.decimal;
+  const C = summary.regC.decimal;
+  const y = yVal.decimal;
+  if (C.isZero()) mathError('Quadratic coefficient C is zero');
+  const disc = B.pow(2).minus(C.times(4).times(A.minus(y)));
+  if (disc.lt(0)) mathError('Non-real x̂₂');
+  return sc(B.neg().minus(disc.sqrt()).div(C.times(2)));
+}
+
+export function standardizeStatT(summary: StatSummary, xVal: Scalar): Scalar {
+  if (summary.popSdX.decimal.isZero()) mathError('σx is zero');
+  return sc(xVal.decimal.minus(summary.meanX.decimal).div(summary.popSdX.decimal));
 }

@@ -1,7 +1,7 @@
 import { mathError } from './errors';
-import { formatDecimal, formatResult, type DisplayValue } from './format';
+import { formatDecimal, formatResult, formatSymbolicLinear, type DisplayValue } from './format';
 import {
-  D, add, divide, makeScalar, multiply, negate, scalarFromInteger, subtract,
+  D, add, applyFunction, divide, makeScalar, multiply, negate, scalarFromInteger, subtract,
   type Scalar,
 } from './value';
 
@@ -126,31 +126,31 @@ export function solveQuadratic(coeffs: Scalar[]): EqnOutcome {
   if (isTiny(disc)) {
     items.push({ label: 'X', scalar: vx });
   } else if (disc.decimal.gt(0)) {
-    const sqrtD = disc.decimal.sqrt();
-    const x1 = cleanScalar(b.decimal.neg().plus(sqrtD).div(twoA.decimal));
-    const x2 = cleanScalar(b.decimal.neg().minus(sqrtD).div(twoA.decimal));
-    // Preserve exact rational roots when discriminant is a rational square
-    const tryExact = (cand: Scalar): Scalar => {
-      if (disc.exact && disc.exact.n >= 0n) {
-        const sn = BigInt(Math.round(Number(disc.exact.n) ** 0.5));
-        const sd = BigInt(Math.round(Number(disc.exact.d) ** 0.5));
-        if (sn * sn === disc.exact.n && sd * sd === disc.exact.d) {
-          const exactSqrt = divide(scalarFromInteger(sn), scalarFromInteger(sd));
-          const r1 = divide(add(negate(b), exactSqrt), twoA);
-          const r2 = divide(subtract(negate(b), exactSqrt), twoA);
-          return cand === x1 ? r1 : r2;
-        }
-      }
-      return cand;
-    };
-    items.push({ label: 'X₁', scalar: tryExact(x1) });
-    items.push({ label: 'X₂', scalar: tryExact(x2) });
+    const sq = applyFunction('sqrt', [disc], 'DEG');
+    const r1 = divide(add(negate(b), sq), twoA);
+    const r2 = divide(subtract(negate(b), sq), twoA);
+    items.push({ label: 'X₁', scalar: r1 });
+    items.push({ label: 'X₂', scalar: r2 });
   } else {
-    const real = b.decimal.neg().div(twoA.decimal);
-    const imag = disc.decimal.abs().sqrt().div(twoA.decimal.abs());
-    const [c1, c2] = formatComplex(real, imag);
-    items.push({ label: 'X₁', complexText: c1 });
-    items.push({ label: 'X₂', complexText: c2 });
+    const realS = divide(negate(b), twoA);
+    const absTwoA = twoA.decimal.isNegative() ? negate(twoA) : twoA;
+    const imagS = divide(applyFunction('sqrt', [negate(disc)], 'DEG'), absTwoA);
+    const rSym = formatSymbolicLinear(realS);
+    const iSym = formatSymbolicLinear(imagS);
+    if (rSym !== null && iSym !== null) {
+      const iPart = iSym === '1' ? 'i' : iSym.includes('+') || iSym.includes('−') ? `(${iSym})i` : `${iSym}i`;
+      if (realS.decimal.abs().lt('1e-24')) {
+        items.push({ label: 'X₁', complexText: iPart });
+        items.push({ label: 'X₂', complexText: `−${iPart}` });
+      } else {
+        items.push({ label: 'X₁', complexText: `${rSym}+${iPart}` });
+        items.push({ label: 'X₂', complexText: `${rSym}−${iPart}` });
+      }
+    } else {
+      const [c1, c2] = formatComplex(realS.decimal, imagS.decimal.abs());
+      items.push({ label: 'X₁', complexText: c1 });
+      items.push({ label: 'X₂', complexText: c2 });
+    }
   }
 
   items.push({ label: `X-Value ${extremumKind}`, scalar: vx });

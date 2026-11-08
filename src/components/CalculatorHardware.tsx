@@ -221,6 +221,27 @@ export function CalculatorHardware({
               <button type="button" data-testid="fn-prod" onClick={() => handlePress('prod')}>
                 Π(
               </button>
+              <button type="button" data-testid="fn-divr" onClick={() => handlePress('divr')}>
+                ÷R
+              </button>
+              <button type="button" data-testid="fn-recur" onClick={() => handlePress('recur')}>
+                0.x̅
+              </button>
+              <button type="button" data-testid="fn-gcd" onClick={() => handlePress('gcd')}>
+                GCD
+              </button>
+              <button type="button" data-testid="fn-lcm" onClick={() => handlePress('lcm')}>
+                LCM
+              </button>
+              <button type="button" data-testid="fn-int" onClick={() => handlePress('int-fn')}>
+                Int
+              </button>
+              <button type="button" data-testid="fn-intg" onClick={() => handlePress('intg-fn')}>
+                Intg
+              </button>
+              <button type="button" data-testid="fn-preans" onClick={() => handlePress('preans')}>
+                PreAns
+              </button>
               <button type="button" data-testid="fn-const" onClick={() => handlePress('const-menu')}>
                 CONST
               </button>

@@ -155,4 +155,99 @@ describe('expression engine', () => {
   it('does not use JavaScript evaluation or allow arbitrary property access', () => {
     expect(() => solve('globalThis.alert(1)')).toThrowError(CalculatorError);
   });
+
+  it('supports multi-surd combinations, Galois denominator rationalization, and nested surd denesting', () => {
+    const sumSurd = solve('sqrt(2)+sqrt(3)');
+    expect(formatResult(sumSurd, 'exact')).toEqual({
+      type: 'symbolic-multisurd',
+      terms: [{ coef: '1', rad: '3' }, { coef: '1', rad: '2' }],
+      d: '1',
+    });
+
+    // 1 / (√2 + √3) = √3 - √2
+    const inv2 = solve('1÷(sqrt(2)+sqrt(3))');
+    expect(formatResult(inv2, 'exact')).toEqual({
+      type: 'symbolic-multisurd',
+      terms: [{ coef: '1', rad: '3' }, { coef: '-1', rad: '2' }],
+      d: '1',
+    });
+
+    // 1 / (1 + √2 + √3) = (2 + √2 - √6) / 4
+    const inv3 = solve('1÷(1+sqrt(2)+sqrt(3))');
+    expect(formatResult(inv3, 'exact')).toEqual({
+      type: 'symbolic-multisurd',
+      terms: [{ coef: '2', rad: '1' }, { coef: '1', rad: '2' }, { coef: '-1', rad: '6' }],
+      d: '4',
+    });
+
+    // (√2 + √3)^2 = 5 + 2√6 (collapses back to single quadratic surd)
+    const sqSum = solve('(sqrt(2)+sqrt(3))^2');
+    expect(formatResult(sqSum, 'exact')).toEqual({
+      type: 'symbolic-surd',
+      a: '5',
+      b: '2',
+      rad: '6',
+      d: '1',
+    });
+
+    // Nested surd denesting: √(3 + 2√2) = 1 + √2
+    const denest = solve('sqrt(3+2sqrt(2))');
+    expect(formatResult(denest, 'exact')).toEqual({
+      type: 'symbolic-surd',
+      a: '1',
+      b: '1',
+      rad: '2',
+      d: '1',
+    });
+  });
+
+  it('supports exact 15° and 75° trig and inverse trig in DEG and RAD', () => {
+    // sin(15°) = (√6 - √2) / 4
+    expect(formatResult(solve('sin(15)'), 'exact')).toEqual({
+      type: 'symbolic-multisurd',
+      terms: [{ coef: '1', rad: '6' }, { coef: '-1', rad: '2' }],
+      d: '4',
+    });
+    expect(formatResult(solve('tan(15)'), 'exact')).toEqual({
+      type: 'symbolic-surd',
+      a: '2',
+      b: '-1',
+      rad: '3',
+      d: '1',
+    });
+    expect(formatDecimal(solve('asin((sqrt(6)-sqrt(2))÷4)'))).toBe('15');
+    const inRad = evaluateExpression('asin((sqrt(6)-sqrt(2))÷4)', { ...ctx, angle: 'RAD' });
+    expect(formatResult(inRad, 'exact')).toEqual({
+      type: 'symbolic-pi',
+      sign: '',
+      numerator: '1',
+      denominator: '12',
+    });
+  });
+
+  it('supports GCD, LCM, Int, Intg, and exact recurring decimal literals', () => {
+    expect(formatDecimal(solve('GCD(48,180)'))).toBe('12');
+    expect(formatDecimal(solve('LCM(12,18)'))).toBe('36');
+    expect(formatDecimal(solve('Int(-3.7)'))).toBe('-3');
+    expect(formatDecimal(solve('Intg(-3.7)'))).toBe('-4');
+
+    expect(formatResult(solve('0.r(3)'), 'exact')).toEqual({
+      type: 'fraction',
+      sign: '',
+      numerator: '1',
+      denominator: '3',
+    });
+    expect(formatResult(solve('0.58r(3)'), 'exact')).toEqual({
+      type: 'fraction',
+      sign: '',
+      numerator: '7',
+      denominator: '12',
+    });
+    expect(formatResult(solve('0.r(142857)'), 'exact')).toEqual({
+      type: 'fraction',
+      sign: '',
+      numerator: '1',
+      denominator: '7',
+    });
+  });
 });

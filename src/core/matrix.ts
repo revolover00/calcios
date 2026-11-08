@@ -133,6 +133,58 @@ export function invertMatrix(m: MatrixValue): MatrixValue {
   };
 }
 
+/** Row Echelon Form (Ref) with leading 1s and partial pivoting. */
+export function refMatrix(m: MatrixValue): MatrixValue {
+  const grid = m.cells.map((row) => [...row]);
+  let leadRow = 0;
+  for (let col = 0; col < m.cols && leadRow < m.rows; col++) {
+    let best = leadRow;
+    for (let r = leadRow + 1; r < m.rows; r++) {
+      if (grid[r][col].decimal.abs().gt(grid[best][col].decimal.abs())) best = r;
+    }
+    if (isTiny(grid[best][col])) continue;
+    if (best !== leadRow) [grid[leadRow], grid[best]] = [grid[best], grid[leadRow]];
+    const piv = grid[leadRow][col];
+    for (let c = col; c < m.cols; c++) grid[leadRow][c] = divide(grid[leadRow][c], piv);
+    for (let r = leadRow + 1; r < m.rows; r++) {
+      if (isTiny(grid[r][col])) continue;
+      const fac = grid[r][col];
+      for (let c = col; c < m.cols; c++) {
+        grid[r][c] = subtract(grid[r][c], multiply(fac, grid[leadRow][c]));
+      }
+      grid[r][col] = scalarFromInteger(0);
+    }
+    leadRow++;
+  }
+  return { rows: m.rows, cols: m.cols, cells: grid };
+}
+
+/** Reduced Row Echelon Form (Rref) via exact Gauss-Jordan elimination. */
+export function rrefMatrix(m: MatrixValue): MatrixValue {
+  const grid = m.cells.map((row) => [...row]);
+  let leadRow = 0;
+  for (let col = 0; col < m.cols && leadRow < m.rows; col++) {
+    let best = leadRow;
+    for (let r = leadRow + 1; r < m.rows; r++) {
+      if (grid[r][col].decimal.abs().gt(grid[best][col].decimal.abs())) best = r;
+    }
+    if (isTiny(grid[best][col])) continue;
+    if (best !== leadRow) [grid[leadRow], grid[best]] = [grid[best], grid[leadRow]];
+    const piv = grid[leadRow][col];
+    for (let c = col; c < m.cols; c++) grid[leadRow][c] = divide(grid[leadRow][c], piv);
+    for (let r = 0; r < m.rows; r++) {
+      if (r === leadRow || isTiny(grid[r][col])) continue;
+      const fac = grid[r][col];
+      for (let c = col; c < m.cols; c++) {
+        grid[r][c] = subtract(grid[r][c], multiply(fac, grid[leadRow][c]));
+      }
+      grid[r][col] = scalarFromInteger(0);
+    }
+    leadRow++;
+  }
+  return { rows: m.rows, cols: m.cols, cells: grid };
+}
+
 export function powerMatrix(m: MatrixValue, exp: Scalar): MatrixValue {
   if (m.rows !== m.cols) throw new CalculatorError('Argument ERROR', 'Power requires square matrix');
   if (!exp.decimal.isInteger()) mathError('Matrix power must be integer');
@@ -164,7 +216,7 @@ export interface MatrixEvalContext {
 type MatTok =
   | { type: 'num'; text: string }
   | { type: 'mat'; name: MatrixName }
-  | { type: 'fn'; name: 'det' | 'Trn' | 'abs' }
+  | { type: 'fn'; name: 'det' | 'Trn' | 'abs' | 'Ref' | 'Rref' }
   | { type: 'var'; text: string }
   | { type: 'op'; text: string }
   | { type: 'open' }
@@ -190,6 +242,8 @@ function tokenizeMatrix(source: string): MatTok[] {
       }
     }
     if (matchedMat) continue;
+    if (rest.startsWith('Rref(')) { tokens.push({ type: 'fn', name: 'Rref' }); tokens.push({ type: 'open' }); i += 5; continue; }
+    if (rest.startsWith('Ref(')) { tokens.push({ type: 'fn', name: 'Ref' }); tokens.push({ type: 'open' }); i += 4; continue; }
     if (rest.startsWith('det(')) { tokens.push({ type: 'fn', name: 'det' }); tokens.push({ type: 'open' }); i += 4; continue; }
     if (rest.startsWith('Trn(')) { tokens.push({ type: 'fn', name: 'Trn' }); tokens.push({ type: 'open' }); i += 4; continue; }
     if (rest.startsWith('abs(')) { tokens.push({ type: 'fn', name: 'abs' }); tokens.push({ type: 'open' }); i += 4; continue; }
@@ -291,6 +345,14 @@ export function evaluateMatrixExpression(source: string, ctx: MatrixEvalContext)
       if (tok.name === 'Trn') {
         if (inner.kind !== 'matrix') throw new CalculatorError('Argument ERROR', 'Trn expects matrix');
         return { kind: 'matrix', matrix: transposeMatrix(inner.matrix) };
+      }
+      if (tok.name === 'Ref') {
+        if (inner.kind !== 'matrix') throw new CalculatorError('Argument ERROR', 'Ref expects matrix');
+        return { kind: 'matrix', matrix: refMatrix(inner.matrix) };
+      }
+      if (tok.name === 'Rref') {
+        if (inner.kind !== 'matrix') throw new CalculatorError('Argument ERROR', 'Rref expects matrix');
+        return { kind: 'matrix', matrix: rrefMatrix(inner.matrix) };
       }
       if (inner.kind === 'matrix') return { kind: 'matrix', matrix: absMatrix(inner.matrix) };
       return { kind: 'scalar', scalar: inner.scalar.decimal.isNegative() ? negate(inner.scalar) : inner.scalar };
