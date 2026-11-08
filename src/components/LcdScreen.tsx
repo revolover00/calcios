@@ -1,15 +1,25 @@
 import React from 'react';
 import {
   formatActiveComplexDisplay, formatActiveEqnItemDisplay,
-  formatActiveInequalityDisplay, formatActiveResult,
+  formatActiveInequalityDisplay, formatActiveResult, getModeHistoryIndices,
   type CalculatorState,
 } from '../core/calculator';
 import { SCIENTIFIC_CONSTANTS, UNIT_CONVERSIONS } from '../core/constants';
 import type { DistSubMode } from '../core/dist';
 import type { EqnType } from '../core/eqn';
-import { formatDecimal, formatResult } from '../core/format';
-import { deserialize } from '../core/value';
+import { formatDecimal, formatResult, type DecimalMark, type NumberFormatSetting } from '../core/format';
+import { D, deserialize, makeScalar } from '../core/value';
 import { NaturalExpression, NaturalResult } from './NaturalMath';
+
+function formatGridCellValue(raw: string, numFmt: NumberFormatSetting, decimalMark: DecimalMark): string {
+  try {
+    const clean = raw.trim().replace(/×10\^/g, 'e').replace(/−/g, '-');
+    if (!clean) return '0';
+    return formatDecimal(makeScalar(new D(clean), undefined, true), numFmt, decimalMark);
+  } catch {
+    return decimalMark === 'Comma' ? raw.replace(/\./g, ',') : raw;
+  }
+}
 
 const EQN_LABELS: Record<EqnType, string> = {
   lin2: 'anX+bnY=cn',
@@ -49,12 +59,22 @@ function LcdStatusBar({ state }: { state: CalculatorState }): React.ReactElement
     state.screen === 'setup' ||
     state.screen === 'basen-menu' ||
     state.screen === 'matrix-menu';
+  const isExpressionReplayScreen =
+    state.screen === 'normal' &&
+    !state.calcPrompt &&
+    !state.solvePrompt &&
+    !(state.mode === 'EQN' || state.mode === 'INEQ' || state.mode === 'DIST' || state.mode === 'TABLE') &&
+    !(state.mode === 'STAT' && state.stat.editingTable) &&
+    !(state.mode === 'MATRIX' && (state.matrix.editingTarget || state.matrix.showingMatrixResult)) &&
+    !(state.mode === 'VECTOR' && (state.vector.editingTarget || state.vector.showingVectorResult));
+  const modeIndices = isExpressionReplayScreen ? getModeHistoryIndices(state) : [];
+  const curHistPos = state.historyIndex !== null ? modeIndices.indexOf(state.historyIndex) : -1;
   const canUp = isPagedMenu
     ? state.menuPage > 0
-    : state.history.length > 0 && (state.historyIndex === null || state.historyIndex > 0);
+    : isExpressionReplayScreen && modeIndices.length > 0 && (curHistPos === -1 || curHistPos > 0);
   const canDown = isPagedMenu
     ? state.menuPage === 0
-    : state.historyIndex !== null && state.historyIndex < state.history.length - 1;
+    : isExpressionReplayScreen && curHistPos !== -1 && curHistPos < modeIndices.length;
 
   const modeBadge =
     state.mode === 'BASE-N'
@@ -684,16 +704,28 @@ function renderNormalInteractiveBody(state: CalculatorState): React.ReactElement
             <div key={rIdx} className={isCurRow ? 'lcd-table-row active' : 'lcd-table-row'}>
               <span>{rIdx + 1}</span>
               <span className={isCurRow && st.colIdx === 0 ? 'cell-focus' : undefined}>
-                {isCurRow && st.colIdx === 0 && st.editingCell ? st.cellInput : row ? row.x : '—'}
+                {isCurRow && st.colIdx === 0 && st.editingCell
+                  ? st.cellInput
+                  : row
+                    ? formatGridCellValue(row.x, state.numberFormat, state.decimalMark)
+                    : '—'}
               </span>
               {hasY && (
                 <span className={isCurRow && st.colIdx === 1 ? 'cell-focus' : undefined}>
-                  {isCurRow && st.colIdx === 1 && st.editingCell ? st.cellInput : row ? (row.y ?? '0') : '—'}
+                  {isCurRow && st.colIdx === 1 && st.editingCell
+                    ? st.cellInput
+                    : row
+                      ? formatGridCellValue(row.y ?? '0', state.numberFormat, state.decimalMark)
+                      : '—'}
                 </span>
               )}
               {st.useFreq && (
                 <span className={isCurRow && st.colIdx === (hasY ? 2 : 1) ? 'cell-focus' : undefined}>
-                  {isCurRow && st.colIdx === (hasY ? 2 : 1) && st.editingCell ? st.cellInput : row ? row.freq : '—'}
+                  {isCurRow && st.colIdx === (hasY ? 2 : 1) && st.editingCell
+                    ? st.cellInput
+                    : row
+                      ? formatGridCellValue(row.freq, state.numberFormat, state.decimalMark)
+                      : '—'}
                 </span>
               )}
             </div>
@@ -970,7 +1002,11 @@ function renderNormalInteractiveBody(state: CalculatorState): React.ReactElement
               <div key={`dlx-${rIdx}`} className={active ? 'lcd-table-row active' : 'lcd-table-row'}>
                 <span>{rIdx + 1}</span>
                 <span className={active ? 'cell-focus' : undefined}>
-                  {active && ds.editingParam ? ds.input : val !== undefined ? val : '—'}
+                  {active && ds.editingParam
+                    ? ds.input
+                    : val !== undefined
+                      ? formatGridCellValue(val, state.numberFormat, state.decimalMark)
+                      : '—'}
                 </span>
               </div>
             );
@@ -989,7 +1025,9 @@ function renderNormalInteractiveBody(state: CalculatorState): React.ReactElement
             <div key={p.name} className={active ? 'lcd-table-row active' : 'lcd-table-row'}>
               <span>{p.name}</span>
               <span className={active ? 'cell-focus' : undefined}>
-                {active && ds.editingParam ? ds.input : p.value}
+                {active && ds.editingParam
+                  ? ds.input
+                  : formatGridCellValue(p.value, state.numberFormat, state.decimalMark)}
               </span>
             </div>
           );

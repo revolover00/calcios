@@ -84,13 +84,16 @@ export function scalarPi(): Scalar {
 }
 
 export function scalarFromLiteral(literal: string): Scalar {
-  if (!/^(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/.test(literal)) syntax('Invalid number');
-  const [base, expText = '0'] = literal.toLowerCase().split('e');
+  if (!/^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/.test(literal)) syntax('Invalid number');
+  const neg = literal.startsWith('-');
+  const unsigned = literal.startsWith('-') || literal.startsWith('+') ? literal.slice(1) : literal;
+  const [base, expText = '0'] = unsigned.toLowerCase().split('e');
   const exponent = Number(expText);
   if (!Number.isSafeInteger(exponent) || Math.abs(exponent) > 100) mathError('Exponent out of range');
   const [integer, fraction = ''] = base.split('.');
   const digits = `${integer || '0'}${fraction}`;
   let numerator = BigInt(digits || '0');
+  if (neg) numerator = -numerator;
   let denominator = ONE;
   const scale = fraction.length - exponent;
   if (Math.abs(scale) <= MAX_EXACT_DIGITS) {
@@ -262,47 +265,144 @@ export function simplifyManualFraction(s: Scalar, factor?: Scalar): Scalar {
   return out;
 }
 
+function exactBigIntNthRoot(val: bigint, k: number): bigint | null {
+  if (val < ZERO || k < 1 || k > 64) return null;
+  if (val === ZERO) return ZERO;
+  if (val === ONE || k === 1) return val;
+  const bitLen = val.toString(2).length;
+  let hi = ONE << BigInt(Math.ceil(bitLen / k) + 1);
+  let lo = ONE;
+  const kBig = BigInt(k);
+  while (lo <= hi) {
+    const mid = (lo + hi) >> ONE;
+    const p = mid ** kBig;
+    if (p === val) return mid;
+    if (p < val) lo = mid + ONE;
+    else hi = mid - ONE;
+  }
+  return null;
+}
+
+function exactRationalNthRoot(r: Rational, k: number): Rational | null {
+  if (k < 1 || k > 64) return null;
+  if (r.n < ZERO && k % 2 === 0) return null;
+  if (absBig(r.n) > 10n ** 36n || r.d > 10n ** 36n) return null;
+  const rn = exactBigIntNthRoot(absBig(r.n), k);
+  if (rn === null) return null;
+  const rd = exactBigIntNthRoot(r.d, k);
+  if (rd === null) return null;
+  return rational(r.n < ZERO ? -rn : rn, rd) ?? null;
+}
+
+function exactRationalLog(base: Scalar, arg: Scalar): Rational | undefined {
+  if (arg.exact && arg.exact.n === ONE && arg.exact.d === ONE) {
+    return { n: ZERO, d: ONE };
+  }
+  if (!base.exact && !base.symbolic && !arg.exact && !arg.symbolic) {
+    return undefined;
+  }
+  const raw = arg.decimal.ln().div(base.decimal.ln());
+  for (let q = 1; q <= 12; q++) {
+    const scaled = raw.times(q);
+    const pRound = scaled.round();
+    if (scaled.minus(pRound).abs().gt('1e-22')) continue;
+    if (pRound.abs().gt(60)) continue;
+    const pNum = pRound.toNumber();
+    const lhs = pNum >= 0 ? base.decimal.pow(pNum) : new D(1).div(base.decimal.pow(-pNum));
+    const rhs = arg.decimal.pow(q);
+    const scale = D.max(lhs.abs(), rhs.abs(), new D(1));
+    if (lhs.minus(rhs).abs().lte(scale.times('1e-26'))) {
+      return rational(BigInt(pNum), BigInt(q));
+    }
+  }
+  return undefined;
+}
+
 export function power(a: Scalar, b: Scalar): Scalar {
-  if (a.decimal.isZero() && b.decimal.lte(0)) mathError('Invalid power');
-  if (a.decimal.isNegative() && !b.decimal.isInteger()) mathError('Non-real power');
-  if (b.decimal.abs().gt(10000)) mathError('Exponent out of range');
-  const pref = a.preferDecimal || b.preferDecimal;
+  try {
+    if (a.decimal.isZero() && b.decimal.lte(0)) mathError('Invalid power');
+    const pref = a.preferDecimal || b.preferDecimal;
 
-  if (b.decimal.isInteger() && b.decimal.abs().lte(100)) {
-    const exponent = b.decimal.toNumber();
-    if (a.exact) {
-      const e = BigInt(Math.abs(exponent));
-      const n = a.exact.n ** e, d = a.exact.d ** e;
-      const exact = exponent < 0 ? rational(d, n) : rational(n, d);
-      return makeScalar(a.decimal.pow(b.decimal), exact, pref);
+    if (b.decimal.isZero()) {
+      return makeScalar(new D(1), { n: ONE, d: ONE }, pref);
     }
-    if ((a.symbolic?.kind === 'surd' || a.symbolic?.kind === 'multi-surd') && Math.abs(exponent) <= 10) {
-      if (exponent === 0) return scalarFromInteger(1);
-      let acc: Scalar = scalarFromInteger(1);
-      let base: Scalar = a;
-      let k = Math.abs(exponent);
-      while (k > 0) {
-        if (k & 1) acc = multiply(acc, base);
-        k >>= 1;
-        if (k > 0) base = multiply(base, base);
+
+    if (b.decimal.abs().gt(10000)) mathError('Exponent out of range');
+
+    if (b.decimal.isInteger() && b.decimal.abs().lte(100)) {
+      const exponent = b.decimal.toNumber();
+      if (a.exact) {
+        const e = BigInt(Math.abs(exponent));
+        const n = a.exact.n ** e, d = a.exact.d ** e;
+        const exact = exponent < 0 ? rational(d, n) : rational(n, d);
+        return makeScalar(a.decimal.pow(b.decimal), exact, pref);
       }
-      return exponent < 0 ? divide(scalarFromInteger(1), acc) : { ...acc, preferDecimal: pref };
+      if ((a.symbolic?.kind === 'surd' || a.symbolic?.kind === 'multi-surd') && Math.abs(exponent) <= 10) {
+        let acc: Scalar = scalarFromInteger(1);
+        let base: Scalar = a;
+        let k = Math.abs(exponent);
+        while (k > 0) {
+          if (k & 1) acc = multiply(acc, base);
+          k >>= 1;
+          if (k > 0) base = multiply(base, base);
+        }
+        return exponent < 0 ? divide(scalarFromInteger(1), acc) : { ...acc, preferDecimal: pref };
+      }
     }
-  }
 
-  // Fractional power 1/2 -> exact surd!
-  if (b.exact && b.exact.n === ONE && b.exact.d === 2n && !a.decimal.isNegative()) {
-    return applyFunction('sqrt', [a], 'DEG');
-  }
+    // Odd-denominator rational exponents of negative bases: (-8)^(1/3) = -2, (-8)^(2/3) = 4
+    if (a.decimal.isNegative()) {
+      if (b.exact && b.exact.d > ONE && b.exact.d % 2n === ONE) {
+        const absPow = power(negate(a), b);
+        return absBig(b.exact.n) % 2n === ONE ? negate(absPow) : absPow;
+      }
+      if (!b.decimal.isInteger()) mathError('Non-real power');
+    }
 
-  return makeScalar(a.decimal.pow(b.decimal), undefined, pref);
+    // Fractional powers p/2 -> exact surd^p (e.g. 2^(1/2) = √2, 2^(-1/2) = √2/2, 8^(3/2) = 16√2)
+    if (b.exact && b.exact.d === 2n && absBig(b.exact.n) <= 12n && !a.decimal.isNegative()) {
+      const sq = applyFunction('sqrt', [a], 'DEG');
+      const pInt = Number(b.exact.n);
+      const out = pInt === 1 ? sq : power(sq, scalarFromInteger(pInt));
+      return { ...out, preferDecimal: pref };
+    }
+
+    // Exact rational q-th root raised to p (e.g. 8^(2/3) = 4, (27/8)^(-2/3) = 4/9)
+    if (
+      a.exact &&
+      b.exact &&
+      b.exact.d > ONE &&
+      b.exact.d <= 60n &&
+      absBig(b.exact.n) <= 60n &&
+      !a.decimal.isNegative()
+    ) {
+      const rt = exactRationalNthRoot(a.exact, Number(b.exact.d));
+      if (rt) {
+        const e = absBig(b.exact.n);
+        const rn = rt.n ** e;
+        const rd = rt.d ** e;
+        const exact = b.exact.n < ZERO ? rational(rd, rn) : rational(rn, rd);
+        return makeScalar(a.decimal.pow(b.decimal), exact, pref);
+      }
+    }
+
+    return makeScalar(a.decimal.pow(b.decimal), undefined, pref);
+  } catch (err) {
+    if (err instanceof Error && err.message.startsWith('[DecimalError]')) mathError('Power overflow');
+    throw err;
+  }
 }
 
 export function factorial(a: Scalar): Scalar {
-  if (!a.decimal.isInteger() || a.decimal.isNegative() || a.decimal.gt(69)) mathError('Factorial out of range');
-  let result = ONE;
-  for (let i = 2n; i <= BigInt(a.decimal.toFixed(0)); i++) result *= i;
-  return makeScalar(result.toString(), rational(result));
+  try {
+    if (!a.decimal.isInteger() || a.decimal.isNegative() || a.decimal.gt(69)) mathError('Factorial out of range');
+    let result = ONE;
+    for (let i = 2n; i <= BigInt(a.decimal.toFixed(0)); i++) result *= i;
+    return makeScalar(result.toString(), rational(result));
+  } catch (err) {
+    if (err instanceof Error && err.message.startsWith('[DecimalError]')) mathError('Factorial out of range');
+    throw err;
+  }
 }
 
 export function combinatoric(a: Scalar, b: Scalar, permutation: boolean): Scalar {
@@ -334,6 +434,8 @@ export function mixedFraction(whole: Scalar, num: Scalar, den: Scalar): Scalar {
 export function dmsToScalar(parts: Scalar[]): Scalar {
   if (parts.length < 1 || parts.length > 3) syntax('Invalid DMS value');
   const [deg, min = scalarFromInteger(0), sec = scalarFromInteger(0)] = parts;
+  if (parts.length >= 2 && !deg.decimal.isInteger()) syntax('Invalid DMS value');
+  if (parts.length === 3 && !min.decimal.isInteger()) syntax('Invalid DMS value');
   if (min.decimal.isNegative() || sec.decimal.isNegative()) mathError('Invalid DMS part');
   const negative = deg.decimal.isNegative();
   const absDeg = negative ? negate(deg) : deg;
@@ -516,14 +618,16 @@ export function floorIntgScalar(a: Scalar): Scalar {
 }
 
 export function quotientRemainder(a: Scalar, b: Scalar): { quotient: Scalar; remainder: Scalar } {
-  if (!a.decimal.isInteger() || !b.decimal.isInteger() || a.decimal.lt(0) || b.decimal.lte(0) || a.decimal.gte('1e10') || b.decimal.gte('1e10')) {
-    mathError('÷R requires positive integers');
+  if (!a.decimal.isInteger() || !b.decimal.isInteger() || a.decimal.lt(0) || b.decimal.lte(0) || a.decimal.gte('1e100') || b.decimal.gte('1e100')) {
+    mathError('÷R requires non-negative dividend and positive integer divisor within range');
   }
   const dividend = BigInt(a.decimal.toFixed(0));
   const divisor = BigInt(b.decimal.toFixed(0));
+  const q = dividend / divisor;
+  const r = dividend % divisor;
   return {
-    quotient: scalarFromInteger(dividend / divisor),
-    remainder: scalarFromInteger(dividend % divisor),
+    quotient: makeScalar(q.toString(), rational(q)),
+    remainder: makeScalar(r.toString(), rational(r)),
   };
 }
 
@@ -538,7 +642,7 @@ export function applyFunction(
   name: string,
   args: Scalar[],
   angle: AngleUnit,
-  options?: { random?: number; numberFormat?: NumberFormatSetting },
+  options?: { random?: number; rng?: () => number; numberFormat?: NumberFormatSetting },
 ): Scalar {
   if (name === 'mfrac') {
     if (args.length !== 3) syntax('Wrong number of arguments');
@@ -551,6 +655,7 @@ export function applyFunction(
     name === 'Pol' ||
     name === 'Rec' ||
     name === 'RanInt' ||
+    name === 'RanInt#' ||
     name === 'GCD' ||
     name === 'LCM';
   if (args.length !== (two ? 2 : 1)) syntax('Wrong number of arguments');
@@ -564,7 +669,9 @@ export function applyFunction(
     case 'Intg': return floorIntgScalar(a);
     case 'Pol': return polarFromRect(a, args[1], angle).r;
     case 'Rec': return rectFromPolar(a, args[1], angle).x;
-    case 'RanInt': return randomInteger(a, args[1], options?.random);
+    case 'RanInt':
+    case 'RanInt#':
+      return randomInteger(a, args[1], options?.random ?? (options?.rng ? options.rng() : undefined));
     case 'Rnd': return roundScalar(a, options?.numberFormat);
     case 'abs': return x.isNegative() ? negate(a) : a;
     case 'sqrt': {
@@ -590,32 +697,78 @@ export function applyFunction(
       return makeScalar(x.sqrt(), undefined, a.preferDecimal);
     }
     case 'cbrt': {
-      if (a.exact && a.exact.d === ONE && absBig(a.exact.n) <= 1_000_000_000n) {
-        const cr = Math.round(Math.cbrt(Number(a.exact.n)));
-        if (BigInt(cr) ** 3n === a.exact.n) {
-          return makeScalar(x.cbrt(), rational(BigInt(cr), ONE), a.preferDecimal);
+      if (a.exact) {
+        const rt = exactRationalNthRoot(a.exact, 3);
+        if (rt) {
+          return makeScalar(x.cbrt(), rt, a.preferDecimal);
         }
       }
       return makeScalar(x.cbrt(), undefined, a.preferDecimal);
     }
     case 'root': {
-      const radicand = args[1].decimal;
+      const radScalar = args[1];
+      const radicand = radScalar.decimal;
       if (x.isZero()) mathError('Zero root index');
+      if (a.exact && a.exact.d === ONE && absBig(a.exact.n) >= ONE && absBig(a.exact.n) <= 60n) {
+        const k = Number(absBig(a.exact.n));
+        const negIdx = a.exact.n < ZERO;
+        if (radicand.isZero()) {
+          if (negIdx) mathError('Division by zero');
+          return scalarFromInteger(0);
+        }
+        if (k === 2 && !radicand.isNegative()) {
+          const sq = applyFunction('sqrt', [radScalar], angle, options);
+          return negIdx ? divide(scalarFromInteger(1), sq) : sq;
+        }
+        if (radScalar.exact) {
+          const rt = exactRationalNthRoot(radScalar.exact, k);
+          if (rt) {
+            const pref = a.preferDecimal || radScalar.preferDecimal;
+            const exact = negIdx ? rational(rt.d, rt.n) : rt;
+            const decVal = radicand.isNegative()
+              ? radicand.neg().pow(new D(1).div(x)).neg()
+              : radicand.pow(new D(1).div(x));
+            return makeScalar(decVal, exact, pref);
+          }
+        }
+      }
+      if (radicand.isZero()) {
+        if (x.isNegative()) mathError('Division by zero');
+        return scalarFromInteger(0);
+      }
       if (radicand.isNegative()) {
         if (!x.isInteger() || !x.mod(2).abs().eq(1)) mathError('Non-real root');
         return makeScalar(radicand.neg().pow(new D(1).div(x)).neg(), undefined, true);
       }
-      if (a.exact && a.exact.n === 2n && a.exact.d === ONE) {
-        return applyFunction('sqrt', [args[1]], angle, options);
-      }
       return makeScalar(radicand.pow(new D(1).div(x)), undefined, true);
     }
-    case 'ln': if (x.lte(0)) mathError('Logarithm domain'); return makeScalar(x.ln(), undefined, true);
-    case 'log': if (x.lte(0)) mathError('Logarithm domain'); return makeScalar(x.log(10), undefined, true);
+    case 'ln': {
+      if (x.lte(0)) mathError('Logarithm domain');
+      if (a.exact && a.exact.n === ONE && a.exact.d === ONE) return scalarFromInteger(0);
+      const val = x.ln();
+      const nearInt = val.round();
+      if (nearInt.abs().lte(50) && val.minus(nearInt).abs().lt('1e-26')) {
+        const expCheck = nearInt.exp();
+        if (expCheck.minus(x).abs().lte(D.max(x, new D(1)).times('1e-26'))) {
+          return makeScalar(nearInt, rational(BigInt(nearInt.toFixed(0))), a.preferDecimal);
+        }
+      }
+      return makeScalar(val, undefined, true);
+    }
+    case 'log': {
+      if (x.lte(0)) mathError('Logarithm domain');
+      const exactLog = exactRationalLog(scalarFromInteger(10), a);
+      if (exactLog) return makeScalar(x.log(10), exactLog, a.preferDecimal);
+      return makeScalar(x.log(10), undefined, true);
+    }
     case 'logb': {
-      const y = args[1].decimal;
+      const yScalar = args[1];
+      const y = yScalar.decimal;
       if (x.lte(0) || x.eq(1) || y.lte(0)) mathError('Logarithm domain');
-      return makeScalar(y.ln().div(x.ln()), undefined, true);
+      const exactLog = exactRationalLog(a, yScalar);
+      const val = y.ln().div(x.ln());
+      if (exactLog) return makeScalar(val, exactLog, a.preferDecimal || yScalar.preferDecimal);
+      return makeScalar(val, undefined, true);
     }
     case 'sin': case 'cos': case 'tan': {
       const exactDeg = angleScalarToExactDegrees(a, angle);
