@@ -1,12 +1,10 @@
-import React, { useEffect, useReducer, useState } from 'react';
-import { PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import React, { useEffect, useReducer } from 'react';
 import { CalculatorHardware } from './components/CalculatorHardware';
-import { ExtraPanel } from './components/ExtraPanel';
 import { calculatorReducer, hydrateState, saveableState } from './core/calculator';
 
 const STORAGE_KEY = 'scientific-calc-fx991es-state-v1';
 
-function mapKeyboardEvent(e: KeyboardEvent, isHexBaseN: boolean): string | null {
+function mapKeyboardEvent(e: KeyboardEvent, isHexBaseN: boolean, isCmplx: boolean): string | null {
   if (e.ctrlKey || e.metaKey || e.altKey) return null;
   const k = e.key;
   if (/^[0-9]$/.test(k)) return k;
@@ -43,6 +41,7 @@ function mapKeyboardEvent(e: KeyboardEvent, isHexBaseN: boolean): string | null 
     case 'r': return 'sqrt';
     case 'p': return 'pi';
     case 'd': return 'sd';
+    case 'i': return isCmplx ? 'imag-i' : null;
     default: return null;
   }
 }
@@ -55,7 +54,6 @@ export function App(): React.ReactElement {
       return hydrateState(null);
     }
   });
-  const [showExtra, setShowExtra] = useState(true);
 
   useEffect(() => {
     try {
@@ -72,7 +70,8 @@ export function App(): React.ReactElement {
         return;
       }
       const isHex = state.mode === 'BASE-N' && state.baseN.base === 'HEX';
-      const mapped = mapKeyboardEvent(e, isHex);
+      const isCmplx = state.mode === 'CMPLX';
+      const mapped = mapKeyboardEvent(e, isHex, isCmplx);
       if (mapped) {
         e.preventDefault();
         dispatch({ type: 'key', id: mapped });
@@ -83,46 +82,9 @@ export function App(): React.ReactElement {
   }, [state.mode, state.baseN.base]);
 
   return (
-    <div className="app-shell" dir="rtl">
-      <header className="app-topbar">
-        <div className="app-title-block">
-          <h1>الآلة الحاسبة العلمية — تصميم fx-95ES PLUS بوظائف fx-991ES PLUS C</h1>
-          <p>واجهة مرسومة بالكامل بالكود (بدون صور) • محرك حسابي مستقل قيد التطوير التدريجي</p>
-        </div>
-        <div className="app-topbar-actions">
-          <button
-            type="button"
-            className="panel-toggle-btn"
-            onClick={() => setShowExtra((prev) => !prev)}
-            aria-expanded={showExtra}
-          >
-            {showExtra ? <PanelLeftClose size={16} /> : <PanelLeftOpen size={16} />}
-            <span>{showExtra ? 'إخفاء لوحة 991ES+C' : 'إظهار لوحة 991ES+C'}</span>
-          </button>
-        </div>
-      </header>
-
-      <main className={showExtra ? 'workspace-grid' : 'workspace-grid panel-collapsed'}>
-        <div className="hardware-column">
-          <CalculatorHardware state={state} dispatch={dispatch} />
-          {state.notice && (
-            <div className="notice-banner" role="status" data-testid="calculator-notice">
-              <span>{state.notice}</span>
-              <button
-                type="button"
-                className="notice-close"
-                onClick={() => dispatch({ type: 'clear-notice' })}
-                aria-label="إغلاق التنبيه"
-              >
-                إخفاء
-              </button>
-            </div>
-          )}
-        </div>
-
-        {showExtra && <ExtraPanel state={state} dispatch={dispatch} />}
-      </main>
-    </div>
+    <main className="calc-viewport" data-testid="calc-viewport">
+      <CalculatorHardware state={state} dispatch={dispatch} />
+    </main>
   );
 }
 

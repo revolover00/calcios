@@ -13,6 +13,8 @@ export type DisplayValue =
   | { type: 'text'; text: string }
   | { type: 'fraction'; sign: string; numerator: string; denominator: string }
   | { type: 'mixed-fraction'; sign: string; whole: string; numerator: string; denominator: string }
+  | { type: 'symbolic-pi'; sign: string; numerator: string; denominator: string }
+  | { type: 'symbolic-surd'; a: string; b: string; rad: string; d: string }
   | { type: 'pair'; label1: string; value1: string; label2: string; value2: string };
 
 export const DEFAULT_NUMBER_FORMAT: NumberFormatSetting = { mode: 'Norm', sub: 1 };
@@ -24,6 +26,40 @@ const SUPERSCRIPTS: Record<string, string> = {
 
 export function toSuperscript(text: string): string {
   return [...text].map((ch) => SUPERSCRIPTS[ch] ?? ch).join('');
+}
+
+/** Formats a linear symbolic string (useful in LineIO, INEQ intervals, and compact views). */
+export function formatSymbolicLinear(value: Scalar): string | null {
+  if (value.exact) {
+    const { n, d } = value.exact;
+    if (d === 1n) return n.toString().replace(/^-/, '−');
+    if (n.toString().length + d.toString().length <= 10) {
+      return `${n < 0n ? '−' : ''}${n < 0n ? -n : n}/${d}`;
+    }
+  }
+  if (value.symbolic?.kind === 'pi') {
+    const { n, d } = value.symbolic;
+    const sign = n < 0n ? '−' : '';
+    const an = n < 0n ? -n : n;
+    if (d === 1n) return `${sign}${an === 1n ? '' : an.toString()}π`;
+    return `${sign}${an}/${d}π`;
+  }
+  if (value.symbolic?.kind === 'surd') {
+    const { a, b, rad, d } = value.symbolic;
+    const absB = b < 0n ? -b : b;
+    const bCoef = absB === 1n ? '' : absB.toString();
+    const radPart = `${bCoef}√${rad}`;
+    let top: string;
+    if (a === 0n) {
+      top = `${b < 0n ? '−' : ''}${radPart}`;
+    } else {
+      const aStr = a.toString().replace(/^-/, '−');
+      top = `${aStr}${b < 0n ? '−' : '+'}${radPart}`;
+    }
+    if (d === 1n) return top;
+    return a === 0n ? `${top}/${d}` : `(${top})/${d}`;
+  }
+  return null;
 }
 
 /** A 10-digit display approximation with optional Fix/Sci/Norm formatting. */
@@ -128,25 +164,53 @@ export function formatResult(
   }
 
   const setting = options?.numberFormat ?? DEFAULT_NUMBER_FORMAT;
-  if (format === 'exact' && value.exact && setting.mode === 'Norm') {
-    const { n, d } = value.exact;
-    if (d === 1n) return { type: 'text', text: formatDecimal(value, setting) };
-    const absN = n < 0n ? -n : n;
-    const sign = n < 0n ? '−' : '';
-    const style = options?.fractionStyle ?? 'improper';
-    if (style === 'mixed' && absN > d) {
-      const whole = (absN / d).toString();
-      const rem = (absN % d).toString();
-      const den = d.toString();
-      if (whole.length + rem.length + den.length <= 11) {
-        return { type: 'mixed-fraction', sign, whole, numerator: rem, denominator: den };
+  if (format === 'exact' && setting.mode === 'Norm') {
+    if (value.exact) {
+      const { n, d } = value.exact;
+      if (d === 1n) return { type: 'text', text: formatDecimal(value, setting) };
+      const absN = n < 0n ? -n : n;
+      const sign = n < 0n ? '−' : '';
+      const style = options?.fractionStyle ?? 'improper';
+      if (style === 'mixed' && absN > d) {
+        const whole = (absN / d).toString();
+        const rem = (absN % d).toString();
+        const den = d.toString();
+        if (whole.length + rem.length + den.length <= 11) {
+          return { type: 'mixed-fraction', sign, whole, numerator: rem, denominator: den };
+        }
+      }
+      const numerator = absN.toString();
+      const denominator = d.toString();
+      if (numerator.length + denominator.length <= 10) {
+        return { type: 'fraction', sign, numerator, denominator };
       }
     }
-    const numerator = absN.toString();
-    const denominator = d.toString();
-    // Very large fractional displays are less useful on the small LCD; keep numeric output.
-    if (numerator.length + denominator.length <= 10) {
-      return { type: 'fraction', sign, numerator, denominator };
+
+    if (value.symbolic?.kind === 'pi') {
+      const { n, d } = value.symbolic;
+      const absN = n < 0n ? -n : n;
+      if (absN.toString().length + d.toString().length <= 10) {
+        return {
+          type: 'symbolic-pi',
+          sign: n < 0n ? '−' : '',
+          numerator: absN.toString(),
+          denominator: d.toString(),
+        };
+      }
+    }
+
+    if (value.symbolic?.kind === 'surd') {
+      const { a, b, rad, d } = value.symbolic;
+      const totalChars = a.toString().length + b.toString().length + rad.toString().length + d.toString().length;
+      if (totalChars <= 14) {
+        return {
+          type: 'symbolic-surd',
+          a: a.toString(),
+          b: b.toString(),
+          rad: rad.toString(),
+          d: d.toString(),
+        };
+      }
     }
   }
   return { type: 'text', text: formatDecimal(value, setting) };
