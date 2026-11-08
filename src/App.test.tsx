@@ -13,16 +13,17 @@ describe('Calcios Handheld Viewport & Scientific Engine Integration', () => {
     window.localStorage.clear();
   });
 
-  it('renders ONLY the code-drawn Calcios calculator on screen with no external panels, images, or legacy brand/model strings', () => {
+  it('renders ONLY the code-drawn Calcios calculator on screen with no external panels, images, solar dummy box, FN badge, or Arabic/legacy strings', () => {
     const { container } = render(<App />);
     const viewport = screen.getByTestId('calc-viewport');
     expect(viewport.children.length).toBe(1);
     expect(screen.getByTestId('calculator-hardware')).toBeInTheDocument();
     expect(screen.getByText('CALCIOS')).toBeInTheDocument();
-    expect(container.querySelector('.calcios-solar-cell')).not.toBeNull();
-    expect(screen.queryByTestId('fn-tray-popover')).toBeNull();
+    expect(container.querySelector('.calcios-solar-cell')).toBeNull();
+    expect(screen.queryByTestId('fn-tray-toggle')).toBeNull();
     const forbidden = new RegExp(['CA' + 'SIO', 'fx-', 'V\\.P\\.A\\.M', '2nd edition'].join('|'), 'i');
     expect(container.textContent).not.toMatch(forbidden);
+    expect(container.innerHTML).not.toMatch(/[\u0600-\u06FF]/);
 
     const imgs = container.querySelectorAll('img');
     expect(imgs.length).toBe(0);
@@ -98,15 +99,11 @@ describe('Calcios Handheld Viewport & Scientific Engine Integration', () => {
     expect(screen.getByTestId('lcd-result').textContent).toBe('212');
   });
 
-  it('provides discreet internal FN bezel popover for dedicated calculus/CALC/SOLVE keys and switches all 11 modes', () => {
+  it('evaluates definite integrals directly via physical ∫dx key and switches across all 11 modes', () => {
     const { container } = render(<App />);
 
-    // Open internal FN micro-popover, insert definite integral ∫(X^2, 0, 3) = 9
-    fireEvent.click(screen.getByTestId('fn-tray-toggle'));
-    expect(screen.getByTestId('fn-tray-popover')).toBeInTheDocument();
-    fireEvent.click(screen.getByTestId('fn-integ'));
-    expect(screen.queryByTestId('fn-tray-popover')).toBeNull();
-
+    // Insert definite integral ∫(X^2, 0, 3) = 9 using physical ∫dx key
+    clickHardwareKey(container, 'integ');
     clickHardwareKey(container, 'alpha');
     clickHardwareKey(container, 'close'); // X
     clickHardwareKey(container, 'square'); // ^2
@@ -169,23 +166,19 @@ describe('Calcios Handheld Viewport & Scientific Engine Integration', () => {
     expect(screen.getByTestId('lcd-result').textContent).toContain('√2<X');
   });
 
-  it('renders ▸Simp divisor badge, 2D CMPLX with Re⇔Im indicator, and persists Page-2 SETUP settings', () => {
+  it('renders ÷R quotient-remainder, 2D CMPLX with Re⇔Im indicator, and persists Page-2 SETUP settings', () => {
     const { container, unmount } = render(<App />);
 
-    // 12 ÷ 18 ▸Simp = -> ÷2 badge + 6/9 fraction
+    // 14 ÷R 5 = -> 2, R=4 via physical ALPHA + ■/□ key
     clickHardwareKey(container, '1');
-    clickHardwareKey(container, '2');
-    clickHardwareKey(container, 'divide');
-    clickHardwareKey(container, '1');
-    clickHardwareKey(container, '8');
-    fireEvent.click(screen.getByTestId('fn-tray-toggle'));
-    fireEvent.click(screen.getByTestId('fn-simp'));
+    clickHardwareKey(container, '4');
+    clickHardwareKey(container, 'alpha');
+    clickHardwareKey(container, 'frac'); // ÷R
+    clickHardwareKey(container, '5');
     clickHardwareKey(container, 'equals');
 
-    const simpBadge = container.querySelector('.math-simp-factor');
-    expect(simpBadge?.textContent).toBe('÷2');
-    expect(screen.getByTestId('lcd-result').textContent).toContain('6');
-    expect(screen.getByTestId('lcd-result').textContent).toContain('9');
+    expect(screen.getByTestId('lcd-result').textContent).toContain('2');
+    expect(screen.getByTestId('lcd-result').textContent).toContain('R= 4');
 
     // CMPLX 2D stacked fraction + Re⇔Im indicator in LCD status bar
     clickHardwareKey(container, 'mode');
@@ -298,18 +291,15 @@ describe('Calcios Handheld Viewport & Scientific Engine Integration', () => {
     const hw = screen.getByTestId('calculator-hardware');
     expect(hw).toHaveAttribute('data-theme', 'black');
     expect(screen.getByText('CALCIOS')).toBeVisible();
-    expect(container.querySelector('.calcios-solar-cell')).not.toBeNull();
 
-    // Switch to Dusty Rose Pink edition -> unified solar design
+    // Switch to Dusty Rose Pink edition
     fireEvent.click(screen.getByTestId('theme-pink'));
     expect(hw).toHaveAttribute('data-theme', 'pink');
     expect(screen.getByText('CALCIOS')).toBeVisible();
-    expect(container.querySelector('.calcios-solar-cell')).not.toBeNull();
 
     // Switch to Ice Steel Blue edition
     fireEvent.click(screen.getByTestId('theme-blue'));
     expect(hw).toHaveAttribute('data-theme', 'blue');
-    expect(container.querySelector('.calcios-solar-cell')).not.toBeNull();
     expect(container.querySelectorAll('img')).toHaveLength(0);
     expect(screen.getByTestId('calc-viewport').children).toHaveLength(1);
 

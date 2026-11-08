@@ -307,7 +307,6 @@ export function CalculatorHardware({
   state,
   dispatch,
 }: CalculatorHardwareProps): React.ReactElement {
-  const [fnTrayOpen, setFnTrayOpen] = useState(false);
   const [bodyTheme, setBodyTheme] = useState<CalciosBodyTheme>(loadBodyTheme);
 
   const selectTheme = (next: CalciosBodyTheme) => {
@@ -320,7 +319,6 @@ export function CalculatorHardware({
   };
 
   const handlePress = (id: string) => {
-    setFnTrayOpen(false);
     dispatch({ type: 'key', id });
   };
 
@@ -328,7 +326,6 @@ export function CalculatorHardware({
   const isCmplx = state.mode === 'CMPLX';
   const isShift = state.shift;
   const isAlpha = state.alpha;
-  const poweredOn = state.screen !== 'off';
 
   return (
     <div
@@ -338,124 +335,42 @@ export function CalculatorHardware({
       data-theme={bodyTheme}
     >
       <div className="calcios-inner-rim">
-        {/* Unified Top Brand & Solar Window Header across Black, Pink & Blue */}
+        {/* Clean Minimalist Top Header: CALCIOS Wordmark + 3 Color Edition Dots */}
         <header className="calcios-header">
-          <div className="calcios-solar-top">
-            <div className="calcios-brand-stack">
-              <span className="calcios-logo">CALCIOS</span>
-            </div>
-            <div className="calcios-solar-bezel" aria-hidden="true">
-              <div className="calcios-solar-cell" />
-            </div>
-          </div>
-          <div className="calcios-controls-row">
-            <div className="calcios-edition-controls">
+          <div className="calcios-header-row">
+            <span className="calcios-logo">CALCIOS</span>
+            <div className="calcios-theme-dots" role="group" aria-label="Calculator color editions">
               <button
                 type="button"
-                className={fnTrayOpen ? 'calcios-fn-badge active' : 'calcios-fn-badge'}
-                data-testid="fn-tray-toggle"
-                aria-label="اختصارات إضافية سريعة"
-                aria-expanded={fnTrayOpen}
-                onClick={() => setFnTrayOpen((v) => !v)}
-              >
-                FN
-              </button>
-              <div className="calcios-theme-dots" role="group" aria-label="ألوان الآلة الحاسبة">
-                <button
-                  type="button"
-                  className={bodyTheme === 'black' ? 'theme-dot dot-black active' : 'theme-dot dot-black'}
-                  data-testid="theme-black"
-                  aria-label="اللون الأسود"
-                  aria-pressed={bodyTheme === 'black'}
-                  onClick={() => selectTheme('black')}
-                />
-                <button
-                  type="button"
-                  className={bodyTheme === 'pink' ? 'theme-dot dot-pink active' : 'theme-dot dot-pink'}
-                  data-testid="theme-pink"
-                  aria-label="اللون الوردي"
-                  aria-pressed={bodyTheme === 'pink'}
-                  onClick={() => selectTheme('pink')}
-                />
-                <button
-                  type="button"
-                  className={bodyTheme === 'blue' ? 'theme-dot dot-blue active' : 'theme-dot dot-blue'}
-                  data-testid="theme-blue"
-                  aria-label="اللون الأزرق"
-                  aria-pressed={bodyTheme === 'blue'}
-                  onClick={() => selectTheme('blue')}
-                />
-              </div>
+                className={bodyTheme === 'black' ? 'theme-dot dot-black active' : 'theme-dot dot-black'}
+                data-testid="theme-black"
+                aria-label="Black edition"
+                aria-pressed={bodyTheme === 'black'}
+                onClick={() => selectTheme('black')}
+              />
+              <button
+                type="button"
+                className={bodyTheme === 'pink' ? 'theme-dot dot-pink active' : 'theme-dot dot-pink'}
+                data-testid="theme-pink"
+                aria-label="Pink edition"
+                aria-pressed={bodyTheme === 'pink'}
+                onClick={() => selectTheme('pink')}
+              />
+              <button
+                type="button"
+                className={bodyTheme === 'blue' ? 'theme-dot dot-blue active' : 'theme-dot dot-blue'}
+                data-testid="theme-blue"
+                aria-label="Ice Blue edition"
+                aria-pressed={bodyTheme === 'blue'}
+                onClick={() => selectTheme('blue')}
+              />
             </div>
           </div>
         </header>
 
-        {/* Natural Textbook LCD + Internal Quick Popover (Closed by Default) */}
+        {/* Natural Textbook 2D Dot-Matrix LCD */}
         <div className="calcios-lcd-wrap">
           <LcdScreen state={state} />
-          {fnTrayOpen && poweredOn && (
-            <div
-              className="calcios-fn-popover"
-              data-testid="fn-tray-popover"
-              role="dialog"
-              aria-label="أزرار سريعة إضافية"
-            >
-              <button type="button" data-testid="fn-calc" onClick={() => handlePress('calc')}>
-                CALC
-              </button>
-              <button type="button" data-testid="fn-solve" onClick={() => handlePress('solve')}>
-                SOLVE
-              </button>
-              <button type="button" data-testid="fn-eqsign" onClick={() => handlePress('eq-sign')}>
-                =
-              </button>
-              <button type="button" data-testid="fn-integ" onClick={() => handlePress('integ')}>
-                ∫dx
-              </button>
-              <button type="button" data-testid="fn-deriv" onClick={() => handlePress('deriv')}>
-                d/dx
-              </button>
-              <button type="button" data-testid="fn-sigma" onClick={() => handlePress('sigma')}>
-                Σ(
-              </button>
-              <button type="button" data-testid="fn-prod" onClick={() => handlePress('prod')}>
-                Π(
-              </button>
-              <button type="button" data-testid="fn-divr" onClick={() => handlePress('divr')}>
-                ÷R
-              </button>
-              <button type="button" data-testid="fn-simp" onClick={() => handlePress('simp')}>
-                ▸Simp
-              </button>
-              <button type="button" data-testid="fn-recur" onClick={() => handlePress('recur')}>
-                0.x̅
-              </button>
-              <button type="button" data-testid="fn-gcd" onClick={() => handlePress('gcd')}>
-                GCD
-              </button>
-              <button type="button" data-testid="fn-lcm" onClick={() => handlePress('lcm')}>
-                LCM
-              </button>
-              <button type="button" data-testid="fn-int" onClick={() => handlePress('int-fn')}>
-                Int
-              </button>
-              <button type="button" data-testid="fn-intg" onClick={() => handlePress('intg-fn')}>
-                Intg
-              </button>
-              <button type="button" data-testid="fn-preans" onClick={() => handlePress('preans')}>
-                PreAns
-              </button>
-              <button type="button" data-testid="fn-const" onClick={() => handlePress('const-menu')}>
-                CONST
-              </button>
-              <button type="button" data-testid="fn-conv" onClick={() => handlePress('conv-menu')}>
-                CONV
-              </button>
-              <button type="button" data-testid="fn-menu" onClick={() => handlePress('context-menu')}>
-                MENU
-              </button>
-            </div>
-          )}
         </div>
 
         {/* Upper Control Row + Central Sculpted 4-Way D-Pad */}
@@ -476,7 +391,7 @@ export function CalculatorHardware({
                   type="button"
                   className={isShift ? 'calcios-metal-btn active' : 'calcios-metal-btn'}
                   data-key-id="shift"
-                  aria-label="SHIFT الوظائف الثانوية"
+                  aria-label="SHIFT secondary functions"
                   aria-pressed={isShift}
                   onClick={() => handlePress('shift')}
                 />
@@ -486,7 +401,7 @@ export function CalculatorHardware({
                   type="button"
                   className={isAlpha ? 'calcios-metal-btn active' : 'calcios-metal-btn'}
                   data-key-id="alpha"
-                  aria-label="ALPHA المتغيرات والرموز"
+                  aria-label="ALPHA variables and symbols"
                   aria-pressed={isAlpha}
                   onClick={() => handlePress('alpha')}
                 />
@@ -496,12 +411,12 @@ export function CalculatorHardware({
 
           {/* Center 4-Way Replay Pad */}
           <div className="calcios-dpad-zone">
-            <div className="calcios-dpad-ring" role="group" aria-label="أزرار الاتجاهات ومراجعة العمليات">
+            <div className="calcios-dpad-ring" role="group" aria-label="Directional navigation pad">
               <button
                 type="button"
                 className="dpad-lobe dpad-up"
                 data-key-id="up"
-                aria-label="فوق"
+                aria-label="Up"
                 onClick={() => handlePress('up')}
               >
                 <span className="dpad-arrow">▲</span>
@@ -510,7 +425,7 @@ export function CalculatorHardware({
                 type="button"
                 className="dpad-lobe dpad-left"
                 data-key-id="left"
-                aria-label="يسار"
+                aria-label="Left"
                 onClick={() => handlePress('left')}
               >
                 <span className="dpad-arrow">◀</span>
@@ -520,7 +435,7 @@ export function CalculatorHardware({
                 type="button"
                 className="dpad-lobe dpad-right"
                 data-key-id="right"
-                aria-label="يمين"
+                aria-label="Right"
                 onClick={() => handlePress('right')}
               >
                 <span className="dpad-arrow">▶</span>
@@ -530,7 +445,7 @@ export function CalculatorHardware({
                 className="dpad-lobe dpad-down"
                 data-key-id="down"
                 data-key-down="true"
-                aria-label="تحت"
+                aria-label="Down"
                 onClick={() => handlePress('down')}
               >
                 <span className="dpad-arrow">▼</span>
@@ -553,7 +468,7 @@ export function CalculatorHardware({
                   type="button"
                   className="calcios-metal-btn"
                   data-key-id="mode"
-                  aria-label="MODE الأوضاع أو SETUP الإعدادات"
+                  aria-label="MODE or SETUP"
                   onClick={() => handlePress('mode')}
                 />
               </div>
@@ -562,7 +477,7 @@ export function CalculatorHardware({
                   type="button"
                   className="calcios-metal-btn"
                   data-key-id="on"
-                  aria-label="ON تشغيل"
+                  aria-label="ON power"
                   onClick={() => handlePress('on')}
                 />
               </div>
@@ -571,7 +486,7 @@ export function CalculatorHardware({
         </div>
 
         {/* Scientific 6-Column Block */}
-        <section className="calcios-sci-section" aria-label="الأزرار العلمية">
+        <section className="calcios-sci-section" aria-label="Scientific functions">
           {/* Row 1 flanking lower D-Pad */}
           <div className="calcios-sci-row calcios-sci-row-flank">
             {SCIENTIFIC_ROW_1.map((spec) => (
@@ -604,7 +519,7 @@ export function CalculatorHardware({
         </section>
 
         {/* Main 5-Column Numeric & Operator Block */}
-        <section className="calcios-num-section" aria-label="الأرقام والعمليات الأساسية">
+        <section className="calcios-num-section" aria-label="Numeric and arithmetic keys">
           {LOWER_KEYPAD_ROWS.map((row, rIdx) => (
             <div key={rIdx} className="calcios-num-row">
               {row.map((spec) => (

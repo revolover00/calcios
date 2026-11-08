@@ -264,93 +264,48 @@ button {
   justify-content: space-between;
 }
 
-/* Unified Calcios Branding & Solar Panel Header */
+/* Clean Minimalist Calcios Header: Wordmark + 3 Color Edition Dots */
 .calcios-header {
-  padding: 1px 3px 5px;
+  padding: 3px 4px 8px;
   flex-shrink: 0;
 }
 
-.calcios-solar-top {
-  display: grid;
-  grid-template-columns: 1fr 142px;
-  align-items: center;
-  gap: 8px;
-}
-
-.calcios-brand-stack {
+.calcios-header-row {
   display: flex;
-  flex-direction: column;
-  justify-content: center;
-}
-
-.calcios-solar-bezel {
-  height: 38px;
-  padding: 3px;
-  border-radius: 6px;
-  background: linear-gradient(180deg, var(--bezel-top-bdr) 0%, rgba(255, 255, 255, 0.48) 100%);
-  box-shadow: inset 0 1.5px 3px rgba(0, 0, 0, 0.38);
-}
-
-.calcios-solar-cell {
-  width: 100%;
-  height: 100%;
-  border-radius: 4px;
-  border: 1px solid #1a0e0d;
-  background:
-    repeating-linear-gradient(
-      90deg,
-      transparent 0 33px,
-      rgba(255, 210, 185, 0.09) 33px 34px
-    ),
-    linear-gradient(180deg, #271615 0%, #351f1d 52%, #241413 100%);
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.72);
+  align-items: center;
+  justify-content: space-between;
 }
 
 .calcios-logo {
   font-family: 'Arial Black', system-ui, -apple-system, sans-serif;
   font-weight: 900;
-  font-size: 1.24rem;
-  letter-spacing: 0.09em;
-  line-height: 1.05;
+  font-size: 1.2rem;
+  letter-spacing: 0.1em;
+  line-height: 1;
   color: var(--brand-ink);
-}
-
-.calcios-controls-row {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  margin-top: 4px;
-  padding: 0 2px;
-  min-height: 15px;
-}
-
-.calcios-edition-controls {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
 }
 
 .calcios-theme-dots {
   display: inline-flex;
   align-items: center;
-  gap: 4.5px;
+  gap: 6px;
 }
 
 .theme-dot {
-  width: 10px;
-  height: 10px;
+  width: 11px;
+  height: 11px;
   padding: 0;
   border-radius: 50%;
   border: 1.2px solid rgba(0, 0, 0, 0.45);
   box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.45);
-  opacity: 0.78;
+  opacity: 0.8;
   transition: transform 0.12s ease, opacity 0.12s ease;
 }
 
 .theme-dot:hover,
 .theme-dot.active {
   opacity: 1;
-  transform: scale(1.18);
+  transform: scale(1.2);
   box-shadow:
     0 0 0 1.5px rgba(255, 255, 255, 0.85),
     inset 0 1px 1px rgba(255, 255, 255, 0.5);
@@ -368,62 +323,8 @@ button {
   background: radial-gradient(circle at 35% 35%, #d2e3f0 0%, #8597a7 100%);
 }
 
-/* Subtle Flush Micro-Switch for Quick Function Popover */
-.calcios-fn-badge {
-  padding: 1px 4px;
-  border-radius: 3px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(14, 16, 19, 0.32);
-  color: rgba(240, 244, 248, 0.62);
-  font-family: system-ui, -apple-system, sans-serif;
-  font-size: 0.52rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  line-height: 1.2;
-  transition: color 0.14s ease, border-color 0.14s ease, background 0.14s ease;
-}
-
-.calcios-fn-badge:hover,
-.calcios-fn-badge.active {
-  background: rgba(224, 183, 102, 0.16);
-  border-color: rgba(224, 183, 102, 0.58);
-  color: var(--calcios-gold);
-}
-
 .calcios-lcd-wrap {
   position: relative;
-}
-
-.calcios-fn-popover {
-  position: absolute;
-  inset: 9px 10px;
-  z-index: 12;
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 5px;
-  padding: 8px;
-  border-radius: 4px;
-  background: rgba(17, 20, 24, 0.96);
-  border: 1px solid rgba(224, 183, 102, 0.4);
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.68);
-  align-content: center;
-}
-
-.calcios-fn-popover button {
-  padding: 6px 2px;
-  border-radius: 4px;
-  border: 1px solid #343a42;
-  background: linear-gradient(180deg, #2d3239 0%, #1e2227 100%);
-  color: #f3f5f7;
-  font-family: 'IBM Plex Mono', ui-monospace, monospace;
-  font-size: 0.68rem;
-  font-weight: 700;
-  box-shadow: 0 2px 0 #0e1013;
-}
-
-.calcios-fn-popover button:hover {
-  border-color: var(--calcios-gold);
-  color: var(--calcios-gold);
 }
 
 /* ==========================================================================
