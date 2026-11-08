@@ -25,18 +25,21 @@ type RawSegment =
   | { kind: 'right'; lower: Scalar }
   | { kind: 'between'; lower: Scalar; upper: Scalar };
 
-function evalPoly(coeffs: Scalar[], x: InstanceType<typeof D>): InstanceType<typeof D> {
-  return coeffs.reduce((acc, c) => acc.times(x).plus(c.decimal), new D(0));
-}
-
 function uniqueSortedRealRoots(degree: IneqDegree, coeffs: Scalar[]): Scalar[] {
-  if (coeffs[0].decimal.abs().lt('1e-26')) mathError('Leading coefficient cannot be zero');
+  if (coeffs[0].decimal.abs().lt('1e-95') && coeffs[0].decimal.isZero()) {
+    mathError('Leading coefficient cannot be zero');
+  }
+  if (coeffs[0].exact ? coeffs[0].exact.n === 0n : coeffs[0].decimal.isZero()) {
+    mathError('Leading coefficient cannot be zero');
+  }
 
   let rawRoots: Scalar[] = [];
   if (degree === 2) {
     const [a, b, c] = coeffs;
     const disc = subtract(multiply(b, b), multiply(multiply(scalarFromInteger(4), a), c));
-    if (disc.decimal.abs().lt('1e-24')) {
+    const coeffScale = b.decimal.pow(2).plus(a.decimal.times(c.decimal).abs().times(4));
+    const zeroDisc = disc.exact ? disc.exact.n === 0n : disc.decimal.abs().lte(coeffScale.times('1e-26'));
+    if (zeroDisc) {
       rawRoots = [snapExactScalar(divide(negate(b), multiply(scalarFromInteger(2), a)))];
     } else if (disc.decimal.gt(0)) {
       const sq = applyFunction('sqrt', [disc], 'DEG');
@@ -56,7 +59,14 @@ function uniqueSortedRealRoots(degree: IneqDegree, coeffs: Scalar[]): Scalar[] {
   rawRoots.sort((p, q) => p.decimal.comparedTo(q.decimal));
   const deduped: Scalar[] = [];
   for (const r of rawRoots) {
-    if (!deduped.length || r.decimal.minus(deduped[deduped.length - 1].decimal).abs().gt('1e-16')) {
+    if (!deduped.length) {
+      deduped.push(r);
+      continue;
+    }
+    const prev = deduped[deduped.length - 1].decimal;
+    const mag = D.max(r.decimal.abs(), prev.abs());
+    const dupTol = mag.isZero() ? new D('1e-24') : mag.times('1e-18');
+    if (r.decimal.minus(prev).abs().gt(dupTol)) {
       deduped.push(r);
     }
   }
@@ -69,31 +79,40 @@ export function solveInequality(degree: IneqDegree, relation: IneqRelation, coef
 }
 
 function computeInequalitySegments(res: IneqResult): { ltSym: '<' | '≤'; segments: RawSegment[] } {
-  const { roots, relation, coeffs } = res;
+  const { roots, degree, relation, coeffs } = res;
   const inclusive = relation === '≥' || relation === '≤';
   const wantPositive = relation === '>' || relation === '≥';
   const ltSym: '<' | '≤' = inclusive ? '≤' : '<';
-
-  const satisfiesStrict = (val: InstanceType<typeof D>): boolean => {
-    const y = evalPoly(coeffs, val);
-    return wantPositive ? y.gt('1e-20') : y.lt('-1e-20');
-  };
+  const leadPos = coeffs[0].decimal.gt(0);
+  const matchesSign = (isPos: boolean) => (wantPositive ? isPos : !isPos);
 
   if (roots.length === 0) {
     return {
       ltSym,
-      segments: [{ kind: satisfiesStrict(new D(0)) ? 'all' : 'none' }],
+      segments: [{ kind: matchesSign(leadPos) ? 'all' : 'none' }],
     };
   }
 
-  const samplePoints: InstanceType<typeof D>[] = [];
-  samplePoints.push(roots[0].decimal.minus(1));
-  for (let i = 0; i + 1 < roots.length; i++) {
-    samplePoints.push(roots[i].decimal.plus(roots[i + 1].decimal).div(2));
+  // Exact interval signs via algebraic root multiplicities (immune to underflow on tiny coefficients/roots)
+  let intervalPositive: boolean[];
+  if (degree === 2) {
+    intervalPositive = roots.length === 1
+      ? [leadPos, leadPos]
+      : [leadPos, !leadPos, leadPos];
+  } else if (roots.length === 1) {
+    intervalPositive = [!leadPos, leadPos];
+  } else if (roots.length === 3) {
+    intervalPositive = [!leadPos, leadPos, !leadPos, leadPos];
+  } else {
+    // Cubic with 2 distinct real roots (1 double + 1 simple): inflection x = -b/(3a) lies 2x closer to double root
+    const infl = coeffs[1].decimal.neg().div(coeffs[0].decimal.times(3));
+    const r0IsDouble = infl.minus(roots[0].decimal).abs().lt(infl.minus(roots[1].decimal).abs());
+    intervalPositive = r0IsDouble
+      ? [!leadPos, !leadPos, leadPos]
+      : [!leadPos, leadPos, leadPos];
   }
-  samplePoints.push(roots[roots.length - 1].decimal.plus(1));
 
-  const intervalActive = samplePoints.map(satisfiesStrict);
+  const intervalActive = intervalPositive.map(matchesSign);
 
   if (roots.length === 1) {
     const leftOk = intervalActive[0];
