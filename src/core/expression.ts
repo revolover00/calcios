@@ -2,10 +2,11 @@ import { numericDerivative, numericIntegral, numericProduct, numericSummation } 
 import { CONSTANT_BY_TOKEN } from './constants';
 import { CalculatorError, mathError, syntax } from './errors';
 import type { NumberFormatSetting } from './format';
+import { estimateStatXHat, estimateStatYHat, type StatSubMode, type StatSummary } from './stat';
 import {
-  D, VARIABLES, add, applyFunction, applyUnitConversion, combinatoric, convertAngleToActive,
+  VARIABLES, add, applyFunction, applyUnitConversion, combinatoric, convertAngleToActive,
   deserialize, divide, dmsToScalar, factorial, makeScalar, multiply, negate, polarFromRect, power,
-  rectFromPolar, scalarFromInteger, scalarFromLiteral, serialize, subtract,
+  rectFromPolar, scalarFromInteger, scalarFromLiteral, scalarPi, serialize, subtract, D,
   type AngleUnit, type Scalar, type StoredScalar, type VariableName,
 } from './value';
 
@@ -18,6 +19,7 @@ export interface EvaluationContext {
   ans: StoredScalar;
   random?: number;
   numberFormat?: NumberFormatSetting;
+  statContext?: { subMode: StatSubMode; summary: StatSummary };
 }
 
 export interface RichEvaluationResult {
@@ -26,13 +28,40 @@ export interface RichEvaluationResult {
   pairKind?: 'pol' | 'rec';
 }
 
+export const STAT_TOKEN_LABELS: Record<string, string> = {
+  statN: 'n',
+  statMeanX: 'x̄',
+  statPopSdX: 'σx',
+  statSampSdX: 'sx',
+  statSumX: '∑x',
+  statSumX2: '∑x²',
+  statMinX: 'minX',
+  statMaxX: 'maxX',
+  statQ1: 'Q₁',
+  statMed: 'med',
+  statQ3: 'Q₃',
+  statMeanY: 'ȳ',
+  statPopSdY: 'σy',
+  statSampSdY: 'sy',
+  statSumY: '∑y',
+  statSumY2: '∑y²',
+  statSumXY: '∑xy',
+  statMinY: 'minY',
+  statMaxY: 'maxY',
+  statRegA: 'A_reg',
+  statRegB: 'B_reg',
+  statRegC: 'C_reg',
+  statCorrR: 'r',
+};
+
+const STAT_IDENTIFIERS = Object.keys(STAT_TOKEN_LABELS);
 const CALCULUS_NAMES = ['deriv', 'integ', 'sigma', 'prod'];
 const FUNCTION_NAMES = [
   'RanInt', 'mfrac', 'asinh', 'acosh', 'atanh', 'logb', 'sqrt', 'cbrt', 'frac', 'root',
   'sinh', 'cosh', 'tanh', 'asin', 'acos', 'atan', 'Pol', 'Rec', 'Rnd',
   'sin', 'cos', 'tan', 'abs', 'log', 'ln',
 ];
-const KEYWORDS = [...CALCULUS_NAMES, ...FUNCTION_NAMES, 'nCr', 'nPr', 'Ans'].sort((a, b) => b.length - a.length);
+const KEYWORDS = [...STAT_IDENTIFIERS, ...CALCULUS_NAMES, ...FUNCTION_NAMES, 'nCr', 'nPr', 'Ans'].sort((a, b) => b.length - a.length);
 const VARIABLE_SET = new Set<string>(VARIABLES);
 
 export function tokenize(source: string): Token[] {
@@ -55,6 +84,12 @@ export function tokenize(source: string): Token[] {
     if (convMatch) {
       tokens.push({ type: 'postfix', text: convMatch[0] });
       i += convMatch[0].length;
+      continue;
+    }
+
+    if (rest.startsWith('▸yhat') || rest.startsWith('▸xhat')) {
+      tokens.push({ type: 'postfix', text: rest.slice(0, 5) });
+      i += 5;
       continue;
     }
 
@@ -100,6 +135,39 @@ export function tokenize(source: string): Token[] {
   }
   tokens.push({ type: 'end', text: '' });
   return tokens;
+}
+
+function resolveStatToken(name: string, ctx: EvaluationContext): Scalar {
+  if (!ctx.statContext) mathError('STAT data unavailable');
+  const s = ctx.statContext.summary;
+  const map: Record<string, Scalar | undefined> = {
+    statN: s.n,
+    statMeanX: s.meanX,
+    statPopSdX: s.popSdX,
+    statSampSdX: s.sampSdX,
+    statSumX: s.sumX,
+    statSumX2: s.sumX2,
+    statMinX: s.minX,
+    statMaxX: s.maxX,
+    statQ1: s.q1,
+    statMed: s.med,
+    statQ3: s.q3,
+    statMeanY: s.meanY,
+    statPopSdY: s.popSdY,
+    statSampSdY: s.sampSdY,
+    statSumY: s.sumY,
+    statSumY2: s.sumY2,
+    statSumXY: s.sumXY,
+    statMinY: s.minY,
+    statMaxY: s.maxY,
+    statRegA: s.regA,
+    statRegB: s.regB,
+    statRegC: s.regC,
+    statCorrR: s.corrR,
+  };
+  const val = map[name];
+  if (!val) mathError(`Statistic ${name} unavailable in current STAT mode`);
+  return val;
 }
 
 class Parser {
@@ -179,7 +247,7 @@ class Parser {
           this.tokens[this.pos + 1]?.type === 'dms'
         ) {
           const partNum = scalarFromLiteral(this.take().text);
-          this.take(); // consume '°'
+          this.take();
           parts.push(partNum);
         }
         left = dmsToScalar(parts);
@@ -192,7 +260,15 @@ class Parser {
         if (next.text === 'ᵈ') left = convertAngleToActive(left, 'DEG', this.context.angle);
         else if (next.text === 'ʳ') left = convertAngleToActive(left, 'RAD', this.context.angle);
         else if (next.text === 'ᵍ') left = convertAngleToActive(left, 'GRA', this.context.angle);
-        else left = applyUnitConversion(left, next.text);
+        else if (next.text === '▸yhat') {
+          if (!this.context.statContext) mathError('STAT unavailable');
+          left = estimateStatYHat(this.context.statContext.subMode, this.context.statContext.summary, left);
+        } else if (next.text === '▸xhat') {
+          if (!this.context.statContext) mathError('STAT unavailable');
+          left = estimateStatXHat(this.context.statContext.subMode, this.context.statContext.summary, left);
+        } else {
+          left = applyUnitConversion(left, next.text);
+        }
         continue;
       }
 
@@ -219,7 +295,6 @@ class Parser {
       }
       if (!operator || precedence < minBindingPower || precedence === 0) break;
       if (!implicit) this.take();
-      // Exponentiation is right-associative; every other binary operator is left-associative.
       const right = this.expression(operator === '^' ? precedence : precedence + 1);
       switch (operator) {
         case '+': left = add(left, right); break;
@@ -238,7 +313,7 @@ class Parser {
   private prefix(): Scalar {
     const token = this.take();
     if (token.type === 'operator' && (token.text === '+' || token.text === '-')) {
-      const operand = this.expression(30); // power precedes unary minus: -2² = -4
+      const operand = this.expression(30);
       return token.text === '-' ? negate(operand) : operand;
     }
     if (token.type === 'number') return scalarFromLiteral(token.text);
@@ -248,6 +323,10 @@ class Parser {
       return value;
     }
     if (token.type === 'identifier') {
+      if (STAT_IDENTIFIERS.includes(token.text)) {
+        return resolveStatToken(token.text, this.context);
+      }
+
       if (CALCULUS_NAMES.includes(token.text)) {
         this.expect('open');
         const bodyTokens = this.collectArgumentTokens();
@@ -289,7 +368,7 @@ class Parser {
         return { ...scalarFromLiteral(constant.value), preferDecimal: true };
       }
 
-      if (token.text === 'π') return makeScalar(D.acos(-1), undefined, false);
+      if (token.text === 'π') return scalarPi();
       if (token.text === 'e') return makeScalar(new D(1).exp(), undefined, false);
       if (token.text === 'Ans') return deserialize(this.context.ans);
       if (VARIABLE_SET.has(token.text)) return deserialize(this.context.variables[token.text as VariableName]);
@@ -298,7 +377,6 @@ class Parser {
   }
 }
 
-/** Automatically closes unmatched opening parentheses, like a calculator on EXE. */
 export function completeParentheses(source: string): string {
   let open = 0;
   for (const char of source) {
@@ -331,7 +409,6 @@ export function evaluateRichExpression(source: string, context: EvaluationContex
   }
 }
 
-/** Extracts free calculator variables referenced in an expression (for CALC prompts). */
 export function extractVariables(source: string): VariableName[] {
   const clean = source.includes('=') ? source.split('=')[0] : source;
   const tokens = tokenize(completeParentheses(clean));
@@ -352,7 +429,6 @@ export function extractVariables(source: string): VariableName[] {
       depth--;
     } else if (tok.type === 'comma') {
       if (boundXDepths.length && boundXDepths[boundXDepths.length - 1] === depth) {
-        // After first comma of deriv/integ/sigma, X is free again in bounds!
         boundXDepths.pop();
       }
     } else if (tok.type === 'identifier' && VARIABLE_SET.has(tok.text)) {
@@ -364,7 +440,6 @@ export function extractVariables(source: string): VariableName[] {
   return order.filter((v) => seen.has(v));
 }
 
-/** Splits multi-statement input on top-level ':' characters. */
 export function splitStatements(source: string): string[] {
   const parts: string[] = [];
   let depth = 0;
@@ -382,7 +457,6 @@ export function splitStatements(source: string): string[] {
   return parts;
 }
 
-/** Splits a SOLVE equation `left = right` (or `expr` -> `expr = 0`). */
 export function splitEquation(source: string): { left: string; right: string } {
   const eqIndex = source.indexOf('=');
   if (eqIndex === -1) return { left: source, right: '0' };

@@ -2,6 +2,11 @@ import Decimal from 'decimal.js';
 import { CONVERSION_BY_TOKEN } from './constants';
 import { mathError, syntax } from './errors';
 import { DEFAULT_NUMBER_FORMAT, toSuperscript, type NumberFormatSetting } from './format';
+import {
+  addSymbolic, divideSymbolic, exactInverseTrigDegrees, exactTrigDegrees,
+  makePiMultiple, multiplySymbolic, negateSymbolic, symbolicSqrtRational,
+  type SymbolicValue,
+} from './symbolic';
 
 /** Internal decimal arithmetic has guard digits. Display rounding happens only at the edge. */
 export const D = Decimal.clone({ precision: 34, rounding: Decimal.ROUND_HALF_UP, maxE: 10000, minE: -10000 });
@@ -10,8 +15,24 @@ export type VariableName = 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'X' | 'Y' | 'M';
 export const VARIABLES: VariableName[] = ['A', 'B', 'C', 'D', 'E', 'F', 'X', 'Y', 'M'];
 
 export interface Rational { n: bigint; d: bigint }
-export interface Scalar { decimal: Decimal; exact?: Rational; preferDecimal: boolean }
-export interface StoredScalar { decimal: string; numerator?: string; denominator?: string; preferDecimal: boolean }
+export interface Scalar {
+  decimal: Decimal;
+  exact?: Rational;
+  symbolic?: SymbolicValue;
+  preferDecimal: boolean;
+}
+
+export type StoredSymbolic =
+  | { kind: 'pi'; n: string; d: string }
+  | { kind: 'surd'; a: string; b: string; rad: string; d: string };
+
+export interface StoredScalar {
+  decimal: string;
+  numerator?: string;
+  denominator?: string;
+  symbolic?: StoredSymbolic;
+  preferDecimal: boolean;
+}
 
 const ZERO = 0n;
 const ONE = 1n;
@@ -25,7 +46,6 @@ function gcd(a: bigint, b: bigint): bigint {
   return a;
 }
 
-/** Rational results are optional: drop exact representation rather than growing without bound. */
 export function rational(n: bigint, d = ONE): Rational | undefined {
   if (d === ZERO) mathError('Division by zero');
   if (d < ZERO) { n = -n; d = -d; }
@@ -35,15 +55,24 @@ export function rational(n: bigint, d = ONE): Rational | undefined {
   return { n, d };
 }
 
-export function makeScalar(value: Decimal.Value, exact?: Rational, preferDecimal = false): Scalar {
+export function makeScalar(
+  value: Decimal.Value,
+  exact?: Rational,
+  preferDecimal = false,
+  symbolic?: SymbolicValue,
+): Scalar {
   const number = new D(value);
   if (!number.isFinite() || number.abs().gte(LIMIT)) mathError('Result outside the supported range');
-  return { decimal: number, exact, preferDecimal };
+  return { decimal: number, exact, symbolic: exact ? undefined : symbolic, preferDecimal };
 }
 
 export function scalarFromInteger(value: number | bigint): Scalar {
   const n = typeof value === 'bigint' ? value : BigInt(value);
   return makeScalar(n.toString(), rational(n));
+}
+
+export function scalarPi(): Scalar {
+  return makeScalar(D.acos(-1), undefined, false, { kind: 'pi', n: ONE, d: ONE });
 }
 
 export function scalarFromLiteral(literal: string): Scalar {
@@ -66,51 +95,135 @@ export function scalarFromLiteral(literal: string): Scalar {
 }
 
 export function serialize(value: Scalar): StoredScalar {
-  return { decimal: value.decimal.toString(), numerator: value.exact?.n.toString(), denominator: value.exact?.d.toString(), preferDecimal: value.preferDecimal };
+  let sym: StoredSymbolic | undefined;
+  if (value.symbolic?.kind === 'pi') {
+    sym = { kind: 'pi', n: value.symbolic.n.toString(), d: value.symbolic.d.toString() };
+  } else if (value.symbolic?.kind === 'surd') {
+    sym = {
+      kind: 'surd',
+      a: value.symbolic.a.toString(),
+      b: value.symbolic.b.toString(),
+      rad: value.symbolic.rad.toString(),
+      d: value.symbolic.d.toString(),
+    };
+  }
+  return {
+    decimal: value.decimal.toString(),
+    numerator: value.exact?.n.toString(),
+    denominator: value.exact?.d.toString(),
+    symbolic: sym,
+    preferDecimal: value.preferDecimal,
+  };
 }
+
 export function deserialize(value: StoredScalar): Scalar {
   const exact = value.numerator !== undefined && value.denominator !== undefined
     ? rational(BigInt(value.numerator), BigInt(value.denominator)) : undefined;
-  return makeScalar(value.decimal, exact, value.preferDecimal);
+  let sym: SymbolicValue | undefined;
+  if (value.symbolic?.kind === 'pi') {
+    sym = { kind: 'pi', n: BigInt(value.symbolic.n), d: BigInt(value.symbolic.d) };
+  } else if (value.symbolic?.kind === 'surd') {
+    sym = {
+      kind: 'surd',
+      a: BigInt(value.symbolic.a),
+      b: BigInt(value.symbolic.b),
+      rad: BigInt(value.symbolic.rad),
+      d: BigInt(value.symbolic.d),
+    };
+  }
+  return makeScalar(value.decimal, exact, value.preferDecimal, sym);
 }
+
 export function zeroStored(): StoredScalar { return serialize(scalarFromInteger(0)); }
 
 export function negate(a: Scalar): Scalar {
-  return makeScalar(a.decimal.neg(), a.exact && rational(-a.exact.n, a.exact.d), a.preferDecimal);
+  return makeScalar(
+    a.decimal.neg(),
+    a.exact && rational(-a.exact.n, a.exact.d),
+    a.preferDecimal,
+    a.symbolic && negateSymbolic(a.symbolic),
+  );
 }
+
 export function add(a: Scalar, b: Scalar): Scalar {
-  const r = a.exact && b.exact && rational(a.exact.n * b.exact.d + b.exact.n * a.exact.d, a.exact.d * b.exact.d);
-  return makeScalar(a.decimal.plus(b.decimal), r, a.preferDecimal || b.preferDecimal);
+  const pref = a.preferDecimal || b.preferDecimal;
+  if (a.exact && b.exact) {
+    const r = rational(a.exact.n * b.exact.d + b.exact.n * a.exact.d, a.exact.d * b.exact.d);
+    return makeScalar(a.decimal.plus(b.decimal), r, pref);
+  }
+  const sym = addSymbolic(a, b);
+  const ex = sym.exact && rational(sym.exact.n, sym.exact.d);
+  return makeScalar(a.decimal.plus(b.decimal), ex, pref, sym.symbolic);
 }
+
 export function subtract(a: Scalar, b: Scalar): Scalar { return add(a, negate(b)); }
+
 export function multiply(a: Scalar, b: Scalar): Scalar {
-  const r = a.exact && b.exact && rational(a.exact.n * b.exact.n, a.exact.d * b.exact.d);
-  return makeScalar(a.decimal.times(b.decimal), r, a.preferDecimal || b.preferDecimal);
+  const pref = a.preferDecimal || b.preferDecimal;
+  if (a.exact && b.exact) {
+    const r = rational(a.exact.n * b.exact.n, a.exact.d * b.exact.d);
+    return makeScalar(a.decimal.times(b.decimal), r, pref);
+  }
+  const sym = multiplySymbolic(a, b);
+  const ex = sym.exact && rational(sym.exact.n, sym.exact.d);
+  return makeScalar(a.decimal.times(b.decimal), ex, pref, sym.symbolic);
 }
+
 export function divide(a: Scalar, b: Scalar): Scalar {
   if (b.decimal.isZero()) mathError('Division by zero');
-  const r = a.exact && b.exact && rational(a.exact.n * b.exact.d, a.exact.d * b.exact.n);
-  return makeScalar(a.decimal.dividedBy(b.decimal), r, a.preferDecimal || b.preferDecimal);
+  const pref = a.preferDecimal || b.preferDecimal;
+  if (a.exact && b.exact) {
+    const r = rational(a.exact.n * b.exact.d, a.exact.d * b.exact.n);
+    return makeScalar(a.decimal.dividedBy(b.decimal), r, pref);
+  }
+  const sym = divideSymbolic(a, b);
+  const ex = sym.exact && rational(sym.exact.n, sym.exact.d);
+  return makeScalar(a.decimal.dividedBy(b.decimal), ex, pref, sym.symbolic);
 }
+
 export function power(a: Scalar, b: Scalar): Scalar {
   if (a.decimal.isZero() && b.decimal.lte(0)) mathError('Invalid power');
   if (a.decimal.isNegative() && !b.decimal.isInteger()) mathError('Non-real power');
   if (b.decimal.abs().gt(10000)) mathError('Exponent out of range');
-  let exact: Rational | undefined;
-  if (a.exact && b.decimal.isInteger() && b.decimal.abs().lte(100)) {
+  const pref = a.preferDecimal || b.preferDecimal;
+
+  if (b.decimal.isInteger() && b.decimal.abs().lte(100)) {
     const exponent = b.decimal.toNumber();
-    const e = BigInt(Math.abs(exponent));
-    const n = a.exact.n ** e, d = a.exact.d ** e;
-    exact = exponent < 0 ? rational(d, n) : rational(n, d);
+    if (a.exact) {
+      const e = BigInt(Math.abs(exponent));
+      const n = a.exact.n ** e, d = a.exact.d ** e;
+      const exact = exponent < 0 ? rational(d, n) : rational(n, d);
+      return makeScalar(a.decimal.pow(b.decimal), exact, pref);
+    }
+    if (a.symbolic?.kind === 'surd' && Math.abs(exponent) <= 12) {
+      if (exponent === 0) return scalarFromInteger(1);
+      let acc: Scalar = scalarFromInteger(1);
+      let base: Scalar = a;
+      let k = Math.abs(exponent);
+      while (k > 0) {
+        if (k & 1) acc = multiply(acc, base);
+        k >>= 1;
+        if (k > 0) base = multiply(base, base);
+      }
+      return exponent < 0 ? divide(scalarFromInteger(1), acc) : { ...acc, preferDecimal: pref };
+    }
   }
-  return makeScalar(a.decimal.pow(b.decimal), exact, a.preferDecimal || b.preferDecimal);
+
+  // Fractional power 1/2 -> exact surd!
+  if (b.exact && b.exact.n === ONE && b.exact.d === 2n && !a.decimal.isNegative()) {
+    return applyFunction('sqrt', [a], 'DEG');
+  }
+
+  return makeScalar(a.decimal.pow(b.decimal), undefined, pref);
 }
+
 export function factorial(a: Scalar): Scalar {
   if (!a.decimal.isInteger() || a.decimal.isNegative() || a.decimal.gt(69)) mathError('Factorial out of range');
   let result = ONE;
   for (let i = 2n; i <= BigInt(a.decimal.toFixed(0)); i++) result *= i;
   return makeScalar(result.toString(), rational(result));
 }
+
 export function combinatoric(a: Scalar, b: Scalar, permutation: boolean): Scalar {
   if (!a.decimal.isInteger() || !b.decimal.isInteger() || a.decimal.isNegative() || b.decimal.isNegative() || b.decimal.gt(a.decimal) || a.decimal.gt('1e10')) mathError('Invalid combination');
   const n = BigInt(a.decimal.toFixed(0));
@@ -176,21 +289,11 @@ export function primeFactorize(value: Scalar): string {
     .join('×');
 }
 
-function integerSqrt(n: bigint): bigint {
-  if (n < 2n) return n;
-  let x = 1n << BigInt(Math.ceil(n.toString(2).length / 2));
-  for (;;) { const next = (x + n / x) >> 1n; if (next >= x) return x; x = next; }
-}
 function simpleExact(value: Decimal): Rational | undefined {
-  // Do not rationalize arbitrary approximations: recognize only stable simple trig constants.
   const candidates: Rational[] = [{ n: 0n, d: 1n }, { n: 1n, d: 2n }, { n: -1n, d: 2n }, { n: 1n, d: 1n }, { n: -1n, d: 1n }];
   return candidates.find(({ n, d }) => value.minus(new D(n.toString()).div(d.toString())).abs().lt('1e-28'));
 }
-function exactSqrt(a: Scalar): Rational | undefined {
-  if (!a.exact || a.exact.n < ZERO) return undefined;
-  const n = integerSqrt(a.exact.n), d = integerSqrt(a.exact.d);
-  return n * n === a.exact.n && d * d === a.exact.d ? rational(n, d) : undefined;
-}
+
 export function fromRadians(value: Decimal, angle: AngleUnit): Decimal {
   if (angle === 'RAD') return value;
   return value.times(angle === 'DEG' ? 180 : 200).div(D.acos(-1));
@@ -203,10 +306,22 @@ export function toRadians(value: Decimal, angle: AngleUnit): Decimal {
 export function convertAngleToActive(value: Scalar, sourceUnit: AngleUnit, activeUnit: AngleUnit): Scalar {
   if (sourceUnit === activeUnit) return value;
   if (sourceUnit !== 'RAD' && activeUnit !== 'RAD') {
-    // DEG <-> GRA is exact rational (9/10 or 10/9)
     const num = sourceUnit === 'DEG' ? 10 : 9;
     const den = sourceUnit === 'DEG' ? 9 : 10;
     return divide(multiply(value, scalarFromInteger(num)), scalarFromInteger(den));
+  }
+  if (activeUnit === 'RAD' && value.exact) {
+    const scaleDen = sourceUnit === 'DEG' ? 180n : 200n;
+    const piSym = makePiMultiple(value.exact.n, value.exact.d * scaleDen);
+    const rad = toRadians(value.decimal, sourceUnit);
+    if (piSym && 'kind' in piSym) return makeScalar(rad, undefined, value.preferDecimal, piSym);
+    if (piSym && 'rationalZero' in piSym) return scalarFromInteger(0);
+  }
+  if (sourceUnit === 'RAD' && value.symbolic?.kind === 'pi') {
+    const scaleNum = activeUnit === 'DEG' ? 180n : 200n;
+    const r = rational(value.symbolic.n * scaleNum, value.symbolic.d);
+    const converted = fromRadians(value.decimal, activeUnit);
+    return makeScalar(converted, r, value.preferDecimal);
   }
   const rad = toRadians(value.decimal, sourceUnit);
   const converted = fromRadians(rad, activeUnit);
@@ -215,11 +330,14 @@ export function convertAngleToActive(value: Scalar, sourceUnit: AngleUnit, activ
 
 export function polarFromRect(x: Scalar, y: Scalar, angle: AngleUnit): { r: Scalar; theta: Scalar } {
   const sumSq = add(multiply(x, x), multiply(y, y));
-  const r = makeScalar(sumSq.decimal.sqrt(), exactSqrt(sumSq), true);
+  const r = applyFunction('sqrt', [sumSq], angle);
   const rawTheta = x.decimal.isZero() && y.decimal.isZero()
     ? new D(0)
     : fromRadians(D.atan2(y.decimal, x.decimal), angle);
-  return { r, theta: makeScalar(rawTheta, simpleExact(rawTheta), true) };
+  return {
+    r: { ...r, preferDecimal: true },
+    theta: makeScalar(rawTheta, simpleExact(rawTheta), true),
+  };
 }
 
 export function rectFromPolar(r: Scalar, theta: Scalar, angle: AngleUnit): { x: Scalar; y: Scalar } {
@@ -268,6 +386,16 @@ export function applyUnitConversion(value: Scalar, token: string): Scalar {
   return { ...out, preferDecimal: true };
 }
 
+function angleScalarToExactDegrees(a: Scalar, angle: AngleUnit): Rational | undefined {
+  if (angle === 'DEG' && a.exact) return a.exact;
+  if (angle === 'GRA' && a.exact) return rational(a.exact.n * 9n, a.exact.d * 10n);
+  if (angle === 'RAD') {
+    if (a.exact && a.exact.n === ZERO) return { n: ZERO, d: ONE };
+    if (a.symbolic?.kind === 'pi') return rational(a.symbolic.n * 180n, a.symbolic.d);
+  }
+  return undefined;
+}
+
 export function applyFunction(
   name: string,
   args: Scalar[],
@@ -289,16 +417,37 @@ export function applyFunction(
     case 'RanInt': return randomInteger(a, args[1], options?.random);
     case 'Rnd': return roundScalar(a, options?.numberFormat);
     case 'abs': return x.isNegative() ? negate(a) : a;
-    case 'sqrt':
+    case 'sqrt': {
       if (x.isNegative()) mathError('Square root of a negative number');
-      return makeScalar(x.sqrt(), exactSqrt(a), a.preferDecimal);
-    case 'cbrt': return makeScalar(x.cbrt(), undefined, a.preferDecimal);
+      if (a.exact) {
+        const sq = symbolicSqrtRational(a.exact.n, a.exact.d);
+        if (sq && 'rational' in sq) {
+          return makeScalar(x.sqrt(), rational(sq.rational.n, sq.rational.d), a.preferDecimal);
+        }
+        if (sq && 'kind' in sq) {
+          return makeScalar(x.sqrt(), undefined, a.preferDecimal, sq);
+        }
+      }
+      return makeScalar(x.sqrt(), undefined, a.preferDecimal);
+    }
+    case 'cbrt': {
+      if (a.exact && a.exact.d === ONE && absBig(a.exact.n) <= 1_000_000_000n) {
+        const cr = Math.round(Math.cbrt(Number(a.exact.n)));
+        if (BigInt(cr) ** 3n === a.exact.n) {
+          return makeScalar(x.cbrt(), rational(BigInt(cr), ONE), a.preferDecimal);
+        }
+      }
+      return makeScalar(x.cbrt(), undefined, a.preferDecimal);
+    }
     case 'root': {
       const radicand = args[1].decimal;
       if (x.isZero()) mathError('Zero root index');
       if (radicand.isNegative()) {
         if (!x.isInteger() || !x.mod(2).abs().eq(1)) mathError('Non-real root');
         return makeScalar(radicand.neg().pow(new D(1).div(x)).neg(), undefined, true);
+      }
+      if (a.exact && a.exact.n === 2n && a.exact.d === ONE) {
+        return applyFunction('sqrt', [args[1]], angle, options);
       }
       return makeScalar(radicand.pow(new D(1).div(x)), undefined, true);
     }
@@ -310,16 +459,52 @@ export function applyFunction(
       return makeScalar(y.ln().div(x.ln()), undefined, true);
     }
     case 'sin': case 'cos': case 'tan': {
-      if (name === 'tan' && ((angle === 'DEG' && x.mod(180).abs().eq(90)) || (angle === 'GRA' && x.mod(200).abs().eq(100)))) mathError('Undefined tangent');
+      const exactDeg = angleScalarToExactDegrees(a, angle);
+      if (name === 'tan') {
+        if (exactDeg && exactDeg.d === ONE && (((exactDeg.n % 180n) + 180n) % 180n) === 90n) {
+          mathError('Undefined tangent');
+        }
+        if ((angle === 'DEG' && x.mod(180).abs().eq(90)) || (angle === 'GRA' && x.mod(200).abs().eq(100))) {
+          mathError('Undefined tangent');
+        }
+      }
       const rad = toRadians(x, angle);
-      const result = name === 'sin' ? rad.sin() : name === 'cos' ? rad.cos() : rad.tan();
-      const exact = simpleExact(result);
-      const rounded = exact ? new D(exact.n.toString()).div(exact.d.toString()) : result;
-      return makeScalar(rounded, exact, a.preferDecimal);
+      const raw = name === 'sin' ? rad.sin() : name === 'cos' ? rad.cos() : rad.tan();
+      if (exactDeg) {
+        const trigSym = exactTrigDegrees(name, exactDeg.n, exactDeg.d);
+        if (trigSym?.exact) {
+          const ex = rational(trigSym.exact.n, trigSym.exact.d);
+          const cleanDec = ex ? new D(ex.n.toString()).div(ex.d.toString()) : raw;
+          return makeScalar(cleanDec, ex, a.preferDecimal);
+        }
+        if (trigSym?.symbolic) {
+          return makeScalar(raw, undefined, a.preferDecimal, trigSym.symbolic);
+        }
+      }
+      const fallbackExact = simpleExact(raw);
+      const rounded = fallbackExact ? new D(fallbackExact.n.toString()).div(fallbackExact.d.toString()) : raw;
+      return makeScalar(rounded, fallbackExact, a.preferDecimal || !fallbackExact);
     }
     case 'asin': case 'acos': case 'atan': {
       if ((name === 'asin' || name === 'acos') && x.abs().gt(1)) mathError('Inverse trigonometric domain');
-      const result = fromRadians(name === 'asin' ? x.asin() : name === 'acos' ? x.acos() : x.atan(), angle);
+      const rawRad = name === 'asin' ? x.asin() : name === 'acos' ? x.acos() : x.atan();
+      const result = fromRadians(rawRad, angle);
+      const degExact = exactInverseTrigDegrees(name, a);
+      if (degExact !== null) {
+        if (angle === 'DEG') {
+          return makeScalar(degExact.toString(), rational(degExact, ONE), false);
+        }
+        if (angle === 'GRA') {
+          const r = rational(degExact * 10n, 9n);
+          return makeScalar(result, r, false);
+        }
+        // RAD -> exact rational multiple of π!
+        if (degExact === ZERO) return scalarFromInteger(0);
+        const piSym = makePiMultiple(degExact, 180n);
+        if (piSym && 'kind' in piSym) {
+          return makeScalar(result, undefined, false, piSym);
+        }
+      }
       return makeScalar(result, simpleExact(result), true);
     }
     case 'sinh': return makeScalar(x.sinh(), undefined, true);

@@ -1,9 +1,4 @@
 :root {
-  --desk-bg: #efeee9;
-  --desk-surface: #faf9f6;
-  --desk-border: #dcdad2;
-  --ink-primary: #1a1d1f;
-  --ink-muted: #5a6065;
   --casio-gold: #e0b766;
   --casio-pink: #e07b92;
   --casio-lime-top: #96bb50;
@@ -20,13 +15,14 @@
 }
 
 html,
-body {
+body,
+#root {
   margin: 0;
   padding: 0;
-  min-height: 100%;
-  background: radial-gradient(circle at 20% 10%, #f7f6f2 0%, #eae8e1 100%);
-  color: var(--ink-primary);
-  font-family: 'Cairo', system-ui, -apple-system, sans-serif;
+  min-height: 100dvh;
+  background: radial-gradient(circle at 50% 28%, #1d2229 0%, #0e1115 100%);
+  color: #f0f3f6;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -37,128 +33,37 @@ button {
   -webkit-tap-highlight-color: transparent;
 }
 
-/* Studio Layout */
-.app-shell {
-  max-width: 1180px;
-  margin: 0 auto;
-  padding: 18px 16px 36px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.app-topbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-  padding: 10px 16px;
-  background: rgba(255, 255, 255, 0.78);
-  backdrop-filter: blur(8px);
-  border: 1px solid var(--desk-border);
-  border-radius: 16px;
-}
-
-.app-title-block h1 {
-  margin: 0;
-  font-size: 1.08rem;
-  font-weight: 800;
-  color: #181a1c;
-}
-
-.app-title-block p {
-  margin: 2px 0 0;
-  font-size: 0.8rem;
-  color: var(--ink-muted);
-}
-
-.app-topbar-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.panel-toggle-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 7px 13px;
-  border-radius: 10px;
-  border: 1px solid #2b2f33;
-  background: #202326;
-  color: #f5f6f7;
-  font-size: 0.82rem;
-  font-weight: 700;
-  transition: transform 0.12s ease, background 0.15s ease;
-}
-
-.panel-toggle-btn:hover {
-  background: #2d3136;
-}
-
-.workspace-grid {
-  display: grid;
-  grid-template-columns: auto minmax(320px, 1fr);
-  gap: 24px;
-  align-items: start;
-  justify-content: center;
-}
-
-.workspace-grid.panel-collapsed {
-  grid-template-columns: auto;
-}
-
-.hardware-column {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-}
-
-.notice-banner {
+/* ==========================================================================
+   Calculator-Only Viewport
+   ========================================================================== */
+.calc-viewport {
+  min-height: 100dvh;
   width: 100%;
-  max-width: 372px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 8px 12px;
-  border-radius: 11px;
-  background: #22262a;
-  color: #f2f4f5;
-  font-size: 0.82rem;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
-}
-
-.notice-close {
-  border: none;
-  background: rgba(255, 255, 255, 0.12);
-  color: #fff;
-  border-radius: 6px;
-  padding: 2px 8px;
-  font-size: 0.75rem;
+  justify-content: center;
+  padding: 10px;
 }
 
 /* ==========================================================================
    Code-Drawn Casio fx-95ES PLUS (2nd edition) Hardware Shell
    ========================================================================== */
 .casio-casing {
-  width: 368px;
+  width: 366px;
   max-width: 100%;
   padding: 9px;
   border-radius: 36px 36px 40px 40px;
   background: linear-gradient(165deg, #2d3035 0%, #191b1e 48%, #111315 100%);
   box-shadow:
-    0 24px 48px rgba(15, 17, 20, 0.34),
-    0 6px 14px rgba(15, 17, 20, 0.22),
+    0 28px 64px rgba(0, 0, 0, 0.72),
+    0 6px 16px rgba(0, 0, 0, 0.5),
     inset 0 1.5px 1px rgba(255, 255, 255, 0.22),
-    inset 0 -3px 6px rgba(0, 0, 0, 0.8);
+    inset 0 -3px 6px rgba(0, 0, 0, 0.85);
   font-family: 'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace;
 }
 
 .casio-inner-rim {
-  padding: 15px 15px 20px;
+  padding: 14px 15px 18px;
   border-radius: 29px 29px 33px 33px;
   background:
     radial-gradient(ellipse at 50% 0%, rgba(255, 255, 255, 0.05) 0%, transparent 55%),
@@ -169,7 +74,7 @@ button {
 
 /* Branding Header */
 .casio-header {
-  padding: 2px 4px 8px;
+  padding: 2px 4px 7px;
 }
 
 .casio-brand-row {
@@ -181,7 +86,7 @@ button {
 .casio-logo {
   font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
   font-weight: 900;
-  font-size: 1.24rem;
+  font-size: 1.22rem;
   letter-spacing: 0.09em;
   color: #eef1f3;
 }
@@ -189,17 +94,16 @@ button {
 .casio-model {
   font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
   font-weight: 600;
-  font-size: 0.92rem;
+  font-size: 0.9rem;
   letter-spacing: 0.02em;
   color: #e4e8ec;
 }
 
 .casio-sub-row {
-  position: relative;
   display: flex;
   align-items: center;
-  justify-content: center;
-  margin-top: 4px;
+  justify-content: space-between;
+  margin-top: 3px;
   min-height: 18px;
 }
 
@@ -207,24 +111,86 @@ button {
   font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
   font-style: italic;
   font-weight: 800;
-  font-size: 0.78rem;
+  font-size: 0.76rem;
   letter-spacing: 0.06em;
   color: #bedcd4;
 }
 
+.casio-edition-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .casio-edition {
-  position: absolute;
-  right: 0;
-  bottom: -2px;
   font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
   font-size: 0.68rem;
   font-weight: 700;
   color: #dce1e5;
 }
 
-/* LCD Screen Bezel & Glass */
+/* Discreet Bezel Micro-Badge for fx-991ES PLUS C Dedicated Keys */
+.casio-fn-badge {
+  padding: 1px 5px;
+  border-radius: 4px;
+  border: 1px solid rgba(224, 183, 102, 0.35);
+  background: rgba(15, 17, 20, 0.65);
+  color: var(--casio-gold);
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.25;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.casio-fn-badge:hover,
+.casio-fn-badge.active {
+  background: rgba(224, 183, 102, 0.18);
+  border-color: var(--casio-gold);
+}
+
+.casio-lcd-wrap {
+  position: relative;
+}
+
+.casio-fn-popover {
+  position: absolute;
+  inset: 7px 8px;
+  z-index: 12;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 5px;
+  padding: 8px;
+  border-radius: 6px;
+  background: rgba(20, 24, 28, 0.96);
+  border: 1px solid rgba(224, 183, 102, 0.38);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.6);
+  align-content: center;
+}
+
+.casio-fn-popover button {
+  padding: 6px 2px;
+  border-radius: 5px;
+  border: 1px solid #343a42;
+  background: linear-gradient(180deg, #2d3239 0%, #1e2227 100%);
+  color: #f3f5f7;
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 0.68rem;
+  font-weight: 700;
+  box-shadow: 0 2px 0 #0e1013;
+}
+
+.casio-fn-popover button:hover {
+  border-color: var(--casio-gold);
+  color: var(--casio-gold);
+}
+
+/* ==========================================================================
+   LCD Screen Bezel & Natural-V.P.A.M. Glass
+   ========================================================================== */
 .lcd-bezel {
-  margin-top: 4px;
+  margin-top: 3px;
   padding: 7px 8px;
   border-radius: 10px;
   background: linear-gradient(180deg, #0d0f11 0%, #1c1f23 100%);
@@ -234,8 +200,8 @@ button {
 }
 
 .lcd-glass {
-  min-height: 118px;
-  padding: 6px 9px 8px;
+  height: 118px;
+  padding: 5px 9px 7px;
   border-radius: 5px;
   background: linear-gradient(180deg, var(--lcd-bg-top) 0%, var(--lcd-bg-bot) 100%);
   color: var(--lcd-ink);
@@ -248,92 +214,86 @@ button {
   overflow: hidden;
 }
 
-.lcd-glass-off {
+.lcd-off {
   background: linear-gradient(180deg, #8b9a9d 0%, #819093 100%);
-  align-items: center;
-  justify-content: center;
 }
 
-.lcd-off-hint {
-  font-family: 'Cairo', sans-serif;
-  font-size: 0.78rem;
-  color: rgba(18, 26, 28, 0.55);
-}
-
-/* LCD Status Bar */
-.lcd-status-bar {
+/* LCD Status Indicators */
+.lcd-status {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 4px;
-  font-size: 0.62rem;
-  font-weight: 700;
-  letter-spacing: 0.02em;
+  font-size: 0.56rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
   padding-bottom: 3px;
-  border-bottom: 1px solid rgba(19, 28, 31, 0.1);
+  border-bottom: 1px solid rgba(19, 28, 31, 0.11);
+  flex-shrink: 0;
 }
 
-.lcd-status-left,
-.lcd-status-center,
-.lcd-status-right {
-  display: flex;
-  align-items: center;
-  gap: 4px;
+.ind {
+  opacity: 0.14;
+  transition: opacity 0.08s ease;
 }
 
-.lcd-ind {
-  opacity: 0.13;
-  transition: opacity 0.1s ease;
-}
-
-.lcd-ind.active {
+.ind.on {
   opacity: 1;
 }
 
-.lcd-ind-box {
-  padding: 0 3px;
-  border-radius: 2px;
-  background: var(--lcd-ink);
-  color: var(--lcd-bg-top);
-  line-height: 1.25;
-}
-
-.lcd-math-flag {
-  font-family: system-ui, sans-serif;
-  font-weight: 700;
-}
-
-.lcd-content {
+.ind-spacer {
   flex: 1;
+}
+
+.ind-mode {
+  font-weight: 800;
+  font-size: 0.58rem;
+  letter-spacing: 0.03em;
+}
+
+/* Home Expression & Result Areas */
+.lcd-home {
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  padding-top: 4px;
-}
-
-.lcd-split {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  gap: 6px;
+  padding-top: 3px;
 }
 
 .lcd-expr-area {
-  min-height: 40px;
-  font-size: 1.02rem;
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.98rem;
   font-weight: 600;
-  line-height: 1.35;
+  line-height: 1.3;
   overflow-x: auto;
   overflow-y: hidden;
-  scrollbar-width: thin;
+  scrollbar-width: none;
+}
+
+.lcd-expr-area::-webkit-scrollbar {
+  display: none;
 }
 
 .lcd-expr-inner {
   display: inline-flex;
   align-items: center;
-  min-height: 32px;
+  min-height: 28px;
   white-space: nowrap;
+}
+
+.lcd-prompt-prefix {
+  font-size: 0.84rem;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.lcd-notice {
+  font-size: 0.68rem;
+  font-weight: 700;
+  opacity: 0.8;
 }
 
 .lcd-result-area {
@@ -341,33 +301,38 @@ button {
   display: flex;
   align-items: flex-end;
   justify-content: flex-end;
-  gap: 8px;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.lcd-result-area::-webkit-scrollbar {
+  display: none;
 }
 
 .lcd-result-text {
-  font-size: 1.38rem;
+  font-size: 1.28rem;
   font-weight: 700;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.01em;
   line-height: 1.15;
   text-align: right;
-  word-break: break-all;
+  white-space: nowrap;
+}
+
+.lcd-pi-sym {
+  font-size: 1.22rem;
+  font-weight: 700;
+  margin-left: 1px;
 }
 
 .lcd-ten-pow {
-  font-size: 0.85em;
+  font-size: 0.82em;
   margin-left: 1px;
 }
 
 .lcd-exp {
   font-size: 0.68em;
   vertical-align: super;
-}
-
-.lcd-basen-tag {
-  font-size: 0.7rem;
-  font-weight: 700;
-  opacity: 0.78;
-  margin-right: auto;
 }
 
 /* Blinking LCD Caret */
@@ -379,7 +344,7 @@ button {
 .lcd-caret {
   display: inline-block;
   width: 2px;
-  height: 1.12em;
+  height: 1.1em;
   background: var(--lcd-ink);
   vertical-align: -0.15em;
   margin: 0 1px;
@@ -387,11 +352,11 @@ button {
 }
 
 .lcd-caret-overwrite {
-  width: 0.52em;
-  opacity: 0.75;
+  width: 0.5em;
+  opacity: 0.72;
 }
 
-/* 2D Natural-V.P.A.M. Math Structures */
+/* 2D Natural-V.P.A.M. Math Nodes */
 .math-seq {
   display: inline-flex;
   align-items: center;
@@ -399,7 +364,7 @@ button {
 
 .math-box-placeholder {
   display: inline-block;
-  font-size: 0.86em;
+  font-size: 0.85em;
   opacity: 0.62;
   padding: 0 1px;
 }
@@ -409,25 +374,25 @@ button {
   flex-direction: column;
   align-items: center;
   vertical-align: middle;
-  margin: 0 3px;
-  font-size: 0.86em;
-  line-height: 1.08;
+  margin: 0 2px;
+  font-size: 0.84em;
+  line-height: 1.05;
 }
 
 .math-frac-result {
-  font-size: 1.05rem;
+  font-size: 0.98rem;
   font-weight: 700;
 }
 
 .math-frac-mini {
-  font-size: 0.72em;
+  font-size: 0.7em;
   margin-right: 2px;
 }
 
 .math-frac-num,
 .math-frac-den {
   padding: 0 3px;
-  min-width: 12px;
+  min-width: 11px;
   text-align: center;
 }
 
@@ -447,7 +412,7 @@ button {
 
 .lcd-mfrac-whole,
 .lcd-frac-sign {
-  font-size: 1.26rem;
+  font-size: 1.22rem;
   font-weight: 700;
 }
 
@@ -455,17 +420,17 @@ button {
   display: inline-flex;
   align-items: stretch;
   vertical-align: middle;
-  margin: 0 2px;
+  margin: 0 1px;
 }
 
 .math-root-idx {
-  font-size: 0.66em;
+  font-size: 0.64em;
   margin-right: -2px;
   align-self: flex-start;
 }
 
 .math-sqrt-glyph {
-  font-size: 1.12em;
+  font-size: 1.08em;
   line-height: 1;
   padding-top: 1px;
 }
@@ -476,17 +441,17 @@ button {
 }
 
 .math-sup {
-  font-size: 0.72em;
+  font-size: 0.7em;
   line-height: 1;
   align-self: flex-start;
-  margin-top: -0.35em;
+  margin-top: -0.32em;
 }
 
 .math-sub {
-  font-size: 0.68em;
+  font-size: 0.66em;
   line-height: 1;
   align-self: flex-end;
-  margin-bottom: -0.25em;
+  margin-bottom: -0.22em;
 }
 
 .math-abs {
@@ -509,16 +474,16 @@ button {
   display: inline-flex;
   flex-direction: column;
   align-items: center;
-  line-height: 0.95;
+  line-height: 0.92;
 }
 
 .math-limit-top,
 .math-limit-bot {
-  font-size: 0.62em;
+  font-size: 0.6em;
 }
 
 .math-bigop-sym {
-  font-size: 1.2em;
+  font-size: 1.15em;
   font-weight: 700;
 }
 
@@ -529,7 +494,7 @@ button {
 }
 
 .math-conv {
-  font-size: 0.82em;
+  font-size: 0.8em;
   font-weight: 700;
   padding: 0 3px;
   margin-left: 2px;
@@ -537,135 +502,169 @@ button {
   background: rgba(19, 28, 31, 0.12);
 }
 
-/* LCD Menus, Prompts & Matrices */
-.lcd-menu {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 2px 8px;
-  padding-top: 2px;
-}
-
-.lcd-menu-single {
-  grid-template-columns: 1fr;
-}
-
-.lcd-menu-inline {
-  grid-template-columns: repeat(3, 1fr);
-  align-items: center;
-  padding-top: 20px;
-}
-
-.lcd-menu-title {
-  font-size: 0.78rem;
-  font-weight: 700;
-  margin-bottom: 2px;
-}
-
-.lcd-menu-item {
-  border: none;
-  background: transparent;
-  color: var(--lcd-ink);
-  text-align: left;
-  padding: 1px 4px;
-  border-radius: 3px;
-  font-family: inherit;
-  font-size: 0.78rem;
-  font-weight: 700;
-}
-
-.lcd-menu-item:hover {
-  background: rgba(19, 28, 31, 0.12);
-}
-
-.lcd-menu-dim {
-  opacity: 0.66;
-}
-
-.lcd-prompt-center {
+/* ==========================================================================
+   LCD Menus, Prompts, Tables, Matrices & Equations
+   ========================================================================== */
+.lcd-menu,
+.lcd-prompt-screen,
+.lcd-table-view,
+.lcd-eqn-editor,
+.lcd-error {
   flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.05rem;
-  font-weight: 700;
-}
-
-.lcd-error-box {
+  min-height: 0;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  gap: 4px;
-  font-size: 0.82rem;
+  padding-top: 3px;
+  font-size: 0.72rem;
   font-weight: 700;
 }
 
-.lcd-error-title {
-  font-size: 0.96rem;
-  margin-bottom: 4px;
+.lcd-menu-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px 8px;
 }
 
+.lcd-menu-grid-3 {
+  grid-template-columns: repeat(3, 1fr);
+  font-size: 0.68rem;
+}
+
+.lcd-menu-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.menu-item-active {
+  background: var(--lcd-ink);
+  color: var(--lcd-bg-top);
+  padding: 0 3px;
+  border-radius: 2px;
+}
+
+.lcd-menu-hint {
+  font-size: 0.6rem;
+  opacity: 0.72;
+  text-align: right;
+}
+
+.lcd-prompt-title {
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.lcd-error-title {
+  font-size: 0.94rem;
+  font-weight: 800;
+}
+
+.lcd-error-hint {
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+/* Pair Result (Pol / Rec / SOLVE) */
 .lcd-pair-result {
   width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
 }
 
 .lcd-pair-row {
   display: flex;
   justify-content: space-between;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   font-weight: 700;
 }
 
-.lcd-prompt-tag,
-.lcd-fn-prefix,
-.lcd-eqn-sol-label {
-  font-weight: 800;
+/* Tables, STAT, DIST, MATRIX, VECTOR */
+.lcd-table-head,
+.lcd-table-row {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 4px;
+  padding: 1px 3px;
+  font-size: 0.68rem;
 }
 
-.lcd-eqn-sol-step {
-  font-size: 0.72rem;
-  margin-left: 6px;
-  opacity: 0.72;
+.lcd-table-head {
+  border-bottom: 1px solid rgba(19, 28, 31, 0.18);
+  opacity: 0.78;
 }
 
-.lcd-solve-eq {
-  font-size: 0.82rem;
-  opacity: 0.85;
-}
-
-.lcd-matrix {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.74rem;
-}
-
-.lcd-matrix th,
-.lcd-matrix td {
-  padding: 1px 4px;
-  text-align: right;
-  border-bottom: 1px solid rgba(19, 28, 31, 0.12);
-}
-
-.lcd-matrix-rowidx {
-  text-align: left !important;
-  opacity: 0.65;
-  font-weight: 700;
-}
-
-.lcd-matrix-cell.active,
-.lcd-table-row-active td {
-  background: var(--lcd-ink);
-  color: var(--lcd-bg-top);
+.lcd-table-row.active {
+  background: rgba(19, 28, 31, 0.1);
   border-radius: 2px;
 }
 
-.lcd-table-footer {
-  margin-top: 2px;
-  font-size: 0.68rem;
-  font-weight: 700;
+.cell-focus {
+  background: var(--lcd-ink);
+  color: var(--lcd-bg-top);
+  padding: 0 3px;
+  border-radius: 2px;
+}
+
+.lcd-mat-row {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 4px;
+}
+
+.lcd-mat-cell {
   text-align: right;
+  padding: 1px 4px;
+  border-radius: 2px;
+  background: rgba(19, 28, 31, 0.06);
+  font-size: 0.7rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lcd-mat-cell.focused {
+  background: var(--lcd-ink);
+  color: var(--lcd-bg-top);
+}
+
+/* EQN & INEQ Editors */
+.lcd-eqn-header {
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+
+.lcd-eqn-coeffs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px 6px;
+  font-size: 0.64rem;
+}
+
+.eqn-chip {
+  padding: 0 3px;
+  border-radius: 2px;
+  opacity: 0.78;
+}
+
+.eqn-chip.active {
+  opacity: 1;
+  background: var(--lcd-ink);
+  color: var(--lcd-bg-top);
+}
+
+.lcd-eqn-res-label {
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.lcd-eqn-nav {
+  margin-left: auto;
+  font-size: 0.66rem;
+  opacity: 0.75;
 }
 
 /* ==========================================================================
@@ -676,7 +675,7 @@ button {
   display: grid;
   grid-template-columns: 1fr 104px 1fr;
   align-items: start;
-  margin-top: 14px;
+  margin-top: 12px;
   margin-bottom: 2px;
 }
 
@@ -884,8 +883,8 @@ button {
 .casio-num-section {
   display: flex;
   flex-direction: column;
-  gap: 7px;
-  margin-top: 14px;
+  gap: 6px;
+  margin-top: 12px;
 }
 
 .casio-num-row {
@@ -902,12 +901,12 @@ button {
 }
 
 .calc-key-legends {
-  min-height: 13px;
+  min-height: 12px;
   display: flex;
   align-items: center;
   padding: 0 2px;
   font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
-  font-size: 0.6rem;
+  font-size: 0.58rem;
   font-weight: 700;
   line-height: 1;
   white-space: nowrap;
@@ -932,7 +931,7 @@ button {
 
 .legend-basen {
   color: #7cc9d8;
-  font-size: 0.55rem;
+  font-size: 0.54rem;
 }
 
 .legend-basen.active {
@@ -963,7 +962,7 @@ button {
 
 /* Dark Charcoal Scientific Keys */
 .calc-btn-sci {
-  height: 30px;
+  height: 29px;
   border-radius: 7px 7px 9px 9px;
   font-size: 0.8rem;
   font-weight: 600;
@@ -976,7 +975,7 @@ button {
 /* Lower Grey Numeric & Operator Keys */
 .calc-btn-num,
 .calc-btn-op {
-  height: 38px;
+  height: 36px;
   border-radius: 8px 8px 11px 11px;
   background: linear-gradient(180deg, #6b7076 0%, #55595f 100%);
   box-shadow:
@@ -985,20 +984,20 @@ button {
 }
 
 .calc-btn-num {
-  font-size: 1.24rem;
+  font-size: 1.2rem;
   font-weight: 600;
 }
 
 .calc-btn-op {
-  font-size: 1.08rem;
+  font-size: 1.06rem;
   font-weight: 600;
 }
 
 /* Iconic Casio Yellow-Olive-Green DEL / AC Keys */
 .calc-btn-accent {
-  height: 38px;
+  height: 36px;
   border-radius: 8px 8px 11px 11px;
-  font-size: 0.98rem;
+  font-size: 0.96rem;
   font-weight: 700;
   letter-spacing: 0.02em;
   color: #ffffff;
@@ -1104,480 +1103,6 @@ button {
   background: var(--casio-gold);
 }
 
-/* ==========================================================================
-   Companion fx-991ES PLUS C Extra Panel
-   ========================================================================== */
-.extra-panel {
-  background: var(--desk-surface);
-  border: 1px solid var(--desk-border);
-  border-radius: 22px;
-  padding: 18px;
-  box-shadow: 0 12px 32px rgba(20, 22, 25, 0.07);
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.extra-panel-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.extra-panel-title {
-  margin: 0;
-  font-size: 1.05rem;
-  font-weight: 800;
-}
-
-.extra-panel-subtitle {
-  margin: 2px 0 0;
-  font-size: 0.8rem;
-  color: var(--ink-muted);
-}
-
-.extra-active-badges {
-  display: flex;
-  gap: 6px;
-}
-
-.status-pill {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.72rem;
-  font-weight: 700;
-  padding: 3px 8px;
-  border-radius: 999px;
-  background: #202428;
-  color: #eef2f5;
-}
-
-.extra-tabs {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 6px;
-  background: #eceae3;
-  padding: 5px;
-  border-radius: 13px;
-}
-
-.extra-tab {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 8px 8px;
-  border: none;
-  border-radius: 9px;
-  background: transparent;
-  color: #464b50;
-  font-size: 0.78rem;
-  font-weight: 700;
-  transition: background 0.15s ease, color 0.15s ease;
-}
-
-.extra-tab.active {
-  background: #ffffff;
-  color: #16181a;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
-}
-
-.extra-tab-body {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.extra-card {
-  background: #ffffff;
-  border: 1px solid #e6e4dc;
-  border-radius: 15px;
-  padding: 13px 14px;
-}
-
-.extra-card-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-
-.extra-section-heading {
-  margin: 0 0 10px;
-  font-size: 0.86rem;
-  font-weight: 800;
-  color: #24282c;
-}
-
-.extra-card-row .extra-section-heading {
-  margin-bottom: 0;
-}
-
-.extra-key-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
-}
-
-.extra-fn-btn {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  padding: 9px 6px;
-  border-radius: 11px;
-  border: 1px solid #2b2f35;
-  background: linear-gradient(180deg, #2a2e34 0%, #1e2126 100%);
-  color: #f4f6f8;
-  box-shadow: 0 2px 0 #101215;
-}
-
-.extra-fn-btn:hover {
-  filter: brightness(1.1);
-}
-
-.extra-fn-btn.extra-fn-gold .extra-fn-main {
-  color: var(--casio-gold);
-}
-
-.extra-fn-btn.extra-fn-pink .extra-fn-main {
-  color: var(--casio-pink);
-}
-
-.extra-fn-main {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.86rem;
-  font-weight: 700;
-}
-
-.extra-fn-sub {
-  font-size: 0.68rem;
-  color: #cfd5db;
-}
-
-.extra-hint {
-  margin: 10px 0 0;
-  font-size: 0.76rem;
-  color: var(--ink-muted);
-}
-
-.extra-hint kbd,
-.extra-hint code {
-  font-family: 'IBM Plex Mono', monospace;
-  background: #f0efe9;
-  padding: 1px 5px;
-  border-radius: 4px;
-  font-size: 0.74rem;
-}
-
-.mini-action-btn {
-  padding: 4px 10px;
-  border-radius: 8px;
-  border: 1px solid #2a2e33;
-  background: #202428;
-  color: #fff;
-  font-size: 0.74rem;
-  font-weight: 700;
-}
-
-.extra-logic-grid {
-  display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  gap: 6px;
-}
-
-.logic-chip {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.78rem;
-  font-weight: 700;
-  padding: 7px 4px;
-  border-radius: 8px;
-  border: 1px solid #d5d3ca;
-  background: #f7f6f2;
-  color: #1f2327;
-}
-
-.logic-chip:hover {
-  background: #eceae2;
-}
-
-.var-inspector-grid {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 6px;
-}
-
-.var-chip {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  padding: 6px 8px;
-  border-radius: 9px;
-  border: 1px solid #e3e1d9;
-  background: #faf9f5;
-  overflow: hidden;
-}
-
-.var-chip:hover {
-  border-color: #262a2e;
-}
-
-.var-chip-ans {
-  background: #eef4e5;
-  border-color: #c7d9ab;
-}
-
-.var-chip-name {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.72rem;
-  font-weight: 700;
-  color: #b54562;
-}
-
-.var-chip-val {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.74rem;
-  color: #1f2327;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* Search & Lists for CONST / CONV */
-.extra-search-input {
-  width: 100%;
-  padding: 9px 12px;
-  border-radius: 11px;
-  border: 1px solid #d5d3ca;
-  background: #ffffff;
-  font-family: inherit;
-  font-size: 0.84rem;
-}
-
-.extra-list {
-  max-height: 440px;
-  overflow-y: auto;
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 7px;
-  padding-left: 2px;
-}
-
-.extra-list-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-  border-radius: 11px;
-  border: 1px solid #e5e3db;
-  background: #ffffff;
-  text-align: right;
-}
-
-.extra-list-row:hover {
-  border-color: #23272b;
-  background: #f6f5f0;
-}
-
-.extra-code {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.72rem;
-  font-weight: 700;
-  padding: 2px 6px;
-  border-radius: 6px;
-  background: #202428;
-  color: var(--casio-gold);
-}
-
-.extra-sym,
-.extra-conv-lbl {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.82rem;
-  font-weight: 700;
-  color: #181b1f;
-  min-width: 44px;
-}
-
-.extra-desc {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  flex: 1;
-}
-
-.extra-desc strong {
-  font-size: 0.78rem;
-  color: #202428;
-}
-
-.extra-desc small {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.68rem;
-  color: var(--ink-muted);
-}
-
-/* Modes & Coverage */
-.modes-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-}
-
-.mode-card {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
-  padding: 9px 10px;
-  border-radius: 11px;
-  border: 1px solid #e2e0d8;
-  background: #faf9f6;
-  text-align: right;
-}
-
-.mode-card.active {
-  border-color: #1f2327;
-  background: #eef4e6;
-}
-
-.mode-card.pending {
-  opacity: 0.78;
-}
-
-.mode-card-top {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.8rem;
-  font-weight: 700;
-}
-
-.mode-code {
-  background: #202428;
-  color: #fff;
-  padding: 1px 5px;
-  border-radius: 5px;
-  font-size: 0.68rem;
-}
-
-.mode-desc {
-  font-size: 0.73rem;
-  color: var(--ink-muted);
-}
-
-.mode-badge {
-  font-size: 0.66rem;
-  font-weight: 700;
-  padding: 1px 7px;
-  border-radius: 999px;
-}
-
-.mode-badge.ready {
-  background: #dff0c8;
-  color: #2e4c11;
-}
-
-.mode-badge.wip {
-  background: #eeeae0;
-  color: #655f52;
-}
-
-.history-list {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-
-.history-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 6px 10px;
-  border-radius: 8px;
-  border: 1px solid #e6e4dc;
-  background: #faf9f6;
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.78rem;
-}
-
-.coverage-list {
-  display: flex;
-  flex-direction: column;
-  gap: 9px;
-}
-
-.coverage-item {
-  padding-bottom: 8px;
-  border-bottom: 1px solid #efede6;
-}
-
-.coverage-item:last-child {
-  border-bottom: none;
-  padding-bottom: 0;
-}
-
-.coverage-item-head {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.8rem;
-}
-
-.coverage-item p {
-  margin: 3px 21px 0 0;
-  font-size: 0.74rem;
-  color: var(--ink-muted);
-}
-
-.cov-icon.verified {
-  color: #4f7f1d;
-  flex-shrink: 0;
-}
-
-.cov-icon.numerical {
-  color: #b97a16;
-  flex-shrink: 0;
-}
-
-.cov-icon.wip {
-  color: #6f757c;
-  flex-shrink: 0;
-}
-
-@media (max-width: 920px) {
-  .workspace-grid {
-    grid-template-columns: 1fr;
-    justify-items: center;
-  }
-
-  .extra-panel {
-    width: 100%;
-    max-width: 560px;
-  }
-
-  .extra-tabs {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .extra-list,
-  .modes-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .extra-key-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .var-inspector-grid {
-    grid-template-columns: repeat(3, 1fr);
-  }
-}
-
 @media (max-width: 400px) {
   .casio-casing {
     width: 100%;
@@ -1585,6 +1110,6 @@ button {
   }
 
   .casio-inner-rim {
-    padding: 12px 10px 16px;
+    padding: 11px 10px 14px;
   }
 }

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { App } from './App';
 
@@ -8,35 +8,57 @@ function clickHardwareKey(container: HTMLElement, keyId: string) {
   fireEvent.click(btn);
 }
 
-describe('Calculator UI & Extra fx-991ES PLUS C Panel', () => {
+describe('Calculator-Only Viewport & fx-991ES PLUS C Integration', () => {
   beforeEach(() => {
     window.localStorage.clear();
   });
 
-  it('draws the fx-95ES PLUS hardware in code without using the reference photograph', () => {
+  it('renders ONLY the code-drawn fx-95ES PLUS calculator on screen with no external panels or images', () => {
     const { container } = render(<App />);
+    const viewport = screen.getByTestId('calc-viewport');
+    expect(viewport.children.length).toBe(1);
     expect(screen.getByTestId('calculator-hardware')).toBeInTheDocument();
     expect(screen.getByText('CASIO')).toBeInTheDocument();
     expect(screen.getByText('fx-95ES PLUS')).toBeInTheDocument();
     expect(screen.getByText('2nd edition')).toBeInTheDocument();
+    expect(screen.queryByTestId('fn-tray-popover')).toBeNull();
 
     const imgs = container.querySelectorAll('img');
     expect(imgs.length).toBe(0);
   });
 
-  it('computes expressions via physical keypad clicks and toggles S⇔D', () => {
+  it('computes exact fractions, symbolic surds, and π multiples on the LCD and toggles S⇔D', () => {
     const { container } = render(<App />);
-    clickHardwareKey(container, '7');
-    clickHardwareKey(container, 'divide');
-    clickHardwareKey(container, '2');
+
+    // sin(45) -> √2/2 exact surd, then S⇔D -> decimal
+    clickHardwareKey(container, 'sin');
+    clickHardwareKey(container, '4');
+    clickHardwareKey(container, '5');
     clickHardwareKey(container, 'equals');
 
     const lcdResult = screen.getByTestId('lcd-result');
-    expect(lcdResult.textContent).toContain('7');
+    expect(lcdResult.textContent).toContain('√2');
     expect(lcdResult.textContent).toContain('2');
 
     clickHardwareKey(container, 'sd');
-    expect(lcdResult.textContent).toBe('3.5');
+    expect(lcdResult.textContent).toBe('0.7071067812');
+
+    // Switch to RAD (SHIFT + MODE -> 4) and compute asin(0.5) -> 1/6 π
+    clickHardwareKey(container, 'ac');
+    clickHardwareKey(container, 'shift');
+    clickHardwareKey(container, 'mode');
+    clickHardwareKey(container, '4');
+
+    clickHardwareKey(container, 'shift');
+    clickHardwareKey(container, 'sin');
+    clickHardwareKey(container, '0');
+    clickHardwareKey(container, 'dot');
+    clickHardwareKey(container, '5');
+    clickHardwareKey(container, 'equals');
+
+    expect(screen.getByTestId('lcd-result').textContent).toContain('1');
+    expect(screen.getByTestId('lcd-result').textContent).toContain('6');
+    expect(screen.getByTestId('lcd-result').textContent).toContain('π');
   });
 
   it('supports physical keyboard input when no text input is focused', () => {
@@ -49,32 +71,67 @@ describe('Calculator UI & Extra fx-991ES PLUS C Panel', () => {
     expect(screen.getByTestId('lcd-result').textContent).toBe('42');
   });
 
-  it('inserts scientific constants and unit conversions from the fx-991ES PLUS C panel', () => {
+  it('supports native SHIFT+7 (CONST) and SHIFT+8 (CONV) LCD menus directly from the keypad', () => {
     const { container } = render(<App />);
 
-    // Open Constants tab and pick c0 (28)
-    fireEvent.click(screen.getByRole('tab', { name: /الثوابت/ }));
-    fireEvent.click(screen.getByTestId('const-28'));
+    // SHIFT + 7 -> 28 (c0 speed of light = 299792458)
+    clickHardwareKey(container, 'shift');
+    clickHardwareKey(container, '7');
+    expect(screen.getByTestId('lcd-menu').textContent).toContain('CONST');
+    clickHardwareKey(container, '2');
+    clickHardwareKey(container, '8');
     clickHardwareKey(container, 'equals');
     expect(screen.getByTestId('lcd-result').textContent).toBe('299792458');
 
-    // Clear, enter 100, convert °C -> °F (conv-38)
+    // Clear, enter 100, SHIFT + 8 -> 38 (°C▸°F = 212)
     clickHardwareKey(container, 'ac');
     clickHardwareKey(container, '1');
     clickHardwareKey(container, '0');
     clickHardwareKey(container, '0');
-    fireEvent.click(screen.getByRole('tab', { name: /التحويلات/ }));
-    fireEvent.click(screen.getByTestId('conv-38'));
+    clickHardwareKey(container, 'shift');
+    clickHardwareKey(container, '8');
+    expect(screen.getByTestId('lcd-menu').textContent).toContain('CONV');
+    clickHardwareKey(container, '3');
+    clickHardwareKey(container, '8');
     clickHardwareKey(container, 'equals');
     expect(screen.getByTestId('lcd-result').textContent).toBe('212');
   });
 
-  it('switches modes and honestly marks unimplemented modes in Arabic', () => {
-    render(<App />);
-    const panel = screen.getByLabelText(/لوحة وظائف fx-991ES PLUS C/);
-    fireEvent.click(within(panel).getByRole('tab', { name: /الأوضاع والتغطية/ }));
+  it('provides discreet internal 991+ bezel popover for dedicated calculus/CALC/SOLVE keys and switches all 11 modes', () => {
+    const { container } = render(<App />);
 
-    fireEvent.click(within(panel).getByRole('button', { name: /MATRIX/ }));
-    expect(screen.getByTestId('calculator-notice').textContent).toContain('قيد التطوير');
+    // Open internal 991+ micro-popover, insert definite integral ∫(X^2, 0, 3) = 9
+    fireEvent.click(screen.getByTestId('fn-tray-toggle'));
+    expect(screen.getByTestId('fn-tray-popover')).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('fn-integ'));
+    expect(screen.queryByTestId('fn-tray-popover')).toBeNull();
+
+    clickHardwareKey(container, 'alpha');
+    clickHardwareKey(container, 'close'); // X
+    clickHardwareKey(container, 'square'); // ^2
+    clickHardwareKey(container, 'right'); // move to lower bound
+    clickHardwareKey(container, '0');
+    clickHardwareKey(container, 'right'); // move to upper bound
+    clickHardwareKey(container, '3');
+    clickHardwareKey(container, 'equals');
+    expect(screen.getByTestId('lcd-result').textContent).toBe('9');
+
+    // Switch to MODE -> Page 2 -> 2:VERIF and verify 3+4=7 -> TRUE
+    clickHardwareKey(container, 'mode');
+    clickHardwareKey(container, 'down');
+    expect(screen.getByTestId('lcd-menu').textContent).toContain('1:INEQ');
+    expect(screen.getByTestId('lcd-menu').textContent).toContain('2:VERIF');
+    expect(screen.getByTestId('lcd-menu').textContent).toContain('3:DIST');
+    clickHardwareKey(container, '2');
+
+    clickHardwareKey(container, '3');
+    clickHardwareKey(container, 'add');
+    clickHardwareKey(container, '4');
+    clickHardwareKey(container, 'shift');
+    clickHardwareKey(container, '6');
+    clickHardwareKey(container, '1'); // =
+    clickHardwareKey(container, '7');
+    clickHardwareKey(container, 'equals');
+    expect(screen.getByTestId('lcd-result').textContent).toBe('TRUE');
   });
 });

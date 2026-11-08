@@ -1,5 +1,6 @@
 import React from 'react';
 import { CONSTANT_BY_TOKEN, CONVERSION_BY_TOKEN } from '../core/constants';
+import { STAT_TOKEN_LABELS } from '../core/expression';
 import type { DisplayValue } from '../core/format';
 
 interface ArgSpan {
@@ -45,6 +46,8 @@ const DISPLAY_FUNC_LABELS: Record<string, string> = {
   atanh: 'tanh⁻¹',
   RanInt: 'RanInt#',
 };
+
+const STAT_KEYS_SORTED = Object.keys(STAT_TOKEN_LABELS).sort((a, b) => b.length - a.length);
 
 function Caret({ overwrite }: { overwrite: boolean }) {
   return (
@@ -97,7 +100,6 @@ function MathRange({
 
     const rest = source.slice(pos, end);
 
-    // Scientific constant token const01..40
     const constMatch = rest.match(/^const(?:0[1-9]|[1-3]\d|40)/);
     if (constMatch) {
       const len = constMatch[0].length;
@@ -114,7 +116,6 @@ function MathRange({
       continue;
     }
 
-    // Unit conversion postfix token ▸conv01..40
     const convMatch = rest.match(/^▸conv(?:0[1-9]|[1-3]\d|40)/);
     if (convMatch) {
       const len = convMatch[0].length;
@@ -131,8 +132,21 @@ function MathRange({
       continue;
     }
 
+    if (rest.startsWith('▸yhat') || rest.startsWith('▸xhat')) {
+      const lbl = rest.startsWith('▸yhat') ? 'ŷ' : 'x̂';
+      nodes.push(<span key={`k-${keyCounter++}`} className="math-const">{lbl}</span>);
+      pos += 5;
+      continue;
+    }
+
+    const statKey = STAT_KEYS_SORTED.find((sk) => rest.startsWith(sk));
+    if (statKey) {
+      nodes.push(<span key={`k-${keyCounter++}`} className="math-const">{STAT_TOKEN_LABELS[statKey]}</span>);
+      pos += statKey.length;
+      continue;
+    }
+
     if (!lineMode) {
-      // 1. Mixed fraction: mfrac(w, n, d)
       if (rest.startsWith('mfrac(')) {
         const parsed = parseCallSpans(source, pos + 5, 3);
         if (parsed && parsed.afterIndex <= end) {
@@ -166,7 +180,6 @@ function MathRange({
         }
       }
 
-      // 2. Fraction: frac(n, d)
       if (rest.startsWith('frac(')) {
         const parsed = parseCallSpans(source, pos + 4, 2);
         if (parsed && parsed.afterIndex <= end) {
@@ -194,7 +207,6 @@ function MathRange({
         }
       }
 
-      // 3. Roots: sqrt(x), cbrt(x), root(idx, x)
       if (rest.startsWith('sqrt(') || rest.startsWith('cbrt(')) {
         const isCube = rest.startsWith('cbrt(');
         const parsed = parseCallSpans(source, pos + 4, 1);
@@ -244,7 +256,6 @@ function MathRange({
         }
       }
 
-      // 4. General base logarithm: logb(base, val)
       if (rest.startsWith('logb(')) {
         const parsed = parseCallSpans(source, pos + 4, 2);
         if (parsed && parsed.afterIndex <= end) {
@@ -265,7 +276,6 @@ function MathRange({
         }
       }
 
-      // 5. Absolute value: abs(val)
       if (rest.startsWith('abs(')) {
         const parsed = parseCallSpans(source, pos + 3, 1);
         if (parsed && parsed.afterIndex <= end) {
@@ -282,7 +292,6 @@ function MathRange({
         }
       }
 
-      // 6. Calculus templates: deriv(f, x0), integ(f, a, b), sigma(f, a, b), prod(f, a, b)
       if (rest.startsWith('deriv(')) {
         const parsed = parseCallSpans(source, pos + 5, 2);
         if (parsed && parsed.afterIndex <= end) {
@@ -336,7 +345,6 @@ function MathRange({
         }
       }
 
-      // 7. Superscript powers: ^(exp), ^2, ^3, ^(-1)
       if (rest.startsWith('^(')) {
         const parsed = parseCallSpans(source, pos + 1, 1);
         if (parsed && parsed.afterIndex <= end) {
@@ -363,7 +371,6 @@ function MathRange({
       }
     }
 
-    // Friendly function labels like asin( -> sin⁻¹(
     const fnKey = Object.keys(DISPLAY_FUNC_LABELS).find((fn) => rest.startsWith(`${fn}(`));
     if (fnKey) {
       nodes.push(<span key={`k-${keyCounter++}`}>{DISPLAY_FUNC_LABELS[fnKey]}(</span>);
@@ -428,6 +435,38 @@ function renderFormattedText(text: string): React.ReactNode {
   return text.replace(/^-/, '−');
 }
 
+function SurdTop({ a, b, rad }: { a: string; b: string; rad: string }): React.ReactElement {
+  const aBig = BigInt(a);
+  const bBig = BigInt(b);
+  const absB = bBig < 0n ? -bBig : bBig;
+  const coef = absB === 1n ? '' : absB.toString();
+  const radNode = (
+    <span className="math-sqrt">
+      <span className="math-sqrt-glyph">√</span>
+      <span className="math-sqrt-body">{rad}</span>
+    </span>
+  );
+
+  if (aBig === 0n) {
+    return (
+      <span className="math-seq">
+        {bBig < 0n ? '−' : ''}
+        {coef}
+        {radNode}
+      </span>
+    );
+  }
+
+  return (
+    <span className="math-seq">
+      {aBig < 0n ? `−${(-aBig).toString()}` : aBig.toString()}
+      {bBig < 0n ? '−' : '+'}
+      {coef}
+      {radNode}
+    </span>
+  );
+}
+
 export function NaturalResult({
   display,
   lineMode = false,
@@ -446,6 +485,56 @@ export function NaturalResult({
           <span className="lcd-pair-label">{display.label2}=</span>
           <span className="lcd-pair-val">{renderFormattedText(display.value2)}</span>
         </div>
+      </div>
+    );
+  }
+
+  if (display.type === 'symbolic-pi') {
+    if (display.denominator === '1') {
+      const coef = display.numerator === '1' ? '' : display.numerator;
+      return (
+        <div className="lcd-result-text" dir="ltr">
+          {display.sign}{coef}π
+        </div>
+      );
+    }
+    if (lineMode) {
+      return (
+        <div className="lcd-result-text" dir="ltr">
+          {display.sign}{display.numerator}⌟{display.denominator}π
+        </div>
+      );
+    }
+    return (
+      <div className="lcd-result-frac" dir="ltr">
+        {display.sign && <span className="lcd-frac-sign">{display.sign}</span>}
+        <span className="math-frac math-frac-result">
+          <span className="math-frac-num">{display.numerator}</span>
+          <span className="math-frac-bar" />
+          <span className="math-frac-den">{display.denominator}</span>
+        </span>
+        <span className="lcd-pi-sym">π</span>
+      </div>
+    );
+  }
+
+  if (display.type === 'symbolic-surd') {
+    if (display.d === '1') {
+      return (
+        <div className="lcd-result-frac" dir="ltr">
+          <SurdTop a={display.a} b={display.b} rad={display.rad} />
+        </div>
+      );
+    }
+    return (
+      <div className="lcd-result-frac" dir="ltr">
+        <span className="math-frac math-frac-result">
+          <span className="math-frac-num">
+            <SurdTop a={display.a} b={display.b} rad={display.rad} />
+          </span>
+          <span className="math-frac-bar" />
+          <span className="math-frac-den">{display.d}</span>
+        </span>
       </div>
     );
   }

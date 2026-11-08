@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import type { CalculatorAction, CalculatorState } from '../core/calculator';
 import {
   LOWER_KEYPAD_ROWS,
@@ -100,15 +100,19 @@ function renderShiftLegend(key: KeySpec): React.ReactNode {
 function CalcKey({
   spec,
   isBaseN,
+  isCmplx,
   activeBase,
   onPress,
 }: {
   spec: KeySpec;
   isBaseN: boolean;
+  isCmplx: boolean;
   activeBase: string;
   onPress: (id: string) => void;
 }): React.ReactElement {
-  const hasBoth = Boolean(spec.shiftLabel && spec.alphaLabel);
+  const shiftLegend = isCmplx && spec.id === 'neg' ? '∠' : spec.shiftLabel;
+  const alphaLegend = isCmplx && spec.id === 'eng' ? 'i' : spec.alphaLabel;
+  const hasBoth = Boolean(shiftLegend && alphaLegend);
   const baseTagActive = isBaseN && spec.baseNLabel === activeBase;
 
   return (
@@ -117,17 +121,17 @@ function CalcKey({
       style={spec.col ? { gridColumn: spec.col } : undefined}
     >
       <div className={`calc-key-legends ${hasBoth ? 'legends-split' : 'legends-center'}`}>
-        {spec.shiftLabel && (
-          <span className="legend-shift">{renderShiftLegend(spec)}</span>
+        {shiftLegend && (
+          <span className="legend-shift">
+            {spec.id === 'frac' ? renderShiftLegend(spec) : shiftLegend}
+          </span>
         )}
         {spec.baseNLabel && isBaseN && (
           <span className={baseTagActive ? 'legend-basen active' : 'legend-basen'}>
             {spec.baseNLabel}
           </span>
         )}
-        {spec.alphaLabel && (
-          <span className="legend-alpha">{spec.alphaLabel}</span>
-        )}
+        {alphaLegend && <span className="legend-alpha">{alphaLegend}</span>}
       </div>
       <button
         type="button"
@@ -146,8 +150,18 @@ export function CalculatorHardware({
   state,
   dispatch,
 }: CalculatorHardwareProps): React.ReactElement {
-  const handlePress = (id: string) => dispatch({ type: 'key', id });
+  const [fnTrayOpen, setFnTrayOpen] = useState(false);
+
+  const handlePress = (id: string) => {
+    setFnTrayOpen(false);
+    dispatch({ type: 'key', id });
+  };
+
   const isBaseN = state.mode === 'BASE-N';
+  const isCmplx = state.mode === 'CMPLX';
+  const isShift = state.shift;
+  const isAlpha = state.alpha;
+  const poweredOn = state.screen !== 'off';
 
   return (
     <div className="casio-casing" dir="ltr" data-testid="calculator-hardware">
@@ -160,40 +174,93 @@ export function CalculatorHardware({
           </div>
           <div className="casio-sub-row">
             <span className="casio-vpam">NATURAL-V.P.A.M.</span>
-            <span className="casio-edition">2nd edition</span>
+            <div className="casio-edition-group">
+              <button
+                type="button"
+                className={fnTrayOpen ? 'casio-fn-badge active' : 'casio-fn-badge'}
+                data-testid="fn-tray-toggle"
+                aria-label="وظائف fx-991ES PLUS C الإضافية"
+                aria-expanded={fnTrayOpen}
+                onClick={() => setFnTrayOpen((v) => !v)}
+              >
+                991+
+              </button>
+              <span className="casio-edition">2nd edition</span>
+            </div>
           </div>
         </header>
 
-        {/* Natural Textbook LCD */}
-        <LcdScreen state={state} dispatch={dispatch} />
+        {/* Natural Textbook LCD + Internal 991+ Micro-Popover (Closed by Default) */}
+        <div className="casio-lcd-wrap">
+          <LcdScreen state={state} />
+          {fnTrayOpen && poweredOn && (
+            <div
+              className="casio-fn-popover"
+              data-testid="fn-tray-popover"
+              role="dialog"
+              aria-label="أزرار fx-991ES PLUS C الإضافية"
+            >
+              <button type="button" data-testid="fn-calc" onClick={() => handlePress('calc')}>
+                CALC
+              </button>
+              <button type="button" data-testid="fn-solve" onClick={() => handlePress('solve')}>
+                SOLVE
+              </button>
+              <button type="button" data-testid="fn-eqsign" onClick={() => handlePress('eq-sign')}>
+                =
+              </button>
+              <button type="button" data-testid="fn-integ" onClick={() => handlePress('integ')}>
+                ∫dx
+              </button>
+              <button type="button" data-testid="fn-deriv" onClick={() => handlePress('deriv')}>
+                d/dx
+              </button>
+              <button type="button" data-testid="fn-sigma" onClick={() => handlePress('sigma')}>
+                Σ(
+              </button>
+              <button type="button" data-testid="fn-prod" onClick={() => handlePress('prod')}>
+                Π(
+              </button>
+              <button type="button" data-testid="fn-const" onClick={() => handlePress('const-menu')}>
+                CONST
+              </button>
+              <button type="button" data-testid="fn-conv" onClick={() => handlePress('conv-menu')}>
+                CONV
+              </button>
+              <button type="button" data-testid="fn-menu" onClick={() => handlePress('context-menu')}>
+                MENU
+              </button>
+            </div>
+          )}
+        </div>
 
         {/* Upper Control Row + Central Sculpted 4-Way D-Pad */}
         <div className="casio-upper-deck">
           {/* Left Pill: SHIFT & ALPHA */}
           <div className="casio-round-pair-wrap">
             <div className="casio-round-labels">
-              <span className={state.shift ? 'round-lbl round-lbl-shift active' : 'round-lbl round-lbl-shift'}>
+              <span className={isShift ? 'round-lbl round-lbl-shift active' : 'round-lbl round-lbl-shift'}>
                 SHIFT
               </span>
-              <span className={state.alpha ? 'round-lbl round-lbl-alpha active' : 'round-lbl round-lbl-alpha'}>
+              <span className={isAlpha ? 'round-lbl round-lbl-alpha active' : 'round-lbl round-lbl-alpha'}>
                 ALPHA
               </span>
             </div>
             <div className="casio-pill-groove">
               <button
                 type="button"
-                className={state.shift ? 'casio-metal-btn active' : 'casio-metal-btn'}
+                className={isShift ? 'casio-metal-btn active' : 'casio-metal-btn'}
                 data-key-id="shift"
                 aria-label="SHIFT الوظائف الثانوية"
-                aria-pressed={state.shift}
+                aria-pressed={isShift}
                 onClick={() => handlePress('shift')}
               />
               <button
                 type="button"
-                className={state.alpha ? 'casio-metal-btn active' : 'casio-metal-btn'}
+                className={isAlpha ? 'casio-metal-btn active' : 'casio-metal-btn'}
                 data-key-id="alpha"
                 aria-label="ALPHA المتغيرات والرموز"
-                aria-pressed={state.alpha}
+                aria-pressed={isAlpha}
                 onClick={() => handlePress('alpha')}
               />
             </div>
@@ -234,6 +301,7 @@ export function CalculatorHardware({
                 type="button"
                 className="dpad-lobe dpad-down"
                 data-key-id="down"
+                data-key-down="true"
                 aria-label="تحت"
                 onClick={() => handlePress('down')}
               >
@@ -279,6 +347,7 @@ export function CalculatorHardware({
                 key={spec.id}
                 spec={spec}
                 isBaseN={isBaseN}
+                isCmplx={isCmplx}
                 activeBase={state.baseN.base}
                 onPress={handlePress}
               />
@@ -293,6 +362,7 @@ export function CalculatorHardware({
                   key={spec.id}
                   spec={spec}
                   isBaseN={isBaseN}
+                  isCmplx={isCmplx}
                   activeBase={state.baseN.base}
                   onPress={handlePress}
                 />
@@ -310,6 +380,7 @@ export function CalculatorHardware({
                   key={spec.id}
                   spec={spec}
                   isBaseN={isBaseN}
+                  isCmplx={isCmplx}
                   activeBase={state.baseN.base}
                   onPress={handlePress}
                 />

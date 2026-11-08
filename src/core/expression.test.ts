@@ -26,6 +26,68 @@ describe('expression engine', () => {
     expect(formatResult(result, 'exact')).toEqual({ type: 'fraction', sign: '', numerator: '1', denominator: '2' });
     expect(formatResult(result, 'decimal')).toEqual({ type: 'text', text: '0.5' });
   });
+
+  it('simplifies quadratic surds and rationalizes surd denominators', () => {
+    expect(formatResult(solve('sqrt(12)'), 'exact')).toEqual({
+      type: 'symbolic-surd',
+      a: '0',
+      b: '2',
+      rad: '3',
+      d: '1',
+    });
+    expect(formatResult(solve('sqrt(2)+sqrt(8)'), 'exact')).toEqual({
+      type: 'symbolic-surd',
+      a: '0',
+      b: '3',
+      rad: '2',
+      d: '1',
+    });
+    expect(formatResult(solve('1÷sqrt(2)'), 'exact')).toEqual({
+      type: 'symbolic-surd',
+      a: '0',
+      b: '1',
+      rad: '2',
+      d: '2',
+    });
+    expect(formatResult(solve('1÷(2+sqrt(3))'), 'exact')).toEqual({
+      type: 'symbolic-surd',
+      a: '2',
+      b: '-1',
+      rad: '3',
+      d: '1',
+    });
+  });
+
+  it('preserves exact rational π multiples and special-angle trig', () => {
+    expect(formatResult(solve('π÷2+π÷3'), 'exact')).toEqual({
+      type: 'symbolic-pi',
+      sign: '',
+      numerator: '5',
+      denominator: '6',
+    });
+    expect(formatResult(solve('sin(60)'), 'exact')).toEqual({
+      type: 'symbolic-surd',
+      a: '0',
+      b: '1',
+      rad: '3',
+      d: '2',
+    });
+    expect(formatResult(solve('tan(30)'), 'exact')).toEqual({
+      type: 'symbolic-surd',
+      a: '0',
+      b: '1',
+      rad: '3',
+      d: '3',
+    });
+    const radAsin = evaluateExpression('asin(1÷2)', { ...ctx, angle: 'RAD' });
+    expect(formatResult(radAsin, 'exact')).toEqual({
+      type: 'symbolic-pi',
+      sign: '',
+      numerator: '1',
+      denominator: '6',
+    });
+  });
+
   it('supports fraction templates', () => expect(solve('frac(1,2)').exact).toEqual({ n: 1n, d: 2n }));
   it('supports mixed fraction templates', () => {
     expect(solve('mfrac(2,1,4)').exact).toEqual({ n: 9n, d: 4n });
