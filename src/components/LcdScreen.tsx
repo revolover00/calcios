@@ -42,11 +42,16 @@ function LcdStatusBar({ state }: { state: CalculatorState }): React.ReactElement
   const isFix = state.numberFormat.mode === 'Fix';
   const isSci = state.numberFormat.mode === 'Sci';
   const showReIm = state.mode === 'CMPLX' && state.phase === 'result' && state.cmplx.result !== null;
+  const showDisp = state.statementRun !== null;
+  const canReplayUp =
+    state.history.length > 0 && (state.historyIndex === null || state.historyIndex > 0);
+  const canReplayDown =
+    state.historyIndex !== null && state.historyIndex < state.history.length - 1;
 
   return (
     <div className="lcd-status" data-testid="lcd-status" dir="ltr">
-      <span className={state.shift ? 'ind on' : 'ind'}>S</span>
-      <span className={state.alpha ? 'ind on' : 'ind'}>A</span>
+      <span className={state.shift ? 'ind ind-boxed on' : 'ind ind-boxed'}>S</span>
+      <span className={state.alpha ? 'ind ind-boxed on' : 'ind ind-boxed'}>A</span>
       <span className={state.pending === 'store' ? 'ind on' : 'ind'}>STO</span>
       <span className={state.pending === 'recall' ? 'ind on' : 'ind'}>RCL</span>
       <span className={state.hyp ? 'ind on' : 'ind'}>HYP</span>
@@ -58,9 +63,12 @@ function LcdStatusBar({ state }: { state: CalculatorState }): React.ReactElement
       <span className={state.mode === 'VECTOR' ? 'ind on' : 'ind'}>VCT</span>
       <span className={isFix ? 'ind on' : 'ind'}>FIX</span>
       <span className={isSci ? 'ind on' : 'ind'}>SCI</span>
-      <span className={isMath ? 'ind on' : 'ind'}>Math</span>
+      {showDisp && <span className="ind ind-boxed on">Disp</span>}
       {showReIm && <span className="ind on">Re⇔Im</span>}
       <span className="ind-spacer" />
+      <span className={canReplayUp ? 'ind on' : 'ind'}>▲</span>
+      <span className={canReplayDown ? 'ind on' : 'ind'}>▼</span>
+      <span className={isMath ? 'ind on' : 'ind'}>Math</span>
       <span className="ind-mode">
         {state.mode === 'BASE-N' ? state.baseN.base : state.mode !== 'COMP' ? state.mode : ''}
       </span>
