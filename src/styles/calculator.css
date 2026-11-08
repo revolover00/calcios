@@ -285,6 +285,41 @@ button {
   color: var(--brand-ink);
 }
 
+.calcios-header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.calcios-scan-lens {
+  width: 19px;
+  height: 19px;
+  padding: 0;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.2px solid rgba(0, 0, 0, 0.42);
+  background: radial-gradient(circle at 35% 32%, rgba(255, 255, 255, 0.24) 0%, rgba(16, 20, 25, 0.46) 100%);
+  color: var(--brand-ink);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.35);
+  opacity: 0.85;
+  transition: transform 0.12s ease, opacity 0.12s ease, box-shadow 0.12s ease;
+}
+
+.calcios-scan-lens:hover,
+.calcios-scan-lens.active {
+  opacity: 1;
+  transform: scale(1.12);
+  box-shadow:
+    0 0 0 1.5px rgba(255, 255, 255, 0.88),
+    inset 0 1px 1px rgba(255, 255, 255, 0.45);
+}
+
+.calcios-hidden-file {
+  display: none;
+}
+
 .calcios-theme-dots {
   display: inline-flex;
   align-items: center;
@@ -325,6 +360,142 @@ button {
 
 .calcios-lcd-wrap {
   position: relative;
+}
+
+/* Inside-LCD FSTN Dot-Matrix Vision Scanner Overlay */
+.calcios-scan-lcd {
+  position: absolute;
+  inset: 9px 4px 8px;
+  z-index: 15;
+  border-radius: 3px;
+  background: #cfe3e6;
+  color: #020405;
+  padding: 7px 10px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  font-family: 'CalciosLCDLarge', 'IBM Plex Mono', monospace;
+}
+
+.scan-lcd-center {
+  margin: auto;
+  text-align: center;
+}
+
+.scan-lcd-title {
+  font-size: 1.05rem;
+  letter-spacing: 0.04em;
+}
+
+.scan-lcd-sub {
+  margin-top: 4px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.68rem;
+  font-weight: 700;
+  opacity: 0.78;
+}
+
+.scan-lcd-menu,
+.scan-lcd-form {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  justify-content: space-between;
+  gap: 3px;
+}
+
+.scan-lcd-hdr {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.88rem;
+  border-bottom: 1.5px solid rgba(2, 4, 5, 0.35);
+  padding-bottom: 2px;
+}
+
+.scan-lcd-close {
+  padding: 0 3px;
+  background: #020405;
+  color: #cfe3e6;
+  border: none;
+  border-radius: 2px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.62rem;
+  font-weight: 700;
+}
+
+.scan-lcd-err {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.62rem;
+  font-weight: 700;
+  background: rgba(2, 4, 5, 0.1);
+  padding: 2px 4px;
+  border-radius: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.scan-lcd-actions {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 5px;
+  margin: auto 0;
+}
+
+.scan-lcd-item {
+  padding: 6px 4px;
+  border: 1.4px solid #020405;
+  border-radius: 3px;
+  background: rgba(2, 4, 5, 0.04);
+  color: #020405;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.scan-lcd-item:hover {
+  background: #020405;
+  color: #cfe3e6;
+}
+
+.scan-lcd-hint {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.6rem;
+  font-weight: 600;
+  opacity: 0.72;
+  text-align: center;
+}
+
+.scan-lcd-input {
+  width: 100%;
+  padding: 2px 5px;
+  border: 1.2px solid rgba(2, 4, 5, 0.65);
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.45);
+  color: #020405;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.65rem;
+  font-weight: 600;
+  outline: none;
+}
+
+.scan-lcd-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 5px;
+}
+
+.scan-lcd-save {
+  padding: 2px 8px;
+  border: 1.2px solid #020405;
+  border-radius: 2px;
+  background: #020405;
+  color: #cfe3e6;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.65rem;
+  font-weight: 700;
 }
 
 /* ==========================================================================

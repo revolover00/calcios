@@ -1,5 +1,12 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { CalculatorAction, CalculatorState } from '../core/calculator';
+import {
+  isDirectGroqHost,
+  loadVisionConfig,
+  saveVisionConfig,
+  scanMathFromImage,
+  type VisionConfig,
+} from '../core/visionScan';
 import {
   LOWER_KEYPAD_ROWS,
   SCIENTIFIC_ROW_1,
@@ -308,6 +315,12 @@ export function CalculatorHardware({
   dispatch,
 }: CalculatorHardwareProps): React.ReactElement {
   const [bodyTheme, setBodyTheme] = useState<CalciosBodyTheme>(loadBodyTheme);
+  const [scanView, setScanView] = useState<'closed' | 'menu' | 'config' | 'scanning'>('closed');
+  const [scanError, setScanError] = useState<string | null>(null);
+  const [visionCfg, setVisionCfg] = useState<VisionConfig>(loadVisionConfig);
+
+  const cameraInputRef = useRef<HTMLInputElement | null>(null);
+  const uploadInputRef = useRef<HTMLInputElement | null>(null);
 
   const selectTheme = (next: CalciosBodyTheme) => {
     setBodyTheme(next);
@@ -318,7 +331,91 @@ export function CalculatorHardware({
     }
   };
 
+  const runImageScan = useCallback(
+    async (file: Blob) => {
+      setScanError(null);
+      setScanView('scanning');
+      try {
+        const scanned = await scanMathFromImage(file, visionCfg);
+        dispatch({
+          type: 'load-scanned-math',
+          expression: scanned.expression,
+          mode: scanned.mode,
+          angle: scanned.angle,
+        });
+        setScanView('closed');
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Failed to scan math image.';
+        setScanError(msg);
+        const cfg = loadVisionConfig();
+        setScanView(!cfg.apiKey && isDirectGroqHost(cfg.apiUrl) ? 'config' : 'menu');
+      }
+    },
+    [dispatch, visionCfg],
+  );
+
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return;
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.type.startsWith('image/')) {
+          const blob = item.getAsFile();
+          if (blob) {
+            e.preventDefault();
+            void runImageScan(blob);
+            return;
+          }
+        }
+      }
+    };
+    window.addEventListener('paste', onPaste);
+    return () => window.removeEventListener('paste', onPaste);
+  }, [runImageScan]);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (file) {
+      void runImageScan(file);
+    }
+  };
+
+  const handleSaveConfig = (e: React.FormEvent) => {
+    e.preventDefault();
+    const saved = saveVisionConfig(visionCfg);
+    setVisionCfg(saved);
+    setScanError(null);
+    setScanView('menu');
+  };
+
   const handlePress = (id: string) => {
+    if (scanView !== 'closed') {
+      if (id === 'ac' || id === 'on') {
+        setScanView('closed');
+        setScanError(null);
+        return;
+      }
+      if (scanView === 'menu') {
+        if (id === '1') {
+          cameraInputRef.current?.click();
+          return;
+        }
+        if (id === '2') {
+          uploadInputRef.current?.click();
+          return;
+        }
+        if (id === '3') {
+          setScanView('config');
+          return;
+        }
+      }
+      setScanView('closed');
+      setScanError(null);
+    }
     dispatch({ type: 'key', id });
   };
 
@@ -335,42 +432,185 @@ export function CalculatorHardware({
       data-theme={bodyTheme}
     >
       <div className="calcios-inner-rim">
-        {/* Clean Minimalist Top Header: CALCIOS Wordmark + 3 Color Edition Dots */}
+        {/* Clean Minimalist Top Header: CALCIOS Wordmark + Camera Scan Lens + 3 Color Dots */}
         <header className="calcios-header">
           <div className="calcios-header-row">
             <span className="calcios-logo">CALCIOS</span>
-            <div className="calcios-theme-dots" role="group" aria-label="Calculator color editions">
+            <div className="calcios-header-actions">
               <button
                 type="button"
-                className={bodyTheme === 'black' ? 'theme-dot dot-black active' : 'theme-dot dot-black'}
-                data-testid="theme-black"
-                aria-label="Black edition"
-                aria-pressed={bodyTheme === 'black'}
-                onClick={() => selectTheme('black')}
+                className={scanView !== 'closed' ? 'calcios-scan-lens active' : 'calcios-scan-lens'}
+                data-testid="scan-math-btn"
+                aria-label="Scan math problem from camera or image"
+                title="Scan math problem from camera or image (or Ctrl+V paste)"
+                onClick={() => {
+                  setScanError(null);
+                  setVisionCfg(loadVisionConfig());
+                  setScanView((v) => (v === 'closed' ? 'menu' : 'closed'));
+                }}
+              >
+                <svg viewBox="0 0 16 16" width="11" height="11" aria-hidden="true">
+                  <path
+                    d="M5.4 2.5L6.3 1.3h3.4l.9 1.2H13c1.1 0 2 .9 2 2v7.2c0 1.1-.9 2-2 2H3c-1.1 0-2-.9-2-2V4.5c0-1.1.9-2 2-2h2.4zm2.6 2.3a3.3 3.3 0 100 6.6 3.3 3.3 0 000-6.6zm0 1.4a1.9 1.9 0 110 3.8 1.9 1.9 0 010-3.8z"
+                    fill="currentColor"
+                  />
+                </svg>
+              </button>
+              <input
+                ref={cameraInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="calcios-hidden-file"
+                data-testid="scan-camera-input"
+                aria-label="Capture math problem with camera"
+                onChange={handleFileChange}
               />
-              <button
-                type="button"
-                className={bodyTheme === 'pink' ? 'theme-dot dot-pink active' : 'theme-dot dot-pink'}
-                data-testid="theme-pink"
-                aria-label="Pink edition"
-                aria-pressed={bodyTheme === 'pink'}
-                onClick={() => selectTheme('pink')}
+              <input
+                ref={uploadInputRef}
+                type="file"
+                accept="image/*"
+                className="calcios-hidden-file"
+                data-testid="scan-upload-input"
+                aria-label="Upload math problem image"
+                onChange={handleFileChange}
               />
-              <button
-                type="button"
-                className={bodyTheme === 'blue' ? 'theme-dot dot-blue active' : 'theme-dot dot-blue'}
-                data-testid="theme-blue"
-                aria-label="Ice Blue edition"
-                aria-pressed={bodyTheme === 'blue'}
-                onClick={() => selectTheme('blue')}
-              />
+              <div className="calcios-theme-dots" role="group" aria-label="Calculator color editions">
+                <button
+                  type="button"
+                  className={bodyTheme === 'black' ? 'theme-dot dot-black active' : 'theme-dot dot-black'}
+                  data-testid="theme-black"
+                  aria-label="Black edition"
+                  aria-pressed={bodyTheme === 'black'}
+                  onClick={() => selectTheme('black')}
+                />
+                <button
+                  type="button"
+                  className={bodyTheme === 'pink' ? 'theme-dot dot-pink active' : 'theme-dot dot-pink'}
+                  data-testid="theme-pink"
+                  aria-label="Pink edition"
+                  aria-pressed={bodyTheme === 'pink'}
+                  onClick={() => selectTheme('pink')}
+                />
+                <button
+                  type="button"
+                  className={bodyTheme === 'blue' ? 'theme-dot dot-blue active' : 'theme-dot dot-blue'}
+                  data-testid="theme-blue"
+                  aria-label="Ice Blue edition"
+                  aria-pressed={bodyTheme === 'blue'}
+                  onClick={() => selectTheme('blue')}
+                />
+              </div>
             </div>
           </div>
         </header>
 
-        {/* Natural Textbook 2D Dot-Matrix LCD */}
+        {/* Natural Textbook 2D Dot-Matrix LCD + Inside-LCD Scan Overlay */}
         <div className="calcios-lcd-wrap">
           <LcdScreen state={state} />
+          {scanView !== 'closed' && (
+            <div className="calcios-scan-lcd" data-testid="scan-lcd-overlay" role="dialog" aria-label="Math Vision Scanner">
+              {scanView === 'scanning' && (
+                <div className="scan-lcd-center">
+                  <div className="scan-lcd-title">SCANNING MATH...</div>
+                  <div className="scan-lcd-sub">{visionCfg.model}</div>
+                </div>
+              )}
+
+              {scanView === 'menu' && (
+                <div className="scan-lcd-menu">
+                  <div className="scan-lcd-hdr">
+                    <span>SCAN MATH</span>
+                    <button
+                      type="button"
+                      className="scan-lcd-close"
+                      aria-label="Close scanner"
+                      onClick={() => setScanView('closed')}
+                    >
+                      [AC]
+                    </button>
+                  </div>
+                  {scanError && <div className="scan-lcd-err" data-testid="scan-lcd-error">{scanError}</div>}
+                  <div className="scan-lcd-actions">
+                    <button
+                      type="button"
+                      className="scan-lcd-item"
+                      data-testid="scan-trigger-camera"
+                      onClick={() => cameraInputRef.current?.click()}
+                    >
+                      1:Camera Photo
+                    </button>
+                    <button
+                      type="button"
+                      className="scan-lcd-item"
+                      data-testid="scan-trigger-upload"
+                      onClick={() => uploadInputRef.current?.click()}
+                    >
+                      2:Upload Image
+                    </button>
+                    <button
+                      type="button"
+                      className="scan-lcd-item"
+                      data-testid="scan-trigger-config"
+                      onClick={() => setScanView('config')}
+                    >
+                      3:Vision API
+                    </button>
+                  </div>
+                  <div className="scan-lcd-hint">Tip: Paste screenshot with Ctrl+V</div>
+                </div>
+              )}
+
+              {scanView === 'config' && (
+                <form className="scan-lcd-form" onSubmit={handleSaveConfig}>
+                  <div className="scan-lcd-hdr">
+                    <span>VISION API</span>
+                    <button
+                      type="button"
+                      className="scan-lcd-close"
+                      aria-label="Back to scan menu"
+                      onClick={() => setScanView('menu')}
+                    >
+                      [BACK]
+                    </button>
+                  </div>
+                  {scanError && <div className="scan-lcd-err" data-testid="scan-lcd-error">{scanError}</div>}
+                  <input
+                    type="text"
+                    className="scan-lcd-input"
+                    data-testid="scan-api-url"
+                    aria-label="Vision API URL"
+                    placeholder="API URL"
+                    value={visionCfg.apiUrl}
+                    onChange={(e) => setVisionCfg((c) => ({ ...c, apiUrl: e.target.value }))}
+                  />
+                  <input
+                    type="text"
+                    className="scan-lcd-input"
+                    data-testid="scan-api-model"
+                    aria-label="Vision Model ID"
+                    placeholder="Model (qwen/qwen3.8-27b)"
+                    value={visionCfg.model}
+                    onChange={(e) => setVisionCfg((c) => ({ ...c, model: e.target.value }))}
+                  />
+                  <div className="scan-lcd-row">
+                    <input
+                      type="password"
+                      className="scan-lcd-input"
+                      data-testid="scan-api-key"
+                      aria-label="Groq API Key"
+                      placeholder="Groq API Key (gsk_...)"
+                      value={visionCfg.apiKey}
+                      onChange={(e) => setVisionCfg((c) => ({ ...c, apiKey: e.target.value }))}
+                    />
+                    <button type="submit" className="scan-lcd-save" data-testid="scan-save-config">
+                      SAVE
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Upper Control Row + Central Sculpted 4-Way D-Pad */}

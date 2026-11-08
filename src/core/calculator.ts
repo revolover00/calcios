@@ -274,6 +274,7 @@ export type CalculatorAction =
   | { type: 'insert-token'; token: string; behavior?: 'fresh' | 'continue' }
   | { type: 'select-mode'; mode: string }
   | { type: 'angle'; angle: AngleUnit }
+  | { type: 'load-scanned-math'; expression: string; mode?: 'COMP' | 'CMPLX'; angle?: AngleUnit }
   | { type: 'clear-notice' };
 
 function zeroVariables(): Record<VariableName, StoredScalar> {
@@ -2340,6 +2341,40 @@ function handleTableMode(s: CalculatorState, id: string, random?: number): Calcu
 
 export function calculatorReducer(state: CalculatorState, action: CalculatorAction): CalculatorState {
   if (action.type === 'clear-notice') return { ...state, notice: null };
+  if (action.type === 'load-scanned-math') {
+    const expr = action.expression.trim();
+    if (!expr) return state;
+    const targetMode = action.mode ?? 'COMP';
+    let next = activateModeByName(
+      { ...state, screen: 'normal', ioMode: 'Math', shift: false, alpha: false, notice: null },
+      targetMode,
+    );
+    if (action.angle) {
+      next = { ...next, angle: action.angle };
+    }
+    const editingState: CalculatorState = {
+      ...resetResultModifiers(next),
+      screen: 'normal',
+      phase: 'editing',
+      expression: expr,
+      cursor: expr.length,
+      result: null,
+      error: null,
+      calcPrompt: null,
+      solvePrompt: null,
+      notice: null,
+    };
+    if (targetMode === 'COMP' && expr.includes('=')) {
+      const solveInit = startSolveWorkflow(editingState);
+      if (solveInit.solvePrompt) {
+        const solved = handleSolvePrompt(solveInit, 'equals');
+        if (!solved.error) return solved;
+      }
+      return editingState;
+    }
+    const evaluated = calculatorReducer(editingState, { type: 'key', id: 'equals' });
+    return evaluated.error ? editingState : evaluated;
+  }
   if (action.type === 'angle') {
     return { ...state, angle: action.angle, screen: 'normal', shift: false, alpha: false };
   }
