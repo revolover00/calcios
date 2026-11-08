@@ -1,12 +1,26 @@
+@font-face {
+  font-family: 'CasioESLarge';
+  src: url('../assets/casio-es-large.ttf') format('truetype');
+  font-weight: 400 800;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'CasioESSmall';
+  src: url('../assets/casio-es-small.ttf') format('truetype');
+  font-weight: 400 800;
+  font-style: normal;
+  font-display: block;
+}
+
 :root {
-  --casio-gold: #e0b766;
-  --casio-pink: #e07b92;
-  --casio-lime-top: #96bb50;
-  --casio-lime-bot: #7ea23b;
-  --lcd-bg-top: #d7e2e5;
-  --lcd-bg-mid: #d0dde0;
-  --lcd-bg-bot: #c8d6da;
-  --lcd-ink: #11181b;
+  --casio-gold: #dcb464;
+  --casio-pink: #d86e86;
+  --casio-lime-top: #8ca547;
+  --casio-lime-bot: #7a9338;
+  --lcd-bg: #d0e3e7;
+  --lcd-ink: #020405;
 }
 
 *,
@@ -50,32 +64,30 @@ button {
    Code-Drawn Casio fx-95ES PLUS (2nd edition) Hardware Shell
    ========================================================================== */
 .casio-casing {
-  width: 366px;
+  width: 368px;
   max-width: 100%;
-  padding: 9px;
-  border-radius: 36px 36px 40px 40px;
-  background: linear-gradient(165deg, #2d3035 0%, #191b1e 48%, #111315 100%);
+  padding: 8px;
+  border-radius: 34px 34px 38px 38px;
+  background: linear-gradient(180deg, #27292c 0%, #1d1f21 48%, #151719 100%);
   box-shadow:
-    0 28px 64px rgba(0, 0, 0, 0.72),
-    0 6px 16px rgba(0, 0, 0, 0.5),
-    inset 0 1.5px 1px rgba(255, 255, 255, 0.22),
-    inset 0 -3px 6px rgba(0, 0, 0, 0.85);
-  font-family: 'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace;
+    0 28px 64px rgba(0, 0, 0, 0.75),
+    0 6px 16px rgba(0, 0, 0, 0.52),
+    inset 0 1.5px 1px rgba(255, 255, 255, 0.24),
+    inset 0 -3px 6px rgba(0, 0, 0, 0.88);
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
 
 .casio-inner-rim {
   padding: 14px 15px 18px;
-  border-radius: 29px 29px 33px 33px;
-  background:
-    radial-gradient(ellipse at 50% 0%, rgba(255, 255, 255, 0.05) 0%, transparent 55%),
-    linear-gradient(180deg, #212428 0%, #1a1c20 55%, #16181b 100%);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.55);
+  border-radius: 27px 27px 31px 31px;
+  background: linear-gradient(180deg, #2d2e30 0%, #27282a 52%, #222325 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 2px 7px rgba(0, 0, 0, 0.5);
 }
 
 /* Branding Header */
 .casio-header {
-  padding: 2px 4px 7px;
+  padding: 2px 3px 6px;
 }
 
 .casio-brand-row {
@@ -85,18 +97,18 @@ button {
 }
 
 .casio-logo {
-  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-family: 'Arial Black', system-ui, -apple-system, sans-serif;
   font-weight: 900;
-  font-size: 1.22rem;
-  letter-spacing: 0.09em;
-  color: #eef1f3;
+  font-size: 1.24rem;
+  letter-spacing: 0.08em;
+  color: #e9edf0;
 }
 
 .casio-model {
   font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
-  font-style: italic;
-  font-weight: 700;
-  font-size: 0.92rem;
+  font-style: normal;
+  font-weight: 600;
+  font-size: 0.88rem;
   letter-spacing: 0.02em;
   color: #e4e8ec;
 }
@@ -104,16 +116,16 @@ button {
 .casio-vpam-row {
   display: flex;
   justify-content: center;
-  margin-top: 3px;
+  margin-top: 5px;
 }
 
 .casio-vpam {
-  font-family: 'Times New Roman', Georgia, serif;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
   font-style: italic;
-  font-weight: 700;
+  font-weight: 800;
   font-size: 0.78rem;
-  letter-spacing: 0.06em;
-  color: #9ea99a;
+  letter-spacing: 0.055em;
+  color: #d2e0e4;
 }
 
 .casio-edition-row {
@@ -192,63 +204,40 @@ button {
 }
 
 /* ==========================================================================
-   Authentic Recessed Casio Bezel & FSTN Dot-Matrix LCD Panel
+   Authentic Recessed Casio Bezel & 96×31 FSTN Dot-Matrix LCD Panel (#d0e3e7)
    ========================================================================== */
 .lcd-bezel {
-  margin: 3px -3px 0;
+  margin: 3px -4px 0;
   padding: 5px 6px 6px;
-  border-radius: 7px;
+  border-radius: 6px;
   background:
-    linear-gradient(90deg, #2e333a 0%, #0b0d0f 4%, #090b0d 96%, #2e333a 100%),
-    linear-gradient(180deg, #07080a 0%, #16191d 100%);
-  border-top: 1.5px solid #050608;
-  border-left: 1.5px solid #0d0f12;
-  border-right: 1.5px solid #0d0f12;
-  border-bottom: 1.5px solid rgba(255, 255, 255, 0.13);
+    linear-gradient(90deg, #3c4045 0%, #0a0c0e 3.2%, #080a0c 96.8%, #3c4045 100%),
+    linear-gradient(180deg, #060709 0%, #15181b 100%);
+  border-top: 1.5px solid #040507;
+  border-left: 1.5px solid #121518;
+  border-right: 1.5px solid #121518;
+  border-bottom: 1.5px solid rgba(255, 255, 255, 0.16);
   box-shadow:
-    inset 0 4px 8px rgba(0, 0, 0, 0.95),
-    inset 3px 0 5px rgba(0, 0, 0, 0.7),
-    inset -3px 0 5px rgba(0, 0, 0, 0.7),
-    0 1px 0 rgba(255, 255, 255, 0.07);
+    inset 0 3px 6px rgba(0, 0, 0, 0.95),
+    0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 .lcd-glass {
   position: relative;
-  height: 136px;
-  padding: 5px 10px 8px;
-  border-radius: 3px;
-  border: 1.5px solid #0a0d10;
-  background-color: var(--lcd-bg-mid);
-  background-image:
-    repeating-linear-gradient(
-      0deg,
-      rgba(17, 24, 27, 0.028) 0px,
-      rgba(17, 24, 27, 0.028) 1px,
-      transparent 1px,
-      transparent 2.5px
-    ),
-    repeating-linear-gradient(
-      90deg,
-      rgba(17, 24, 27, 0.028) 0px,
-      rgba(17, 24, 27, 0.028) 1px,
-      transparent 1px,
-      transparent 2.5px
-    ),
-    linear-gradient(
-      180deg,
-      var(--lcd-bg-top) 0%,
-      var(--lcd-bg-mid) 48%,
-      var(--lcd-bg-bot) 100%
-    );
+  height: 128px;
+  padding: 5px 10px 7px;
+  border-radius: 2.5px;
+  border: 1.5px solid #080b0d;
+  background: var(--lcd-bg);
   color: var(--lcd-ink);
-  font-family: 'Pixelify Sans', 'IBM Plex Mono', ui-monospace, monospace;
-  font-variant-numeric: tabular-nums;
-  text-shadow: 0.6px 0.8px 0 rgba(17, 24, 27, 0.14);
+  font-family: 'CasioESLarge', 'IBM Plex Mono', monospace;
+  font-weight: 400;
+  -webkit-font-smoothing: none;
+  font-smooth: never;
   box-shadow:
-    inset 0 3px 6px rgba(8, 18, 22, 0.28),
-    inset 2px 0 4px rgba(8, 18, 22, 0.16),
-    inset -2px 0 4px rgba(8, 18, 22, 0.12),
-    inset 0 -1px 1px rgba(255, 255, 255, 0.42);
+    inset 0 2px 3px rgba(8, 22, 26, 0.22),
+    inset 1.5px 0 2.5px rgba(8, 22, 26, 0.14),
+    inset -1.5px 0 2.5px rgba(8, 22, 26, 0.14);
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -256,26 +245,26 @@ button {
 }
 
 .lcd-off {
-  background-image: linear-gradient(180deg, #8b989b 0%, #7f8c8f 100%);
+  background: linear-gradient(180deg, #8b9a9e 0%, #808f93 100%);
   box-shadow:
     inset 0 3px 7px rgba(0, 0, 0, 0.36),
     inset 2px 0 4px rgba(0, 0, 0, 0.2);
 }
 
-/* Fixed-Slot Hardware LCD Annunciator Strip (matches references/fx95-layout.jpg) */
+/* Lithographic Fixed-Slot Top LCD Annunciator Strip */
 .lcd-status {
   position: relative;
-  height: 14px;
+  height: 13px;
   display: grid;
-  grid-template-columns: 38% 18% 24% 20%;
+  grid-template-columns: 42% 18% 24% 16%;
   align-items: center;
-  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
-  font-size: 0.6rem;
-  font-weight: 800;
-  letter-spacing: 0.01em;
+  font-family: Arial, Helvetica, system-ui, sans-serif;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0;
   line-height: 1;
   flex-shrink: 0;
-  text-shadow: none;
+  -webkit-font-smoothing: antialiased;
 }
 
 .lcd-status-zone {
@@ -317,21 +306,22 @@ button {
 
 .ind-boxed.on {
   background: var(--lcd-ink);
-  color: var(--lcd-bg-top);
-  padding: 1px 2.5px 0.5px;
-  border-radius: 1px;
+  color: var(--lcd-bg);
+  padding: 1px 2px 0.5px;
+  border-radius: 1.5px;
   font-size: 0.56rem;
+  font-weight: 800;
   line-height: 1.05;
 }
 
-/* Home Expression & Result Areas — Anchored Top-Left & Bottom-Right, Zero Jump */
+/* Home Expression & Result Areas — Exact 5×9 & 5×6 Casio Dot-Matrix Proportions */
 .lcd-home {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  padding-top: 3px;
+  padding-top: 2px;
 }
 
 .lcd-expr-area {
@@ -341,10 +331,11 @@ button {
   align-items: flex-start;
   gap: 5px;
   padding-top: 2px;
-  font-size: 1.2rem;
-  font-weight: 700;
-  letter-spacing: 0.015em;
-  line-height: 1.24;
+  font-family: 'CasioESLarge', 'IBM Plex Mono', monospace;
+  font-size: 28px;
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: 1.08;
   overflow-x: auto;
   overflow-y: auto;
   scrollbar-width: none;
@@ -355,40 +346,37 @@ button {
 }
 
 .math-sci-ten {
-  font-size: 0.74em;
-  font-weight: 800;
-  letter-spacing: -0.02em;
+  font-family: 'CasioESSmall', 'CasioESLarge', monospace;
+  font-size: 18px;
   margin: 0 1px;
-  vertical-align: -0.02em;
+  vertical-align: 0;
 }
 
 .lcd-expr-inner {
   display: inline-flex;
   align-items: center;
-  min-height: 30px;
+  min-height: 28px;
   white-space: nowrap;
 }
 
 .lcd-prompt-prefix {
-  font-size: 1.04rem;
-  font-weight: 800;
+  font-size: 26px;
   flex-shrink: 0;
-  align-self: center;
+  align-self: flex-start;
 }
 
 .lcd-notice {
-  font-size: 0.7rem;
-  font-weight: 700;
-  opacity: 0.85;
+  font-size: 16px;
+  opacity: 0.9;
 }
 
 .lcd-result-area {
-  min-height: 44px;
+  min-height: 48px;
   flex-shrink: 0;
   display: flex;
   align-items: flex-end;
   justify-content: flex-end;
-  gap: 6px;
+  gap: 4px;
   padding-bottom: 1px;
   overflow-x: auto;
   scrollbar-width: none;
@@ -399,29 +387,30 @@ button {
 }
 
 .lcd-result-text {
-  font-size: 1.48rem;
-  font-weight: 700;
-  letter-spacing: 0.015em;
-  line-height: 1.1;
+  font-family: 'CasioESLarge', 'IBM Plex Mono', monospace;
+  font-size: 29px;
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: 1.04;
   text-align: right;
   white-space: nowrap;
 }
 
 .lcd-pi-sym {
-  font-size: 1.32rem;
-  font-weight: 700;
-  margin-left: 1.5px;
+  font-family: 'CasioESLarge', 'IBM Plex Mono', monospace;
+  font-size: 29px;
+  margin-left: 1px;
 }
 
 .lcd-ten-pow {
-  font-size: 0.78em;
-  font-weight: 800;
+  font-family: 'CasioESSmall', 'CasioESLarge', monospace;
+  font-size: 18.5px;
   margin-left: 1px;
 }
 
 .lcd-exp {
-  font-size: 0.66em;
-  font-weight: 700;
+  font-family: 'CasioESSmall', 'CasioESLarge', monospace;
+  font-size: 18.5px;
   vertical-align: super;
 }
 
@@ -438,7 +427,7 @@ button {
   border: 0;
 }
 
-/* Blinking LCD Caret & Geometric Casio ■ / □ Template Boxes */
+/* Blinking 2-Dot-Wide Casio LCD Caret & 5×7 Geometric Casio ■ / □ Template Boxes */
 @keyframes lcd-blink {
   0%, 49% { opacity: 1; }
   50%, 100% { opacity: 0; }
@@ -446,21 +435,21 @@ button {
 
 .lcd-caret {
   display: inline-block;
-  width: 2.4px;
-  height: 1.08em;
+  width: 4.5px;
+  height: 0.86em;
   background: var(--lcd-ink);
-  vertical-align: -0.14em;
+  vertical-align: -0.06em;
   margin: 0 1px;
   animation: lcd-blink 1s steps(1, end) infinite;
 }
 
 .lcd-caret-overwrite {
-  width: 0.54em;
-  height: 0.16em;
-  vertical-align: -0.18em;
+  width: 0.52em;
+  height: 3px;
+  vertical-align: -0.1em;
 }
 
-/* 2D Natural-V.P.A.M. Math Nodes */
+/* 2D Natural-V.P.A.M. Math Nodes (using authentic 5×6 CasioESSmall at identical dot pitch!) */
 .math-seq {
   display: inline-flex;
   align-items: center;
@@ -469,9 +458,9 @@ button {
 .math-box-placeholder {
   position: relative;
   display: inline-block;
-  width: 0.56em;
-  height: 0.78em;
-  border: 1.8px solid var(--lcd-ink);
+  width: 0.48em;
+  height: 0.68em;
+  border: 2.3px solid var(--lcd-ink);
   margin: 0 1.5px;
   vertical-align: middle;
   flex-shrink: 0;
@@ -480,8 +469,8 @@ button {
 .math-box-active {
   position: relative;
   display: inline-block;
-  width: 0.56em;
-  height: 0.78em;
+  width: 0.48em;
+  height: 0.68em;
   background: var(--lcd-ink);
   margin: 0 1.5px;
   vertical-align: middle;
@@ -491,8 +480,8 @@ button {
 
 .math-box-overwrite {
   background: transparent;
-  border: 1.8px solid var(--lcd-ink);
-  border-bottom-width: 3.6px;
+  border: 2.3px solid var(--lcd-ink);
+  border-bottom-width: 4.6px;
 }
 
 .math-frac {
@@ -500,54 +489,58 @@ button {
   flex-direction: column;
   align-items: center;
   vertical-align: middle;
-  margin: 0 2.5px;
-  font-size: 0.82em;
-  line-height: 1.04;
+  margin: 0 2px;
+  font-family: 'CasioESSmall', 'CasioESLarge', monospace;
+  font-size: 18px;
+  line-height: 1;
 }
 
 .math-frac-result {
-  font-size: 1.08rem;
-  font-weight: 700;
-  line-height: 1.02;
+  font-family: 'CasioESSmall', 'CasioESLarge', monospace;
+  font-size: 18.8px;
+  font-weight: 400;
+  line-height: 1;
 }
 
 .math-frac-mini {
-  font-size: 0.68em;
+  font-family: 'CasioESSmall', monospace;
+  font-size: 15px;
   margin-right: 2px;
 }
 
 .math-frac-mini-res {
-  font-size: 0.92em;
-  font-weight: 700;
+  font-family: 'CasioESSmall', monospace;
+  font-size: 18.5px;
+  font-weight: 400;
   margin: 0 2px;
 }
 
 .math-overbar {
   display: inline-flex;
   align-items: center;
-  border-top: 2px solid var(--lcd-ink);
-  padding-top: 1px;
+  border-top: 2.5px solid var(--lcd-ink);
+  padding-top: 2px;
   line-height: 1;
 }
 
 .lcd-ineq-2d {
-  font-size: 1.24rem;
-  font-weight: 700;
-  gap: 2px;
+  font-family: 'CasioESLarge', monospace;
+  font-size: 28px;
+  font-weight: 400;
+  gap: 1px;
 }
 
 .lcd-ineq-sep {
-  margin-right: 5px;
+  margin-right: 2px;
 }
 
 .lcd-divr-rem {
-  font-size: 1.08rem;
-  margin-left: 5px;
+  font-size: 24px;
+  margin-left: 4px;
 }
 
 .lcd-contrast-bar {
-  font-size: 0.76rem;
-  letter-spacing: 0.04em;
+  font-size: 17px;
   text-align: center;
 }
 
@@ -557,36 +550,36 @@ button {
   align-items: center;
   min-height: 24px;
   padding-top: 2px;
-  border-top: 1.5px solid rgba(17, 24, 27, 0.28);
-  font-size: 0.92rem;
-  font-weight: 700;
+  border-top: 1.5px solid rgba(2, 4, 5, 0.28);
+  font-size: 21px;
 }
 
 .math-frac-num,
 .math-frac-den {
-  padding: 0 3px;
-  min-width: 13px;
+  padding: 0 2.5px;
+  min-width: 14px;
   text-align: center;
 }
 
 .math-frac-bar {
   width: 100%;
-  height: 2px;
+  height: 2.6px;
   background: var(--lcd-ink);
-  margin: 1px 0;
+  margin: 2px 0;
 }
 
 .math-mfrac,
 .lcd-result-frac {
   display: inline-flex;
   align-items: center;
-  gap: 2.5px;
+  gap: 2px;
 }
 
 .lcd-mfrac-whole,
 .lcd-frac-sign {
-  font-size: 1.38rem;
-  font-weight: 700;
+  font-family: 'CasioESLarge', monospace;
+  font-size: 29px;
+  font-weight: 400;
 }
 
 /* Seamless Vector Radical Sign + Connected Vinculum Roof */
@@ -598,8 +591,8 @@ button {
 }
 
 .math-root-idx {
-  font-size: 0.62em;
-  font-weight: 700;
+  font-family: 'CasioESSmall', monospace;
+  font-size: 16px;
   margin-right: -2px;
   align-self: flex-start;
   line-height: 1;
@@ -608,8 +601,8 @@ button {
 .math-sqrt-glyph {
   position: relative;
   display: inline-flex;
-  width: 0.56em;
-  min-width: 8px;
+  width: 0.44em;
+  min-width: 10px;
   align-self: stretch;
   flex-shrink: 0;
 }
@@ -624,22 +617,24 @@ button {
 .math-sqrt-body {
   display: inline-flex;
   align-items: center;
-  border-top: 2px solid var(--lcd-ink);
-  padding: 1px 3px 0 2px;
+  border-top: 2.5px solid var(--lcd-ink);
+  padding: 2px 3px 0 2px;
 }
 
 .math-sup {
-  font-size: 0.68em;
+  font-family: 'CasioESSmall', monospace;
+  font-size: 17.5px;
   line-height: 1;
   align-self: flex-start;
-  margin-top: -0.3em;
+  margin-top: -0.25em;
 }
 
 .math-sub {
-  font-size: 0.64em;
+  font-family: 'CasioESSmall', monospace;
+  font-size: 16.5px;
   line-height: 1;
   align-self: flex-end;
-  margin-bottom: -0.2em;
+  margin-bottom: -0.18em;
 }
 
 .math-abs {
@@ -648,8 +643,7 @@ button {
 }
 
 .math-abs-bar {
-  font-weight: 800;
-  padding: 0 1.5px;
+  padding: 0 1px;
 }
 
 .math-bigop {
@@ -662,36 +656,34 @@ button {
   display: inline-flex;
   flex-direction: column;
   align-items: center;
-  line-height: 0.94;
+  line-height: 0.96;
 }
 
 .math-limit-top,
 .math-limit-bot {
-  font-size: 0.58em;
+  font-family: 'CasioESSmall', monospace;
+  font-size: 15.5px;
 }
 
 .math-bigop-sym {
-  font-size: 1.2em;
-  font-weight: 700;
+  font-size: 1.08em;
 }
 
 .math-const {
-  font-style: italic;
-  font-weight: 700;
+  font-style: normal;
   padding: 0 1px;
 }
 
 .math-conv {
-  font-size: 0.8em;
-  font-weight: 700;
+  font-family: 'CasioESSmall', monospace;
+  font-size: 17px;
   padding: 0 3px;
   margin-left: 2px;
-  border-radius: 2px;
-  background: rgba(17, 24, 27, 0.14);
+  border: 1.5px solid rgba(2, 4, 5, 0.35);
 }
 
 /* ==========================================================================
-   LCD Firmware Menus, Prompts, Tables, Matrices & Equations
+   LCD Firmware Menus, Prompts, Tables, Matrices & Equations (CasioESLarge)
    ========================================================================== */
 .lcd-menu,
 .lcd-prompt-screen,
@@ -703,10 +695,11 @@ button {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  padding-top: 4px;
-  font-size: 0.84rem;
-  font-weight: 700;
-  letter-spacing: 0.01em;
+  padding-top: 3px;
+  font-family: 'CasioESLarge', 'IBM Plex Mono', monospace;
+  font-size: 19.5px;
+  font-weight: 400;
+  letter-spacing: 0;
 }
 
 .lcd-menu-grid {
@@ -714,13 +707,13 @@ button {
   display: grid;
   grid-template-columns: 1fr 1fr;
   align-content: space-evenly;
-  gap: 2px 12px;
-  font-size: 0.86rem;
+  gap: 2px 10px;
+  font-size: 20px;
 }
 
 .lcd-menu-grid-3 {
   grid-template-columns: repeat(3, 1fr);
-  font-size: 0.78rem;
+  font-size: 17.5px;
 }
 
 .lcd-menu-list {
@@ -729,28 +722,25 @@ button {
   flex-direction: column;
   justify-content: space-evenly;
   gap: 2px;
-  font-size: 0.88rem;
+  font-size: 21px;
 }
 
 .menu-item-active {
   background: var(--lcd-ink);
-  color: var(--lcd-bg-top);
-  padding: 1px 4px;
-  border-radius: 1px;
-  text-shadow: none;
+  color: var(--lcd-bg);
+  padding: 1px 3px;
 }
 
 .lcd-menu-hint {
-  font-size: 0.64rem;
-  opacity: 0.78;
+  font-size: 15px;
+  opacity: 0.82;
   text-align: right;
 }
 
 .lcd-prompt-title {
-  font-size: 0.84rem;
-  font-weight: 800;
+  font-size: 19.5px;
   padding-bottom: 1px;
-  border-bottom: 1px solid rgba(17, 24, 27, 0.22);
+  border-bottom: 1.5px solid rgba(2, 4, 5, 0.24);
 }
 
 .lcd-error {
@@ -758,14 +748,13 @@ button {
 }
 
 .lcd-error-title {
-  font-size: 1.08rem;
-  font-weight: 800;
+  font-size: 25px;
   text-align: center;
 }
 
 .lcd-error-hint {
-  font-size: 0.82rem;
-  line-height: 1.42;
+  font-size: 19px;
+  line-height: 1.28;
 }
 
 /* Pair Result (Pol / Rec / SOLVE) */
@@ -779,8 +768,7 @@ button {
 .lcd-pair-row {
   display: flex;
   justify-content: space-between;
-  font-size: 1.02rem;
-  font-weight: 700;
+  font-size: 24px;
 }
 
 /* Firmware Pixel-Bordered Tables: STAT, DIST, MATRIX, VECTOR, TABLE */
@@ -790,13 +778,12 @@ button {
   grid-auto-flow: column;
   grid-auto-columns: 1fr;
   gap: 0;
-  font-size: 0.76rem;
+  font-size: 17.5px;
 }
 
 .lcd-table-head {
   background: var(--lcd-ink);
-  color: var(--lcd-bg-top);
-  text-shadow: none;
+  color: var(--lcd-bg);
   padding: 1px 4px;
 }
 
@@ -809,21 +796,20 @@ button {
 }
 
 .lcd-table-row {
-  border-bottom: 1px solid rgba(17, 24, 27, 0.2);
+  border-bottom: 1px solid rgba(2, 4, 5, 0.24);
 }
 
 .lcd-table-row > span + span {
-  border-left: 1px solid rgba(17, 24, 27, 0.2);
+  border-left: 1px solid rgba(2, 4, 5, 0.24);
 }
 
 .lcd-table-row.active {
-  background: rgba(17, 24, 27, 0.12);
+  background: rgba(2, 4, 5, 0.12);
 }
 
 .cell-focus {
   background: var(--lcd-ink);
-  color: var(--lcd-bg-top);
-  text-shadow: none;
+  color: var(--lcd-bg);
 }
 
 .lcd-mat-row {
@@ -835,10 +821,10 @@ button {
 
 .lcd-mat-cell {
   text-align: right;
-  padding: 1.5px 5px;
-  border: 1px solid rgba(17, 24, 27, 0.28);
-  background: rgba(17, 24, 27, 0.04);
-  font-size: 0.78rem;
+  padding: 1px 4px;
+  border: 1px solid rgba(2, 4, 5, 0.3);
+  background: rgba(2, 4, 5, 0.04);
+  font-size: 18px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -846,16 +832,14 @@ button {
 
 .lcd-mat-cell.focused {
   background: var(--lcd-ink);
-  color: var(--lcd-bg-top);
+  color: var(--lcd-bg);
   border-color: var(--lcd-ink);
-  text-shadow: none;
 }
 
 /* EQN & INEQ Editors */
 .lcd-eqn-header {
-  font-size: 0.78rem;
-  font-weight: 800;
-  border-bottom: 1px solid rgba(17, 24, 27, 0.22);
+  font-size: 18px;
+  border-bottom: 1.5px solid rgba(2, 4, 5, 0.24);
   padding-bottom: 1px;
 }
 
@@ -863,24 +847,23 @@ button {
   display: flex;
   flex-wrap: wrap;
   gap: 3px 6px;
-  font-size: 0.74rem;
+  font-size: 16.5px;
 }
 
 .eqn-chip {
   padding: 0.5px 4px;
-  border: 1px solid rgba(17, 24, 27, 0.24);
+  border: 1px solid rgba(2, 4, 5, 0.28);
 }
 
 .eqn-chip.active {
   background: var(--lcd-ink);
-  color: var(--lcd-bg-top);
+  color: var(--lcd-bg);
   border-color: var(--lcd-ink);
-  text-shadow: none;
 }
 
 .lcd-eqn-res-label {
-  font-size: 1.08rem;
-  font-weight: 700;
+  font-family: 'CasioESLarge', monospace;
+  font-size: 28px;
 }
 
 .lcd-eqn-nav {
@@ -890,39 +873,34 @@ button {
 }
 
 /* ==========================================================================
-   Upper Deck: Individual Metallic Round Wells + Sculpted 4-Way Replay Pad
+   Upper Deck: Spun-Metal Round Keys + Central Diamond-Checkered D-Pad
    ========================================================================== */
 .casio-upper-deck {
   position: relative;
   display: grid;
-  grid-template-columns: 1fr 108px 1fr;
+  grid-template-columns: 1fr 106px 1fr;
   align-items: start;
-  margin-top: 10px;
+  margin-top: 12px;
   margin-bottom: 4px;
 }
 
-.casio-round-pair {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px;
-  align-items: start;
-}
-
-.casio-round-unit {
+.casio-round-side {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 3px;
+  gap: 4px;
 }
 
-.casio-round-unit.unit-inner {
-  margin-top: 5px;
+.casio-round-labels {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  text-align: center;
+  align-items: baseline;
 }
 
 .round-lbl {
   font-family: system-ui, -apple-system, sans-serif;
   font-size: 0.62rem;
-  font-weight: 800;
+  font-weight: 700;
   letter-spacing: 0.03em;
   line-height: 1;
 }
@@ -949,42 +927,55 @@ button {
   display: inline-flex;
   justify-content: center;
   gap: 3px;
-  font-size: 0.56rem;
+  font-size: 0.55rem;
   line-height: 1;
   white-space: nowrap;
 }
 
+.casio-round-groove {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding: 3px 5px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #1b1d20 0%, #26282b 100%);
+  box-shadow:
+    inset 0 2px 4px rgba(0, 0, 0, 0.68),
+    0 1px 0 rgba(255, 255, 255, 0.07);
+}
+
 .casio-round-well {
-  width: 35px;
-  height: 35px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: radial-gradient(circle at 50% 35%, #0c0e11 0%, #191c20 100%);
-  box-shadow:
-    inset 0 2.5px 5px rgba(0, 0, 0, 0.92),
-    0 1px 0 rgba(255, 255, 255, 0.08);
+  background: #0d0f11;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.95);
 }
 
+/* Exact vertical 12/6-o'clock spun-metal bowtie reflection from reference photo */
 .casio-metal-btn {
-  width: 28px;
-  height: 28px;
+  width: 27px;
+  height: 27px;
   border-radius: 50%;
-  border: 1px solid #0f1114;
+  border: 1px solid #0e1012;
   background: conic-gradient(
-    from 25deg,
-    #2d3136 0deg,
-    #777e87 42deg,
-    #25292d 95deg,
-    #6d747d 180deg,
-    #23272b 262deg,
-    #737a83 318deg,
-    #2d3136 360deg
+    from 0deg,
+    #888c91 0deg,
+    #25272a 32deg,
+    #181a1c 90deg,
+    #25272a 148deg,
+    #888c91 180deg,
+    #25272a 212deg,
+    #181a1c 270deg,
+    #25272a 328deg,
+    #888c91 360deg
   );
   box-shadow:
-    0 2.5px 3px rgba(0, 0, 0, 0.88),
-    inset 0 1px 1.5px rgba(255, 255, 255, 0.34);
+    0 2px 3px rgba(0, 0, 0, 0.9),
+    inset 0 1px 1px rgba(255, 255, 255, 0.28);
   transition: transform 0.07s ease;
 }
 
@@ -993,7 +984,7 @@ button {
   transform: translateY(1.5px);
   box-shadow:
     0 1px 1px rgba(0, 0, 0, 0.9),
-    0 0 0 2px rgba(224, 183, 102, 0.48);
+    0 0 0 2px rgba(220, 180, 100, 0.5);
 }
 
 /* Central Sculpted 4-Way D-Pad */
@@ -1001,7 +992,7 @@ button {
   display: flex;
   justify-content: center;
   z-index: 3;
-  margin-top: 8px;
+  margin-top: 6px;
   margin-bottom: -38px;
 }
 
@@ -1011,14 +1002,14 @@ button {
   height: 84px;
   border-radius: 44px;
   background:
-    repeating-linear-gradient(45deg, rgba(12, 14, 17, 0.7) 0 2px, rgba(35, 39, 45, 0.7) 2px 4px),
-    repeating-linear-gradient(-45deg, rgba(12, 14, 17, 0.7) 0 2px, rgba(35, 39, 45, 0.7) 2px 4px),
-    radial-gradient(circle, #1e2227 0%, #0f1114 100%);
-  border: 2px solid #0b0d10;
+    repeating-linear-gradient(45deg, rgba(10, 12, 14, 0.78) 0 2.5px, rgba(38, 41, 46, 0.78) 2.5px 5px),
+    repeating-linear-gradient(-45deg, rgba(10, 12, 14, 0.78) 0 2.5px, rgba(38, 41, 46, 0.78) 2.5px 5px),
+    radial-gradient(circle, #1f2226 0%, #0e1013 100%);
+  border: 2px solid #0b0d0f;
   box-shadow:
-    0 5px 11px rgba(0, 0, 0, 0.78),
-    inset 0 2px 4px rgba(0, 0, 0, 0.82),
-    0 1px 0 rgba(255, 255, 255, 0.08);
+    0 5px 10px rgba(0, 0, 0, 0.78),
+    inset 0 2px 4px rgba(0, 0, 0, 0.85),
+    0 1px 0 rgba(255, 255, 255, 0.07);
 }
 
 .dpad-center-knurl {
@@ -1026,32 +1017,33 @@ button {
   inset: 26px 32px;
   border-radius: 50%;
   background:
-    repeating-linear-gradient(45deg, #14171b 0 2px, #242930 2px 4px),
-    repeating-linear-gradient(-45deg, #14171b 0 2px, #242930 2px 4px);
-  opacity: 0.75;
+    repeating-linear-gradient(45deg, #121417 0 2px, #272b30 2px 4px),
+    repeating-linear-gradient(-45deg, #121417 0 2px, #272b30 2px 4px);
+  opacity: 0.82;
   pointer-events: none;
 }
 
 .dpad-lobe {
   position: absolute;
-  border: 1px solid #0e1013;
+  border: 1px solid #0d0f12;
   background: conic-gradient(
-    from 15deg,
-    #2c3035 0deg,
-    #6e757e 45deg,
-    #23272b 95deg,
-    #686f78 180deg,
-    #22262a 265deg,
-    #6c737c 320deg,
-    #2c3035 360deg
+    from 0deg,
+    #82868b 0deg,
+    #242629 34deg,
+    #181a1c 90deg,
+    #242629 146deg,
+    #82868b 180deg,
+    #242629 214deg,
+    #181a1c 270deg,
+    #242629 326deg,
+    #82868b 360deg
   );
-  color: rgba(240, 244, 248, 0.82);
   display: flex;
   align-items: center;
   justify-content: center;
   box-shadow:
-    0 2.5px 3.5px rgba(0, 0, 0, 0.85),
-    inset 0 1px 1px rgba(255, 255, 255, 0.3);
+    0 2px 3px rgba(0, 0, 0, 0.88),
+    inset 0 1px 1px rgba(255, 255, 255, 0.25);
   padding: 0;
   transition: transform 0.06s ease;
 }
@@ -1264,52 +1256,55 @@ button {
   transform: translateY(2px);
 }
 
-/* Dark Charcoal Scientific Keys */
+/* Dark Charcoal Scientific Keys (#424242 face measured from reference photo) */
 .calc-btn-sci {
   height: 29px;
   border-radius: 7px 7px 9px 9px;
-  font-size: 0.8rem;
-  font-weight: 600;
-  background: linear-gradient(180deg, #2b2f35 0%, #1d2024 100%);
+  font-size: 0.82rem;
+  font-weight: 500;
+  background: linear-gradient(180deg, #454547 0%, #3a3a3c 100%);
   box-shadow:
-    0 3px 0 #0c0e10,
-    inset 0 1px 0 rgba(255, 255, 255, 0.16);
+    0 2.5px 0 #111214,
+    0 0 0 1px #141517,
+    inset 0 1px 0 rgba(255, 255, 255, 0.24);
 }
 
-/* Lower Grey Numeric & Operator Keys */
+/* Lower Warm-Grey Numeric & Operator Keys (#636361 face + slender sans numerals) */
 .calc-btn-num,
 .calc-btn-op {
   height: 36px;
-  border-radius: 8px 8px 11px 11px;
-  background: linear-gradient(180deg, #6b7076 0%, #55595f 100%);
+  border-radius: 7px 7px 10px 10px;
+  background: linear-gradient(180deg, #666664 0%, #5a5a58 100%);
   box-shadow:
-    0 3.5px 0 #23262a,
-    inset 0 1px 0 rgba(255, 255, 255, 0.26);
+    0 3px 0 #17181a,
+    0 0 0 1px #161719,
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
 }
 
 .calc-btn-num {
-  font-size: 1.2rem;
-  font-weight: 600;
+  font-size: 1.44rem;
+  font-weight: 400;
+  letter-spacing: -0.01em;
 }
 
 .calc-btn-op {
-  font-size: 1.06rem;
-  font-weight: 600;
+  font-size: 1.12rem;
+  font-weight: 400;
 }
 
-/* Iconic Casio Yellow-Olive-Green DEL / AC Keys */
+/* Iconic Casio Olive-Chartreuse DEL / AC Keys (#859d43 face) */
 .calc-btn-accent {
   height: 36px;
-  border-radius: 8px 8px 11px 11px;
-  font-size: 0.96rem;
-  font-weight: 700;
+  border-radius: 7px 7px 10px 10px;
+  font-size: 1.06rem;
+  font-weight: 400;
   letter-spacing: 0.02em;
-  color: #ffffff;
-  text-shadow: 0 1px 1px rgba(35, 48, 12, 0.45);
+  color: #f4f8eb;
   background: linear-gradient(180deg, var(--casio-lime-top) 0%, var(--casio-lime-bot) 100%);
   box-shadow:
-    0 3.5px 0 #3f531b,
-    inset 0 1px 0 rgba(255, 255, 255, 0.36);
+    0 3px 0 #262f12,
+    0 0 0 1px #1a200d,
+    inset 0 1px 0 rgba(255, 255, 255, 0.34);
 }
 
 /* Keycap Math Glyphs */

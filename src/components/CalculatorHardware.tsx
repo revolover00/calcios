@@ -405,12 +405,17 @@ export function CalculatorHardware({
 
         {/* Upper Control Row + Central Sculpted 4-Way D-Pad */}
         <div className="casio-upper-deck">
-          {/* Left Pair: Individual Circular Wells for SHIFT & ALPHA */}
-          <div className="casio-round-pair">
-            <div className="casio-round-unit unit-outer">
+          {/* Left Pair: SHIFT & ALPHA aligned horizontally inside subtle recessed contour */}
+          <div className="casio-round-side">
+            <div className="casio-round-labels">
               <span className={isShift ? 'round-lbl round-lbl-shift active' : 'round-lbl round-lbl-shift'}>
                 SHIFT
               </span>
+              <span className={isAlpha ? 'round-lbl round-lbl-alpha active' : 'round-lbl round-lbl-alpha'}>
+                ALPHA
+              </span>
+            </div>
+            <div className="casio-round-groove">
               <div className="casio-round-well">
                 <button
                   type="button"
@@ -421,11 +426,6 @@ export function CalculatorHardware({
                   onClick={() => handlePress('shift')}
                 />
               </div>
-            </div>
-            <div className="casio-round-unit unit-inner">
-              <span className={isAlpha ? 'round-lbl round-lbl-alpha active' : 'round-lbl round-lbl-alpha'}>
-                ALPHA
-              </span>
               <div className="casio-round-well">
                 <button
                   type="button"
@@ -483,13 +483,16 @@ export function CalculatorHardware({
             </div>
           </div>
 
-          {/* Right Pair: Individual Circular Wells for MODE/SETUP & ON */}
-          <div className="casio-round-pair">
-            <div className="casio-round-unit unit-inner">
+          {/* Right Pair: MODE/SETUP & ON aligned horizontally inside subtle recessed contour */}
+          <div className="casio-round-side">
+            <div className="casio-round-labels">
               <span className="round-lbl-mode-group">
                 <span className="round-lbl round-lbl-mode">MODE</span>
                 <span className="round-lbl round-lbl-setup">SETUP</span>
               </span>
+              <span className="round-lbl round-lbl-on">ON</span>
+            </div>
+            <div className="casio-round-groove">
               <div className="casio-round-well">
                 <button
                   type="button"
@@ -499,9 +502,6 @@ export function CalculatorHardware({
                   onClick={() => handlePress('mode')}
                 />
               </div>
-            </div>
-            <div className="casio-round-unit unit-outer">
-              <span className="round-lbl round-lbl-on">ON</span>
               <div className="casio-round-well">
                 <button
                   type="button"
