@@ -212,7 +212,7 @@ function MathRange({
 
     if (!lineMode) {
       // Recurring decimal vinculum overbar: r(3) -> 3̅
-      if (rest.startsWith('r(')) {
+      if (rest.startsWith('r(') && !(pos > start && /[a-zA-Z]/.test(source[pos - 1]))) {
         const parsed = parseCallSpans(source, pos + 1, 1);
         if (parsed && parsed.afterIndex <= end) {
           const [rep] = parsed.args;
@@ -570,17 +570,29 @@ export function NaturalExpression({
 }
 
 function renderFormattedText(text: string): React.ReactNode {
-  const sciMatch = text.match(/^(.*?)×10\^(-?\d+)$/);
-  if (sciMatch) {
-    return (
-      <span>
-        {sciMatch[1].replace(/^-/, '−')}
+  const normalized = text.replace(/^-/, '−');
+  if (!normalized.includes('×10^')) return normalized;
+  const parts: React.ReactNode[] = [];
+  const re = /×10\^(-?\d+)/g;
+  let lastIdx = 0;
+  let match: RegExpExecArray | null;
+  let k = 0;
+  while ((match = re.exec(normalized)) !== null) {
+    if (match.index > lastIdx) {
+      parts.push(normalized.slice(lastIdx, match.index));
+    }
+    parts.push(
+      <React.Fragment key={`sci-${k++}`}>
         <span className="lcd-ten-pow">×10</span>
-        <sup className="lcd-exp">{sciMatch[2].replace(/^-/, '−')}</sup>
-      </span>
+        <sup className="lcd-exp">{match[1].replace(/^-/, '−')}</sup>
+      </React.Fragment>,
     );
+    lastIdx = match.index + match[0].length;
   }
-  return text.replace(/^-/, '−');
+  if (lastIdx < normalized.length) {
+    parts.push(normalized.slice(lastIdx));
+  }
+  return <span>{parts}</span>;
 }
 
 function SurdTop({ a, b, rad }: { a: string; b: string; rad: string }): React.ReactElement {
@@ -697,6 +709,27 @@ function InlineDisplayAtom({ display, lineMode }: { display: DisplayValue; lineM
         <span className="math-frac-num"><MultiSurdTop terms={display.terms} /></span>
         <span className="math-frac-bar" />
         <span className="math-frac-den">{display.d}</span>
+      </span>
+    );
+  }
+  if (display.type === 'mixed-fraction') {
+    if (lineMode) return <span>{display.sign}{display.whole}⌟{display.numerator}⌟{display.denominator}</span>;
+    return (
+      <span className="math-mfrac">
+        <span className="math-mfrac-whole">{display.sign}{display.whole}</span>
+        <span className="math-frac math-frac-mini-res">
+          <span className="math-frac-num">{display.numerator}</span>
+          <span className="math-frac-bar" />
+          <span className="math-frac-den">{display.denominator}</span>
+        </span>
+      </span>
+    );
+  }
+  if (display.type === 'recurring-decimal') {
+    return (
+      <span className="math-seq">
+        {display.sign}{display.intPart}.{display.nonRepeat}
+        <span className="math-overbar">{display.repeat}</span>
       </span>
     );
   }

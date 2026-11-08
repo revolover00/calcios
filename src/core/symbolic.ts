@@ -554,6 +554,14 @@ export function exactInverseTrigDegrees(
 
 /** Exact recurring decimal decomposition for rational n/d (when non-terminating & period <= 24). */
 export function computeRecurringDecimal(n: bigint, d: bigint): RecurringDecimalParts | null {
+  if (d === ZERO) return null;
+  if (d < ZERO) {
+    n = -n;
+    d = -d;
+  }
+  const g = gcdBig(n, d);
+  n /= g;
+  d /= g;
   if (d <= ONE) return null;
   const sign: '' | '−' = n < ZERO ? '−' : '';
   const an = absBig(n);
@@ -603,7 +611,14 @@ export function parseRecurringRational(
   nonRepeatStr: string,
   repeatStr: string,
 ): { n: bigint; d: bigint } | null {
-  if (!/^-?\d*$/.test(intStr) || !/^\d*$/.test(nonRepeatStr) || !/^\d+$/.test(repeatStr)) {
+  if (
+    !/^-?\d*$/.test(intStr) ||
+    !/^\d*$/.test(nonRepeatStr) ||
+    !/^\d+$/.test(repeatStr) ||
+    intStr.length > 18 ||
+    nonRepeatStr.length > 18 ||
+    repeatStr.length > 24
+  ) {
     return null;
   }
   const neg = intStr.startsWith('-');

@@ -1,4 +1,4 @@
-import React, { useEffect, useReducer, useState } from 'react';
+import React, { useEffect, useReducer, useRef, useState } from 'react';
 import { CalculatorHardware } from './components/CalculatorHardware';
 import { calculatorReducer, hydrateState, saveableState } from './core/calculator';
 
@@ -109,14 +109,20 @@ export function App(): React.ReactElement {
     };
   }, []);
 
+  const stateRef = useRef(state);
+  stateRef.current = state;
+
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
       if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
         return;
       }
-      const isHex = state.mode === 'BASE-N' && state.baseN.base === 'HEX';
-      const isCmplx = state.mode === 'CMPLX';
+      const cur = stateRef.current;
+      const before = cur.phase === 'editing' ? cur.expression.slice(0, cur.cursor) : '';
+      const prefMatch = cur.mode === 'BASE-N' ? before.match(/(?:^|[^a-zA-Z])([dhbo])[0-9A-F]*$/) : null;
+      const isHex = cur.mode === 'BASE-N' && (prefMatch ? prefMatch[1] === 'h' : cur.baseN.base === 'HEX');
+      const isCmplx = cur.mode === 'CMPLX';
       const mapped = mapKeyboardEvent(e, isHex, isCmplx);
       if (mapped) {
         e.preventDefault();
@@ -125,7 +131,7 @@ export function App(): React.ReactElement {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [state.mode, state.baseN.base]);
+  }, []);
 
   return (
     <main

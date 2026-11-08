@@ -23,7 +23,7 @@ export interface StatSummary {
   sumX2: Scalar;
   meanX: Scalar;
   popSdX: Scalar;
-  sampSdX: Scalar;
+  sampSdX?: Scalar;
   minX: Scalar;
   maxX: Scalar;
   q1?: Scalar;
@@ -52,11 +52,20 @@ function sc(v: InstanceType<typeof D>): Scalar {
   return makeScalar(clean, undefined, true);
 }
 
-function medianSlice(sorted: InstanceType<typeof D>[]): InstanceType<typeof D> {
-  const m = sorted.length;
-  if (m === 0) mathError('Empty stat data');
-  const mid = Math.floor(m / 2);
-  return m % 2 === 1 ? sorted[mid] : sorted[mid - 1].plus(sorted[mid]).div(2);
+function parseStatCellDecimal(raw: string | undefined, fallback: string): InstanceType<typeof D> {
+  const text = (raw ?? '').trim();
+  if (!text) return new D(fallback);
+  const normalized = text
+    .replace(/×10\^/g, 'e')
+    .replace(/−/g, '-')
+    .replace(/,/g, '.');
+  try {
+    const val = new D(normalized);
+    if (!val.isFinite()) mathError('Invalid statistical value');
+    return val;
+  } catch {
+    return mathError('Invalid statistical value');
+  }
 }
 
 export function computeStatSummary(subMode: StatSubMode, rows: StatRow[]): StatSummary {
@@ -64,6 +73,7 @@ export function computeStatSummary(subMode: StatSubMode, rows: StatRow[]): StatS
   const is1Var = subMode === '1-VAR';
 
   let n = new D(0);
+  let totalFreqBig = 0n;
   let sumX = new D(0);
   let sumX2 = new D(0);
   let sumX3 = new D(0);
@@ -78,14 +88,14 @@ export function computeStatSummary(subMode: StatSubMode, rows: StatRow[]): StatS
   let minY: InstanceType<typeof D> | null = null;
   let maxY: InstanceType<typeof D> | null = null;
 
-  const expandedX: InstanceType<typeof D>[] = [];
+  const weightedX: Array<{ x: InstanceType<typeof D>; freq: bigint }> = [];
   const transformedPairs: Array<{ tx: InstanceType<typeof D>; ty: InstanceType<typeof D>; f: InstanceType<typeof D> }> = [];
 
   for (const row of rows) {
-    const x = new D(row.x || '0');
-    const y = new D(row.y || '0');
-    const f = new D(row.freq || '1');
-    if (f.lt(0) || !f.isInteger()) mathError('Invalid frequency');
+    const x = parseStatCellDecimal(row.x, '0');
+    const y = parseStatCellDecimal(row.y, '0');
+    const f = parseStatCellDecimal(row.freq, '1');
+    if (f.lt(0) || !f.isInteger() || f.gte('1e15')) mathError('Invalid frequency');
     if (f.isZero()) continue;
 
     n = n.plus(f);
@@ -94,9 +104,10 @@ export function computeStatSummary(subMode: StatSubMode, rows: StatRow[]): StatS
     if (minX === null || x.lt(minX)) minX = x;
     if (maxX === null || x.gt(maxX)) maxX = x;
 
-    if (is1Var && f.lte(500) && expandedX.length < 2000) {
-      const count = f.toNumber();
-      for (let k = 0; k < count; k++) expandedX.push(x);
+    if (is1Var) {
+      const fBig = BigInt(f.toFixed(0));
+      weightedX.push({ x, freq: fBig });
+      totalFreqBig += fBig;
     }
 
     if (!is1Var) {
@@ -135,7 +146,7 @@ export function computeStatSummary(subMode: StatSubMode, rows: StatRow[]): StatS
   const popSdX = varPopX.sqrt();
   const sampSdX = n.gt(1)
     ? D.max(new D(0), sumX2.minus(n.times(meanX.pow(2))).div(n.minus(1))).sqrt()
-    : new D(0);
+    : undefined;
 
   const summary: StatSummary = {
     n: sc(n),
@@ -143,20 +154,36 @@ export function computeStatSummary(subMode: StatSubMode, rows: StatRow[]): StatS
     sumX2: sc(sumX2),
     meanX: sc(meanX),
     popSdX: sc(popSdX),
-    sampSdX: n.gt(1) ? sc(sampSdX) : sc(new D(0)),
+    sampSdX: sampSdX ? sc(sampSdX) : undefined,
     minX: sc(minX),
     maxX: sc(maxX),
   };
 
-  if (is1Var && expandedX.length > 0) {
-    expandedX.sort((a, b) => a.comparedTo(b));
-    const len = expandedX.length;
-    const med = medianSlice(expandedX);
-    const lowerHalf = expandedX.slice(0, Math.floor(len / 2));
-    const upperHalf = expandedX.slice(Math.ceil(len / 2));
+  if (is1Var && weightedX.length > 0 && totalFreqBig > 0n) {
+    weightedX.sort((a, b) => a.x.comparedTo(b.x));
+    const cumEnds: bigint[] = [];
+    let running = 0n;
+    for (const item of weightedX) {
+      running += item.freq;
+      cumEnds.push(running);
+    }
+    const atIndex = (idx0: bigint): InstanceType<typeof D> => {
+      for (let i = 0; i < cumEnds.length; i++) {
+        if (idx0 < cumEnds[i]) return weightedX[i].x;
+      }
+      return weightedX[weightedX.length - 1].x;
+    };
+    const rangeMedian = (start: bigint, len: bigint): InstanceType<typeof D> => {
+      const half = len / 2n;
+      if (len % 2n === 1n) return atIndex(start + half);
+      return atIndex(start + half - 1n).plus(atIndex(start + half)).div(2);
+    };
+    const med = rangeMedian(0n, totalFreqBig);
+    const halfLen = totalFreqBig / 2n;
+    const upperStart = (totalFreqBig + 1n) / 2n;
     summary.med = sc(med);
-    summary.q1 = sc(lowerHalf.length ? medianSlice(lowerHalf) : med);
-    summary.q3 = sc(upperHalf.length ? medianSlice(upperHalf) : med);
+    summary.q1 = sc(halfLen > 0n ? rangeMedian(0n, halfLen) : med);
+    summary.q3 = sc(halfLen > 0n ? rangeMedian(upperStart, halfLen) : med);
     return summary;
   }
 
@@ -166,7 +193,7 @@ export function computeStatSummary(subMode: StatSubMode, rows: StatRow[]): StatS
     const popSdY = varPopY.sqrt();
     const sampSdY = n.gt(1)
       ? D.max(new D(0), sumY2.minus(n.times(meanY.pow(2))).div(n.minus(1))).sqrt()
-      : new D(0);
+      : undefined;
 
     summary.sumY = sc(sumY);
     summary.sumY2 = sc(sumY2);
@@ -176,7 +203,7 @@ export function computeStatSummary(subMode: StatSubMode, rows: StatRow[]): StatS
     summary.sumX2Y = sc(sumX2Y);
     summary.meanY = sc(meanY);
     summary.popSdY = sc(popSdY);
-    summary.sampSdY = sc(sampSdY);
+    summary.sampSdY = sampSdY ? sc(sampSdY) : undefined;
     summary.minY = sc(minY);
     summary.maxY = sc(maxY);
 
@@ -190,12 +217,17 @@ export function computeStatSummary(subMode: StatSubMode, rows: StatRow[]): StatS
         [sumX, sumX2, sumX3, sumXY],
         [sumX2, sumX3, sumX4, sumX2Y],
       ];
+      const matScale = D.max(n.abs(), sumX2.abs(), sumX4.abs(), new D(1));
+      let singular = false;
       for (let col = 0; col < 3; col++) {
         let best = col;
         for (let r = col + 1; r < 3; r++) {
           if (mat[r][col].abs().gt(mat[best][col].abs())) best = r;
         }
-        if (mat[best][col].abs().lt('1e-26')) continue;
+        if (mat[best][col].abs().lte(matScale.times('1e-24'))) {
+          singular = true;
+          break;
+        }
         [mat[col], mat[best]] = [mat[best], mat[col]];
         const piv = mat[col][col];
         for (let c = col; c < 4; c++) mat[col][c] = mat[col][c].div(piv);
@@ -205,9 +237,11 @@ export function computeStatSummary(subMode: StatSubMode, rows: StatRow[]): StatS
           for (let c = col; c < 4; c++) mat[r][c] = mat[r][c].minus(fac.times(mat[col][c]));
         }
       }
-      summary.regA = sc(mat[0][3]);
-      summary.regB = sc(mat[1][3]);
-      summary.regC = sc(mat[2][3]);
+      if (!singular) {
+        summary.regA = sc(mat[0][3]);
+        summary.regB = sc(mat[1][3]);
+        summary.regC = sc(mat[2][3]);
+      }
     } else if (transformedPairs.length > 0) {
       let sTx = new D(0), sTy = new D(0), sTxx = new D(0), sTyy = new D(0), sTxy = new D(0);
       for (const p of transformedPairs) {
@@ -265,6 +299,16 @@ export function estimateStatXHat(subMode: StatSubMode, summary: StatSummary, yVa
   const A = summary.regA.decimal;
   const B = summary.regB.decimal;
   const y = yVal.decimal;
+  if (subMode === '_+CX2') {
+    const C = summary.regC?.decimal ?? new D(0);
+    if (C.isZero()) {
+      if (B.isZero()) mathError('Slope is zero');
+      return sc(y.minus(A).div(B));
+    }
+    const disc = B.pow(2).minus(C.times(4).times(A.minus(y)));
+    if (disc.lt(0)) mathError('Non-real x̂₁');
+    return sc(B.neg().plus(disc.sqrt()).div(C.times(2)));
+  }
   if (B.isZero()) mathError('Slope is zero');
   switch (subMode) {
     case 'A+BX': return sc(y.minus(A).div(B));
@@ -273,16 +317,6 @@ export function estimateStatXHat(subMode: StatSubMode, summary: StatSummary, yVa
     case 'AB_X': if (y.div(A).lte(0) || B.lte(0) || B.eq(1)) mathError('Domain'); return sc(y.div(A).ln().div(B.ln()));
     case 'AX_B': if (y.div(A).lte(0)) mathError('Domain'); return sc(y.div(A).pow(new D(1).div(B)));
     case 'INV_X': if (y.eq(A)) mathError('Domain'); return sc(B.div(y.minus(A)));
-    case '_+CX2': {
-      const C = summary.regC?.decimal ?? new D(0);
-      if (C.isZero()) {
-        if (B.isZero()) mathError('Slope is zero');
-        return sc(y.minus(A).div(B));
-      }
-      const disc = B.pow(2).minus(C.times(4).times(A.minus(y)));
-      if (disc.lt(0)) mathError('Non-real x̂₁');
-      return sc(B.neg().plus(disc.sqrt()).div(C.times(2)));
-    }
     default: return mathError('x̂ unavailable in 1-VAR');
   }
 }

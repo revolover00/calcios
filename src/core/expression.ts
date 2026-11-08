@@ -83,7 +83,7 @@ export const STAT_TOKEN_LABELS: Record<string, string> = {
 const STAT_IDENTIFIERS = Object.keys(STAT_TOKEN_LABELS);
 const CALCULUS_NAMES = ['deriv', 'integ', 'sigma', 'prod'];
 const FUNCTION_NAMES = [
-  'RanInt', 'mfrac', 'asinh', 'acosh', 'atanh', 'StatP', 'StatQ', 'StatR',
+  'RanInt#', 'RanInt', 'mfrac', 'asinh', 'acosh', 'atanh', 'StatP', 'StatQ', 'StatR',
   'logb', 'sqrt', 'cbrt', 'frac', 'root', 'Intg',
   'sinh', 'cosh', 'tanh', 'asin', 'acos', 'atan',
   'GCD', 'LCM', 'Int', 'Pol', 'Rec', 'Rnd',
@@ -94,6 +94,7 @@ const KEYWORDS = [
   ...CALCULUS_NAMES,
   ...FUNCTION_NAMES,
   'PreAns',
+  'Ran#',
   'nCr',
   'nPr',
   'Ans',
@@ -313,8 +314,40 @@ class Parser {
         else if (this.tokens[i].type === 'close') depth--;
       }
       if (depth === 0) {
-        const lhsTokens: Token[] = [...this.tokens.slice(0, splitAt), { type: 'end', text: '' }];
-        const rhsTokens: Token[] = [...this.tokens.slice(splitAt + 1)];
+        const isValueEnd = (t: Token | undefined): boolean =>
+          !!t &&
+          (t.type === 'number' ||
+            t.type === 'recur' ||
+            t.type === 'identifier' ||
+            t.type === 'close' ||
+            t.type === 'dms' ||
+            t.type === 'postfix' ||
+            (t.type === 'operator' && (t.text === '!' || t.text === '%')));
+
+        const hasOuterOp = (slice: Token[], disallowMulDiv: boolean): boolean => {
+          let d = 0;
+          for (let i = 0; i < slice.length; i++) {
+            const tok = slice[i];
+            if (tok.type === 'end') break;
+            if (tok.type === 'open') { d++; continue; }
+            if (tok.type === 'close') { d--; continue; }
+            if (d !== 0) continue;
+            if (tok.type === 'simp') return true;
+            if (tok.type === 'operator') {
+              if ((tok.text === '+' || tok.text === '-') && isValueEnd(slice[i - 1])) return true;
+              if (disallowMulDiv && ['×', '÷', '*', '/'].includes(tok.text)) return true;
+            }
+          }
+          return false;
+        };
+
+        const rawLhs = this.tokens.slice(0, splitAt);
+        const rawRhs = this.tokens.slice(splitAt + 1);
+        if (hasOuterOp(rawLhs, false) || hasOuterOp(rawRhs, true)) {
+          syntax('÷R cannot be combined with lower-precedence operators', this.tokens[splitAt].offset);
+        }
+        const lhsTokens: Token[] = [...rawLhs, { type: 'end', text: '' }];
+        const rhsTokens: Token[] = [...rawRhs];
         const lhs = new Parser(lhsTokens, this.context).parse();
         const rhs = new Parser(rhsTokens, this.context).parse();
         const { quotient, remainder } = quotientRemainder(lhs, rhs);
@@ -533,6 +566,11 @@ class Parser {
         return { ...scalarFromLiteral(constant.value), preferDecimal: true };
       }
 
+      if (token.text === 'Ran#') {
+        const sample = this.context.random ?? Math.random();
+        const safe = Math.max(0, Math.min(0.999, Math.floor(sample * 1000) / 1000));
+        return scalarFromLiteral(safe.toFixed(3));
+      }
       if (token.text === 'π') return scalarPi();
       if (token.text === 'e') return makeScalar(new D(1).exp(), undefined, false);
       if (token.text === 'Ans') return deserialize(this.context.ans);

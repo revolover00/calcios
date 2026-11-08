@@ -11,14 +11,14 @@ import {
   type DistSubMode,
 } from './dist';
 import { solveEqn, type EqnOutcome, type EqnType } from './eqn';
-import { CalculatorError } from './errors';
+import { CalculatorError, mathError } from './errors';
 import {
   STAT_TOKEN_LABELS, evaluateExpression, evaluateRichExpression, extractVariables,
   parseAssignmentStatement, splitEquation, splitStatements,
 } from './expression';
 import {
   extractTrailingOperandSpan, handleSmartCloseParen, isInsideTemplateSlot, isSafeOverwriteAt,
-  moveCursorHorizontal, moveCursorVertical, smartDeleteBeforeCursor,
+  moveCursorHorizontal, moveCursorVertical, normalizeMathCursor, smartDeleteBeforeCursor,
 } from './mathAst';
 import {
   DEFAULT_NUMBER_FORMAT, defaultResultFormat, formatDecimal, formatResult, initialEngExponent,
@@ -104,7 +104,11 @@ export type ScreenView =
   | 'eqn-menu'
   | 'off';
 
-export interface HistoryEntry { expression: string; result: StoredScalar }
+export interface HistoryEntry {
+  expression: string;
+  result: StoredScalar;
+  mode?: ActiveMode;
+}
 
 export interface CalcPromptState {
   sourceExpr: string;
@@ -574,12 +578,24 @@ function insert(
     caretOffset === text.length &&
     cursor < expression.length &&
     isSafeOverwriteAt(expression, cursor, isLineModeState(s));
-  const replaceCount = canOverwrite ? 1 : 0;
-  const nextExpr = expression.slice(0, cursor) + text + expression.slice(cursor + replaceCount);
+  let replaceStart = cursor;
+  let replaceEnd = cursor;
+  if (canOverwrite) {
+    const atomHit = findAtomicSpans(expression, isLineModeState(s)).find(
+      ([st, en]) => cursor >= st && cursor < en,
+    );
+    if (atomHit) {
+      replaceStart = atomHit[0];
+      replaceEnd = atomHit[1];
+    } else {
+      replaceEnd = cursor + 1;
+    }
+  }
+  const nextExpr = expression.slice(0, replaceStart) + text + expression.slice(replaceEnd);
   return {
     ...resetResultModifiers(s),
     expression: nextExpr,
-    cursor: cursor + caretOffset,
+    cursor: replaceStart + caretOffset,
     phase: 'editing',
     result: null,
     error: null,
@@ -684,7 +700,7 @@ function insertSmartFraction(s: CalculatorState): CalculatorState {
   return binaryTemplate(s, 'frac');
 }
 function insertSmartMixedFraction(s: CalculatorState): CalculatorState {
-  if (isLineModeState(s)) return insert(s, '÷', 'continue');
+  if (isLineModeState(s)) return functionTemplate(s, 'mfrac');
   if (s.phase === 'editing') {
     const span = extractTrailingOperandSpan(s.expression, s.cursor);
     if (span) {
@@ -804,7 +820,7 @@ function evaluateSingleStatement(
   }
 
   const autoDms = !pairResult && hasTopLevelDms(exprToEval);
-  const history = [...s.history, { expression: recordExpr, result: primaryStored }].slice(-40);
+  const history = [...s.history, { expression: recordExpr, result: primaryStored, mode: s.mode }].slice(-40);
   return {
     ...resetResultModifiers(s),
     phase: 'result',
@@ -833,11 +849,15 @@ function calculate(s: CalculatorState, random?: number): CalculatorState {
       const prevAns = BigInt(s.baseN.ans);
       const val = evaluateBaseN(s.expression, s.baseN.base, prevAns);
       const serialized = val.toString();
+      const storedInt = serialize(scalarFromInteger(val));
+      const history = [...s.history, { expression: s.expression, result: storedInt, mode: s.mode }].slice(-40);
       return {
         ...resetResultModifiers(s),
         phase: 'result',
-        result: serialize(scalarFromInteger(val)),
+        result: storedInt,
         baseN: { ...s.baseN, ans: serialized, result: serialized },
+        history,
+        historyIndex: null,
         error: null,
         shift: false,
         alpha: false,
@@ -852,8 +872,11 @@ function calculate(s: CalculatorState, random?: number): CalculatorState {
         angle: s.angle,
         variables: s.variables,
         cmplxAns: s.cmplx.ans,
+        preAns: s.preAns,
+        numberFormat: s.numberFormat,
       });
       const storedZ = serializeComplex(out.value);
+      const history = [...s.history, { expression: s.expression, result: storedZ.re, mode: s.mode }].slice(-40);
       return {
         ...resetResultModifiers(s),
         phase: 'result',
@@ -867,6 +890,8 @@ function calculate(s: CalculatorState, random?: number): CalculatorState {
           format: out.preferredFormat ?? s.defaultCmplxFormat,
           partView: 'both',
         },
+        history,
+        historyIndex: null,
         error: null,
         shift: false,
         alpha: false,
@@ -881,10 +906,14 @@ function calculate(s: CalculatorState, random?: number): CalculatorState {
         matrices: s.matrix.matrices,
         variables: s.variables,
         ans: s.ans,
+        preAns: s.preAns,
         angle: s.angle,
+        numberFormat: s.numberFormat,
+        rng: random !== undefined ? () => random : undefined,
       });
       if (out.kind === 'scalar') {
         const stored = serialize(out.scalar);
+        const history = [...s.history, { expression: s.expression, result: stored, mode: s.mode }].slice(-40);
         return {
           ...resetResultModifiers(s),
           phase: 'result',
@@ -892,12 +921,15 @@ function calculate(s: CalculatorState, random?: number): CalculatorState {
           preAns: s.ans,
           ans: stored,
           resultFormat: effectiveResultFormat(s, defaultResultFormat(out.scalar)),
+          history,
+          historyIndex: null,
           error: null,
           shift: false,
           alpha: false,
         };
       }
       const storedMat = serializeMatrix(out.matrix);
+      const history = [...s.history, { expression: s.expression, result: s.ans, mode: s.mode }].slice(-40);
       return {
         ...resetResultModifiers(s),
         phase: 'result',
@@ -908,6 +940,8 @@ function calculate(s: CalculatorState, random?: number): CalculatorState {
           rowIdx: 0,
           colIdx: 0,
         },
+        history,
+        historyIndex: null,
         error: null,
         shift: false,
         alpha: false,
@@ -919,10 +953,14 @@ function calculate(s: CalculatorState, random?: number): CalculatorState {
         vectors: s.vector.vectors,
         variables: s.variables,
         ans: s.ans,
+        preAns: s.preAns,
         angle: s.angle,
+        numberFormat: s.numberFormat,
+        rng: random !== undefined ? () => random : undefined,
       });
       if (out.kind === 'scalar') {
         const stored = serialize(out.scalar);
+        const history = [...s.history, { expression: s.expression, result: stored, mode: s.mode }].slice(-40);
         return {
           ...resetResultModifiers(s),
           phase: 'result',
@@ -930,12 +968,15 @@ function calculate(s: CalculatorState, random?: number): CalculatorState {
           preAns: s.ans,
           ans: stored,
           resultFormat: effectiveResultFormat(s, defaultResultFormat(out.scalar)),
+          history,
+          historyIndex: null,
           error: null,
           shift: false,
           alpha: false,
         };
       }
       const storedVct = serializeVector(out.vector);
+      const history = [...s.history, { expression: s.expression, result: s.ans, mode: s.mode }].slice(-40);
       return {
         ...resetResultModifiers(s),
         phase: 'result',
@@ -945,6 +986,8 @@ function calculate(s: CalculatorState, random?: number): CalculatorState {
           showingVectorResult: true,
           coordIdx: 0,
         },
+        history,
+        historyIndex: null,
         error: null,
         shift: false,
         alpha: false,
@@ -953,10 +996,13 @@ function calculate(s: CalculatorState, random?: number): CalculatorState {
 
     if (s.mode === 'VERIF') {
       const ok = evaluateVerification(s.expression, evalContext(s, random));
+      const history = [...s.history, { expression: s.expression, result: s.ans, mode: s.mode }].slice(-40);
       return {
         ...resetResultModifiers(s),
         phase: 'result',
         verifResult: ok,
+        history,
+        historyIndex: null,
         error: null,
         shift: false,
         alpha: false,
@@ -988,7 +1034,7 @@ function calculate(s: CalculatorState, random?: number): CalculatorState {
       };
     }
 
-    if (s.expression.includes('=')) {
+    if (s.expression.includes('=') && !parseAssignmentStatement(s.expression)) {
       return startSolveWorkflow(s);
     }
 
@@ -999,8 +1045,65 @@ function calculate(s: CalculatorState, random?: number): CalculatorState {
 }
 
 function currentValue(s: CalculatorState): StoredScalar {
-  if (s.phase === 'result' && s.result) return s.result;
-  if (!s.expression) return s.ans;
+  if (s.phase === 'result') {
+    if (s.mode === 'MATRIX' && s.matrix.showingMatrixResult) {
+      throw new CalculatorError('Argument ERROR', 'Cannot store matrix in scalar variable');
+    }
+    if (s.mode === 'VECTOR' && s.vector.showingVectorResult) {
+      throw new CalculatorError('Argument ERROR', 'Cannot store vector in scalar variable');
+    }
+    if (s.mode === 'CMPLX' && s.cmplx.result && !deserialize(s.cmplx.result.im).decimal.isZero()) {
+      mathError('Cannot store non-real value in real variable');
+    }
+    if (s.result) return s.result;
+  }
+  if (!s.expression.trim()) {
+    if (s.mode === 'BASE-N') return serialize(scalarFromInteger(BigInt(s.baseN.ans)));
+    if (s.mode === 'CMPLX') {
+      if (!deserialize(s.cmplx.ans.im).decimal.isZero()) mathError('Cannot store non-real Ans in real variable');
+      return s.cmplx.ans.re;
+    }
+    return s.ans;
+  }
+  if (s.mode === 'BASE-N') {
+    const val = evaluateBaseN(s.expression, s.baseN.base, BigInt(s.baseN.ans));
+    return serialize(scalarFromInteger(val));
+  }
+  if (s.mode === 'CMPLX') {
+    const out = evaluateComplex(s.expression, {
+      angle: s.angle,
+      variables: s.variables,
+      cmplxAns: s.cmplx.ans,
+      preAns: s.preAns,
+      numberFormat: s.numberFormat,
+    });
+    if (!out.value.im.decimal.isZero()) mathError('Cannot store non-real value in real variable');
+    return serialize(out.value.re);
+  }
+  if (s.mode === 'MATRIX') {
+    const out = evaluateMatrixExpression(s.expression, {
+      matrices: s.matrix.matrices,
+      variables: s.variables,
+      ans: s.ans,
+      preAns: s.preAns,
+      angle: s.angle,
+      numberFormat: s.numberFormat,
+    });
+    if (out.kind !== 'scalar') throw new CalculatorError('Argument ERROR', 'Cannot store matrix in scalar variable');
+    return serialize(out.scalar);
+  }
+  if (s.mode === 'VECTOR') {
+    const out = evaluateVectorExpression(s.expression, {
+      vectors: s.vector.vectors,
+      variables: s.variables,
+      ans: s.ans,
+      preAns: s.preAns,
+      angle: s.angle,
+      numberFormat: s.numberFormat,
+    });
+    if (out.kind !== 'scalar') throw new CalculatorError('Argument ERROR', 'Cannot store vector in scalar variable');
+    return serialize(out.scalar);
+  }
   return serialize(evaluateExpression(s.expression, evalContext(s)));
 }
 
@@ -1011,14 +1114,33 @@ function updateMemory(s: CalculatorState, direction: 1 | -1): CalculatorState {
     const memory = deserialize(s.variables.M);
     const updated = direction === 1 ? add(memory, current) : subtract(memory, current);
     const wasEditing = s.phase === 'editing' && s.expression.trim().length > 0;
+    const baseState = wasEditing ? resetResultModifiers(s) : s;
+    const history = wasEditing
+      ? [...s.history, { expression: s.expression, result: storedCurrent, mode: s.mode }].slice(-40)
+      : s.history;
     return {
-      ...s,
+      ...baseState,
       phase: wasEditing ? 'result' : s.phase,
       result: wasEditing ? storedCurrent : s.result,
+      baseN:
+        wasEditing && s.mode === 'BASE-N'
+          ? { ...s.baseN, ans: current.decimal.toFixed(0), result: current.decimal.toFixed(0) }
+          : baseState.baseN,
+      cmplx:
+        wasEditing && s.mode === 'CMPLX'
+          ? {
+              ...s.cmplx,
+              ans: { re: storedCurrent, im: zeroStored() },
+              result: { re: storedCurrent, im: zeroStored() },
+              partView: 'both',
+            }
+          : baseState.cmplx,
       resultFormat: wasEditing ? effectiveResultFormat(s, defaultResultFormat(current)) : s.resultFormat,
       preAns: wasEditing ? s.ans : s.preAns,
       ans: wasEditing ? storedCurrent : s.ans,
       variables: { ...s.variables, M: serialize(updated) },
+      history,
+      historyIndex: null,
       pending: null,
       shift: false,
       alpha: false,
@@ -1028,20 +1150,44 @@ function updateMemory(s: CalculatorState, direction: 1 | -1): CalculatorState {
   }
 }
 
+export function getModeHistoryIndices(s: CalculatorState): number[] {
+  const out: number[] = [];
+  for (let i = 0; i < s.history.length; i++) {
+    if ((s.history[i].mode ?? 'COMP') === s.mode) out.push(i);
+  }
+  return out;
+}
+
 function navigateHistory(s: CalculatorState, direction: 'up' | 'down'): CalculatorState {
-  if (!s.history.length) return s;
+  const modeIndices = getModeHistoryIndices(s);
+  if (!modeIndices.length) return s;
   if (s.historyIndex === null) {
     if (direction === 'down') return s;
     if (s.phase === 'editing' && s.expression.length > 0) return s;
+    const chosen = modeIndices[modeIndices.length - 1];
+    const entry = s.history[chosen];
+    return {
+      ...resetResultModifiers(s),
+      expression: entry.expression,
+      cursor: entry.expression.length,
+      phase: 'editing',
+      result: null,
+      error: null,
+      historyIndex: chosen,
+      notice: null,
+    };
   }
-  const index = s.historyIndex === null
-    ? s.history.length - 1
-    : s.historyIndex + (direction === 'up' ? -1 : 1);
-  if (index >= s.history.length) {
+  const curPos = modeIndices.indexOf(s.historyIndex);
+  if (curPos === -1) {
+    return { ...s, historyIndex: null };
+  }
+  const nextPos = curPos + (direction === 'up' ? -1 : 1);
+  if (nextPos >= modeIndices.length) {
     return { ...resetResultModifiers(s), expression: '', cursor: 0, phase: 'editing', result: null, error: null, historyIndex: null, notice: null };
   }
-  const bounded = Math.max(0, index);
-  const entry = s.history[bounded];
+  const boundedPos = Math.max(0, nextPos);
+  const chosen = modeIndices[boundedPos];
+  const entry = s.history[chosen];
   return {
     ...resetResultModifiers(s),
     expression: entry.expression,
@@ -1049,7 +1195,7 @@ function navigateHistory(s: CalculatorState, direction: 'up' | 'down'): Calculat
     phase: 'editing',
     result: null,
     error: null,
-    historyIndex: bounded,
+    historyIndex: chosen,
     notice: null,
   };
 }
@@ -1064,6 +1210,7 @@ export function activateModeByName(s: CalculatorState, label: string): Calculato
     cursor: 0,
     result: null,
     error: null,
+    historyIndex: null,
     calcPrompt: null,
     solvePrompt: null,
     eqn: null,
@@ -1555,8 +1702,11 @@ function handleMenu(s: CalculatorState, id: string): CalculatorState {
         preAns: zeroStored(),
         baseN: createDefaultBaseN(),
         cmplx: createDefaultCmplx(s.defaultCmplxFormat),
+        stat: { ...s.stat, rows: [], rowIdx: 0, colIdx: 0, cellInput: '', editingCell: false },
         matrix: createDefaultMatrix(),
         vector: createDefaultVector(),
+        history: [],
+        historyIndex: null,
         clearTarget: null,
       };
     }
@@ -1640,6 +1790,9 @@ function evaluateCalcStatements(
 
 function startCalcWorkflow(s: CalculatorState): CalculatorState {
   if (!s.expression.trim()) return s;
+  if (!s.expression.includes(':') && s.expression.includes('=') && !parseAssignmentStatement(s.expression)) {
+    return startSolveWorkflow(s);
+  }
   try {
     const vars = extractVariables(s.expression);
     if (vars.length === 0) return evaluateCalcStatements(closeLatches(s), s.expression);
@@ -1951,7 +2104,7 @@ function handleStatTableEditor(s: CalculatorState, id: string, random?: number):
       const nextRows = [...st.rows];
       if (st.rowIdx === nextRows.length) {
         if (!st.editingCell || !st.cellInput.trim()) return s;
-        const valStr = formatDecimal(evaluateExpression(st.cellInput, evalContext(s, random)));
+        const valStr = evaluateExpression(st.cellInput, evalContext(s, random)).decimal.toString();
         nextRows.push({
           x: st.colIdx === 0 ? valStr : '0',
           y: hasY ? (st.colIdx === 1 ? valStr : '0') : undefined,
@@ -1959,7 +2112,7 @@ function handleStatTableEditor(s: CalculatorState, id: string, random?: number):
         });
       } else if (st.editingCell && st.cellInput.trim()) {
         const currentRow = { ...nextRows[st.rowIdx] };
-        const valStr = formatDecimal(evaluateExpression(st.cellInput, evalContext(s, random)));
+        const valStr = evaluateExpression(st.cellInput, evalContext(s, random)).decimal.toString();
         if (st.colIdx === 0) currentRow.x = valStr;
         else if (hasY && st.colIdx === 1) currentRow.y = valStr;
         else currentRow.freq = valStr;
@@ -2310,7 +2463,7 @@ function handleTableMode(s: CalculatorState, id: string, random?: number): Calcu
         const start = evaluateExpression(tbl.startInput || '1', ctx);
         const end = evaluateExpression(tbl.endInput || '5', ctx);
         const step = evaluateExpression(tbl.stepInput || '1', ctx);
-        const rows = generateFunctionTable(tbl.fExpr, s.tableUseG ? tbl.gExpr : null, start, end, step, ctx);
+        const rows = generateFunctionTable(tbl.fExpr, s.tableUseG ? tbl.gExpr : null, start, end, step, ctx, s.decimalMark);
         return { ...s, phase: 'result', table: { ...tbl, stage: 'view', editingField: false, rows, selectedRow: 0 } };
       } catch (err) {
         return errorState(s, err);
@@ -2364,7 +2517,7 @@ export function calculatorReducer(state: CalculatorState, action: CalculatorActi
       solvePrompt: null,
       notice: null,
     };
-    if (targetMode === 'COMP' && expr.includes('=')) {
+    if (targetMode === 'COMP' && expr.includes('=') && !parseAssignmentStatement(expr)) {
       const solveInit = startSolveWorkflow(editingState);
       if (solveInit.solvePrompt) {
         const solved = handleSolvePrompt(solveInit, 'equals');
@@ -2438,12 +2591,13 @@ export function calculatorReducer(state: CalculatorState, action: CalculatorActi
       };
     }
     if (id === 'left' || id === 'right') {
-      const gotoPos =
+      const rawGotoPos =
         state.errorCursor !== null
           ? state.errorCursor
           : id === 'left'
             ? state.expression.length
             : 0;
+      const gotoPos = normalizeMathCursor(state.expression, rawGotoPos, isLineModeState(state));
       return {
         ...resetResultModifiers(closeLatches(state)),
         phase: 'editing',
@@ -2537,15 +2691,31 @@ export function calculatorReducer(state: CalculatorState, action: CalculatorActi
       const valScalar = deserialize(storedVal);
       const baseExpr = state.expression.trim() || 'Ans';
       const stoExpr = baseExpr.endsWith(`→${name}`) ? baseExpr : `${baseExpr}→${name}`;
+      const history = [...state.history, { expression: stoExpr, result: storedVal, mode: state.mode }].slice(-40);
       return {
         ...resetResultModifiers(state),
         expression: stoExpr,
         cursor: stoExpr.length,
         phase: 'result',
         result: storedVal,
+        baseN:
+          state.mode === 'BASE-N'
+            ? { ...state.baseN, ans: valScalar.decimal.toFixed(0), result: valScalar.decimal.toFixed(0) }
+            : state.baseN,
+        cmplx:
+          state.mode === 'CMPLX'
+            ? {
+                ...state.cmplx,
+                ans: { re: storedVal, im: zeroStored() },
+                result: { re: storedVal, im: zeroStored() },
+                partView: 'both',
+              }
+            : state.cmplx,
         resultFormat: effectiveResultFormat(state, defaultResultFormat(valScalar)),
         preAns: state.ans,
         ans: storedVal,
+        history,
+        historyIndex: null,
         pending: null,
         shift: false,
         alpha: false,
@@ -2580,10 +2750,18 @@ export function calculatorReducer(state: CalculatorState, action: CalculatorActi
     const lineMode = isLineModeState(state);
     if (state.phase !== 'editing') {
       const nextCursor = id === 'left' ? state.expression.length : 0;
-      return { ...resetResultModifiers(state), phase: 'editing', result: null, error: null, cursor: nextCursor, notice: null };
+      return {
+        ...resetResultModifiers(state),
+        phase: 'editing',
+        result: null,
+        error: null,
+        cursor: nextCursor,
+        historyIndex: null,
+        notice: null,
+      };
     }
     const nextCursor = stepCursor(state.expression, state.cursor, id === 'left' ? -1 : 1, lineMode);
-    return { ...state, phase: 'editing', error: null, cursor: nextCursor, notice: null };
+    return { ...state, phase: 'editing', error: null, cursor: nextCursor, historyIndex: null, notice: null };
   }
   if (id === 'up' || id === 'down') {
     if (state.phase === 'editing') {
@@ -2664,7 +2842,7 @@ export function calculatorReducer(state: CalculatorState, action: CalculatorActi
       if (activeBase === 'OCT' && digit > 7) return state;
       return insert(state, id);
     }
-    if (!['add', 'subtract', 'multiply', 'divide', 'open', 'close', 'ans', 'basen-and', 'basen-or', 'basen-xor', 'basen-xnor', 'basen-not', 'basen-neg'].includes(id)) {
+    if (!['add', 'subtract', 'multiply', 'divide', 'open', 'close', 'ans', 'mplus', 'rcl', 'basen-and', 'basen-or', 'basen-xor', 'basen-xnor', 'basen-not', 'basen-neg'].includes(id)) {
       return state;
     }
   }
@@ -2772,8 +2950,15 @@ export function calculatorReducer(state: CalculatorState, action: CalculatorActi
       case 'subtract': return functionTemplate(s, 'Rec');
       case '0': {
         if (s.phase === 'result' && s.result) {
-          const rounded = serialize(roundScalar(deserialize(s.result), s.numberFormat));
-          return { ...s, result: rounded, ans: rounded, displayOverride: 'none' };
+          const roundedScalar = roundScalar(deserialize(s.result), s.numberFormat);
+          const rounded = serialize(roundedScalar);
+          return {
+            ...resetResultModifiers(s),
+            result: rounded,
+            ans: rounded,
+            resultFormat: effectiveResultFormat(s, defaultResultFormat(roundedScalar)),
+            displayOverride: 'none',
+          };
         }
         return functionTemplate(s, 'Rnd');
       }
@@ -2958,6 +3143,21 @@ export function saveableState(state: CalculatorState): PersistentCalculator {
   };
 }
 
+function sanitizeNumberFormat(raw: unknown): NumberFormatSetting {
+  if (!raw || typeof raw !== 'object') return DEFAULT_NUMBER_FORMAT;
+  const nf = raw as Partial<NumberFormatSetting>;
+  if (nf.mode === 'Fix' && typeof nf.digits === 'number' && Number.isInteger(nf.digits) && nf.digits >= 0 && nf.digits <= 9) {
+    return { mode: 'Fix', digits: nf.digits };
+  }
+  if (nf.mode === 'Sci' && typeof nf.digits === 'number' && Number.isInteger(nf.digits) && nf.digits >= 0 && nf.digits <= 9) {
+    return { mode: 'Sci', digits: nf.digits };
+  }
+  if (nf.mode === 'Norm' && (nf.sub === 1 || nf.sub === 2)) {
+    return { mode: 'Norm', sub: nf.sub };
+  }
+  return DEFAULT_NUMBER_FORMAT;
+}
+
 export function hydrateState(raw: string | null): CalculatorState {
   const state = createInitialState();
   if (!raw) return state;
@@ -2973,8 +3173,10 @@ export function hydrateState(raw: string | null): CalculatorState {
       decimalMark: data.decimalMark === 'Comma' ? 'Comma' : 'Dot',
       defaultCmplxFormat: data.defaultCmplxFormat === 'polar' ? 'polar' : 'rect',
       recurEnabled: data.recurEnabled !== false,
-      contrast: typeof data.contrast === 'number' ? Math.max(1, Math.min(10, data.contrast)) : 5,
-      numberFormat: data.numberFormat ?? DEFAULT_NUMBER_FORMAT,
+      contrast: typeof data.contrast === 'number' && Number.isFinite(data.contrast)
+        ? Math.max(1, Math.min(10, Math.round(data.contrast)))
+        : 5,
+      numberFormat: sanitizeNumberFormat(data.numberFormat),
       defaultFractionStyle: data.defaultFractionStyle === 'mixed' ? 'mixed' : 'improper',
       fractionStyle: data.defaultFractionStyle === 'mixed' ? 'mixed' : 'improper',
       tableUseG: data.tableUseG !== false,
@@ -3077,12 +3279,15 @@ export function formatActiveEqnItemDisplay(
       );
     }
     if (state.resultFormat === 'decimal') {
-      const decText = formatComplexDisplay(item.complexParts, 'rect', state.angle, false, state.numberFormat);
-      return { type: 'text', text: state.decimalMark === 'Comma' ? decText.replace(/\./g, ',') : decText };
+      const decText = formatComplexDisplay(item.complexParts, 'rect', state.angle, false, state.numberFormat, state.decimalMark);
+      return { type: 'text', text: decText };
     }
   }
   if (item.complexText !== undefined) {
-    return { type: 'text', text: item.complexText };
+    return {
+      type: 'text',
+      text: state.decimalMark === 'Comma' ? item.complexText.replace(/\./g, ',') : item.complexText,
+    };
   }
   if (item.scalar) {
     const fmt = state.ioMode === 'Line' || state.mathOutputMode === 'LineO' ? 'decimal' : state.resultFormat;
@@ -3109,8 +3314,9 @@ export function formatActiveResult(state: CalculatorState): DisplayValue | null 
       state.angle,
       state.resultFormat === 'exact',
       state.numberFormat,
+      state.decimalMark,
     );
-    return { type: 'text', text: state.decimalMark === 'Comma' ? text.replace(/\./g, ',') : text };
+    return { type: 'text', text };
   }
   if (state.mode === 'VERIF') {
     if (state.verifResult === null) return null;

@@ -138,7 +138,7 @@ export function flattenTemplates(nodes: TemplateNode[]): TemplateNode[] {
   return all;
 }
 
-/** Snaps any cursor that landed inside hidden template syntax (e.g. 'frac(') into a valid slot. */
+/** Snaps any cursor that landed inside hidden template syntax (e.g. 'frac(' or ',') into a valid slot. */
 export function normalizeMathCursor(source: string, cursor: number, lineMode: boolean): number {
   const bounded = Math.max(0, Math.min(source.length, cursor));
   if (lineMode) return bounded;
@@ -148,6 +148,11 @@ export function normalizeMathCursor(source: string, cursor: number, lineMode: bo
   for (const t of all) {
     if (bounded > t.nodeStart && bounded <= t.openParen) {
       return t.slots[0].start;
+    }
+    for (let k = 0; k + 1 < t.slots.length; k++) {
+      if (bounded > t.slots[k].end && bounded < t.slots[k + 1].start) {
+        return t.slots[k + 1].start;
+      }
     }
   }
   return bounded;
@@ -393,11 +398,15 @@ export function moveCursorVertical(
     .filter((t) => t.nodeStart === cursor)
     .sort((a, b) => (b.nodeEnd - b.nodeStart) - (a.nodeEnd - a.nodeStart))[0];
   if (beforeNode) {
+    if (beforeNode.kind === 'pow' && dir === 'up') return beforeNode.slots[0].start;
     if (beforeNode.kind === 'frac') {
       return dir === 'up' ? beforeNode.slots[0].start : beforeNode.slots[1].start;
     }
     if (beforeNode.kind === 'mfrac') {
       return dir === 'up' ? beforeNode.slots[1].start : beforeNode.slots[2].start;
+    }
+    if (beforeNode.kind === 'deriv') {
+      return dir === 'up' ? beforeNode.slots[0].start : beforeNode.slots[1].start;
     }
     if (beforeNode.kind === 'root') {
       return dir === 'up' ? beforeNode.slots[0].start : beforeNode.slots[1].start;
@@ -659,6 +668,12 @@ export function extractTrailingOperandSpan(
     if (tplEnding.kind === 'pow') {
       const baseSpan = extractTrailingOperandSpan(source, tplEnding.nodeStart);
       const start = baseSpan ? baseSpan.start : tplEnding.nodeStart;
+      return { start, text: source.slice(start, cursor) };
+    }
+    // Include integer/decimal prefix if this template is a recurring decimal `0.r(3)` / `12.58r(3)` / `.r(3)`!
+    if (tplEnding.kind === 'recur') {
+      const decPrefix = source.slice(0, tplEnding.nodeStart).match(/(?:\d+\.\d*|\.\d*)$/);
+      const start = decPrefix ? tplEnding.nodeStart - decPrefix[0].length : tplEnding.nodeStart;
       return { start, text: source.slice(start, cursor) };
     }
     return { start: tplEnding.nodeStart, text: source.slice(tplEnding.nodeStart, cursor) };
