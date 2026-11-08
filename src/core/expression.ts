@@ -204,7 +204,7 @@ export function tokenize(source: string): Token[] {
       i++;
       continue;
     }
-    if ('+-−×÷*/^!%'.includes(char)) {
+    if ('+-−×÷*/^!%⏨'.includes(char)) {
       tokens.push({ type: 'operator', text: char === '−' ? '-' : char, offset: i });
       i++;
       continue;
@@ -416,7 +416,8 @@ class Parser {
         precedence = operator === '+' || operator === '-' ? 10
           : ['×', '÷', '*', '/'].includes(operator) ? 20
           : operator === 'nCr' || operator === 'nPr' ? 25
-          : operator === '^' ? 30 : 0;
+          : operator === '^' ? 30
+          : operator === '⏨' ? 32 : 0;
       } else if (
         next.type === 'number' ||
         next.type === 'recur' ||
@@ -424,18 +425,21 @@ class Parser {
         next.type === 'open'
       ) {
         operator = '×';
-        precedence = 20;
+        precedence = 23;
         implicit = true;
       }
       if (!operator || precedence < minBindingPower || precedence === 0) break;
       if (!implicit) this.take();
-      const right = this.expression(operator === '^' ? precedence : precedence + 1);
+      const right = operator === '⏨'
+        ? this.sciExponent()
+        : this.expression(operator === '^' ? precedence : precedence + 1);
       switch (operator) {
         case '+': left = add(left, right); break;
         case '-': left = subtract(left, right); break;
         case '×': case '*': left = multiply(left, right); break;
         case '÷': case '/': left = divide(left, right); break;
         case '^': left = power(left, right); break;
+        case '⏨': left = multiply(left, power(scalarFromInteger(10), right)); break;
         case 'nCr': left = combinatoric(left, right, false); break;
         case 'nPr': left = combinatoric(left, right, true); break;
       }
@@ -444,11 +448,25 @@ class Parser {
     return left;
   }
 
+  private sciExponent(): Scalar {
+    const next = this.peek();
+    if (next.type === 'operator' && (next.text === '+' || next.text === '-')) {
+      this.take();
+      const mag = this.sciExponent();
+      return next.text === '-' ? negate(mag) : mag;
+    }
+    return this.expression(33);
+  }
+
   private prefix(): Scalar {
     const token = this.take();
     if (token.type === 'operator' && (token.text === '+' || token.text === '-')) {
       const operand = this.expression(30);
       return token.text === '-' ? negate(operand) : operand;
+    }
+    if (token.type === 'operator' && token.text === '⏨') {
+      const exp = this.sciExponent();
+      return power(scalarFromInteger(10), exp);
     }
     if (token.type === 'number') return scalarFromLiteral(token.text);
     if (token.type === 'recur' && token.recurParts) {
@@ -558,35 +576,68 @@ export function evaluateRichExpression(source: string, context: EvaluationContex
   }
 }
 
-export function extractVariables(source: string): VariableName[] {
-  const clean = source.includes('=') ? source.split('=')[0] : source;
-  const tokens = tokenize(completeParentheses(clean));
-  const seen = new Set<VariableName>();
-  const boundXDepths: number[] = [];
-  let depth = 0;
+export function parseAssignmentStatement(source: string): { target: VariableName; rhs: string } | null {
+  const eqIndex = source.indexOf('=');
+  if (eqIndex === -1) return null;
+  if (source.indexOf('=', eqIndex + 1) !== -1) return null;
+  const lhs = source.slice(0, eqIndex).trim();
+  const rhs = source.slice(eqIndex + 1).trim();
+  if (VARIABLE_SET.has(lhs) && rhs.length > 0) {
+    return { target: lhs as VariableName, rhs };
+  }
+  return null;
+}
 
-  for (let i = 0; i < tokens.length; i++) {
-    const tok = tokens[i];
-    if (tok.type === 'identifier' && CALCULUS_NAMES.includes(tok.text) && tokens[i + 1]?.type === 'open') {
-      boundXDepths.push(depth + 1);
+export function extractVariables(source: string): VariableName[] {
+  const statements = splitStatements(source);
+  const needed = new Set<VariableName>();
+  const assignedSoFar = new Set<VariableName>();
+
+  for (const rawStmt of statements) {
+    const stmt = rawStmt.trim();
+    if (!stmt) continue;
+    const assign = parseAssignmentStatement(stmt);
+    const exprToScan = assign
+      ? assign.rhs
+      : stmt.includes('=')
+        ? stmt.replace(/=/g, '+')
+        : stmt;
+
+    const tokens = tokenize(completeParentheses(exprToScan));
+    const boundXDepths: number[] = [];
+    let depth = 0;
+
+    for (let i = 0; i < tokens.length; i++) {
+      const tok = tokens[i];
+      if (tok.type === 'identifier' && CALCULUS_NAMES.includes(tok.text) && tokens[i + 1]?.type === 'open') {
+        boundXDepths.push(depth + 1);
+      }
+      if (tok.type === 'open') depth++;
+      else if (tok.type === 'close') {
+        while (boundXDepths.length && boundXDepths[boundXDepths.length - 1] === depth) {
+          boundXDepths.pop();
+        }
+        depth--;
+      } else if (tok.type === 'comma') {
+        if (boundXDepths.length && boundXDepths[boundXDepths.length - 1] === depth) {
+          boundXDepths.pop();
+        }
+      } else if (tok.type === 'identifier' && VARIABLE_SET.has(tok.text)) {
+        if (tok.text === 'X' && boundXDepths.length > 0) continue;
+        const vName = tok.text as VariableName;
+        if (!assignedSoFar.has(vName)) {
+          needed.add(vName);
+        }
+      }
     }
-    if (tok.type === 'open') depth++;
-    else if (tok.type === 'close') {
-      while (boundXDepths.length && boundXDepths[boundXDepths.length - 1] === depth) {
-        boundXDepths.pop();
-      }
-      depth--;
-    } else if (tok.type === 'comma') {
-      if (boundXDepths.length && boundXDepths[boundXDepths.length - 1] === depth) {
-        boundXDepths.pop();
-      }
-    } else if (tok.type === 'identifier' && VARIABLE_SET.has(tok.text)) {
-      if (tok.text === 'X' && boundXDepths.length > 0) continue;
-      seen.add(tok.text as VariableName);
+
+    if (assign) {
+      assignedSoFar.add(assign.target);
     }
   }
+
   const order: VariableName[] = ['X', 'Y', 'A', 'B', 'C', 'D', 'E', 'F', 'M'];
-  return order.filter((v) => seen.has(v));
+  return order.filter((v) => needed.has(v));
 }
 
 export function splitStatements(source: string): string[] {

@@ -24,15 +24,24 @@ function mapKeyboardEvent(e: KeyboardEvent, isHexBaseN: boolean, isCmplx: boolea
     case ':': return 'colon';
     case '^': return 'power';
     case '!': return 'factorial';
+    case '%': return 'percent';
+    case '|': return 'abs';
     case 'Enter':
     case '=': return 'equals';
     case 'Backspace': return 'del';
+    case 'Insert': return 'toggle-ins';
     case 'Delete':
     case 'Escape': return 'ac';
     case 'ArrowLeft': return 'left';
     case 'ArrowRight': return 'right';
     case 'ArrowUp': return 'up';
     case 'ArrowDown': return 'down';
+    case 'x':
+    case 'X': return 'var-x';
+    case 'y':
+    case 'Y': return 'var-y';
+    case 'e':
+    case 'E': return 'exp';
     case 's': return 'sin';
     case 'c': return 'cos';
     case 't': return 'tan';
@@ -71,6 +80,7 @@ export function App(): React.ReactElement {
     state.contrast,
     state.numberFormat,
     state.defaultFractionStyle,
+    state.tableUseG,
     state.variables,
   ]);
 

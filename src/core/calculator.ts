@@ -14,8 +14,12 @@ import { solveEqn, type EqnOutcome, type EqnType } from './eqn';
 import { CalculatorError } from './errors';
 import {
   STAT_TOKEN_LABELS, evaluateExpression, evaluateRichExpression, extractVariables,
-  splitEquation, splitStatements,
+  parseAssignmentStatement, splitEquation, splitStatements,
 } from './expression';
+import {
+  extractTrailingOperandSpan, handleSmartCloseParen, isInsideTemplateSlot, isSafeOverwriteAt,
+  moveCursorHorizontal, moveCursorVertical, smartDeleteBeforeCursor,
+} from './mathAst';
 import {
   DEFAULT_NUMBER_FORMAT, defaultResultFormat, formatDecimal, formatResult, initialEngExponent,
   type DecimalMark, type DisplayOverride, type DisplayValue, type FractionStyle,
@@ -458,22 +462,33 @@ const BASEN_HEX_KEYS: Record<string, string> = {
 const modeNames: ActiveMode[] = ['COMP', 'CMPLX', 'STAT', 'BASE-N', 'EQN', 'MATRIX', 'TABLE', 'VECTOR'];
 const extraModes: ActiveMode[] = ['INEQ', 'VERIF', 'DIST'];
 
-const ATOMIC_TOKENS = [
+const ONE_DIM_ATOMIC_TOKENS = [
   ...Object.keys(STAT_TOKEN_LABELS),
   'MatAns', 'MatA', 'MatB', 'MatC', 'VctAns', 'VctA', 'VctB', 'VctC',
   'Conjg(', 'Angle(', 'Rref(', 'Ref(', 'arg(', 'det(', 'Trn(',
   'StatP(', 'StatQ(', 'StatR(', 'Intg(', 'GCD(', 'LCM(', 'Int(',
   '▸xhat2', '▸Simp', '▸r∠θ', '▸a+bi', '▸yhat', '▸xhat', '▸t', '÷R',
-  'RanInt(', 'mfrac(', 'deriv(', 'integ(', 'sigma(', 'prod(',
-  'asinh(', 'acosh(', 'atanh(', 'logb(', 'sqrt(', 'cbrt(', 'frac(', 'root(',
+  'RanInt(', 'asinh(', 'acosh(', 'atanh(',
   'sinh(', 'cosh(', 'tanh(', 'asin(', 'acos(', 'atan(',
-  'Pol(', 'Rec(', 'Rnd(', 'sin(', 'cos(', 'tan(', 'abs(', 'log(', 'ln(',
-  'Not(', 'Neg(', '×10^(', '10^(', 'e^(', 'PreAns',
-  'xnor', 'and', 'xor', 'or', 'dot', 'nCr', 'nPr', 'Ans', 'r(',
+  'Pol(', 'Rec(', 'Rnd(', 'sin(', 'cos(', 'tan(', 'log(', 'ln(',
+  'Not(', 'Neg(', '×10^(', 'PreAns', '^(-1)', '^2', '^3',
+  'xnor', 'and', 'xor', 'or', 'dot', 'nCr', 'nPr', 'Ans', '⏨',
 ].sort((a, b) => b.length - a.length);
 
-function findAtomicSpans(source: string): Array<[number, number]> {
+const LINE_ONLY_2D_TOKENS = [
+  'mfrac(', 'deriv(', 'integ(', 'sigma(', 'prod(',
+  'logb(', 'sqrt(', 'cbrt(', 'frac(', 'root(', 'abs(', '10^(', 'e^(', 'r(',
+];
+
+const LINE_ATOMIC_TOKENS = [...ONE_DIM_ATOMIC_TOKENS, ...LINE_ONLY_2D_TOKENS].sort((a, b) => b.length - a.length);
+
+function isLineModeState(s: CalculatorState): boolean {
+  return s.ioMode === 'Line' || s.mode === 'BASE-N';
+}
+
+function findAtomicSpans(source: string, lineMode = false): Array<[number, number]> {
   const spans: Array<[number, number]> = [];
+  const table = lineMode ? LINE_ATOMIC_TOKENS : ONE_DIM_ATOMIC_TOKENS;
   let i = 0;
   while (i < source.length) {
     const rest = source.slice(i);
@@ -483,7 +498,7 @@ function findAtomicSpans(source: string): Array<[number, number]> {
       i += cMatch[0].length;
       continue;
     }
-    const atom = ATOMIC_TOKENS.find((t) => rest.startsWith(t));
+    const atom = table.find((t) => rest.startsWith(t));
     if (atom) {
       spans.push([i, i + atom.length]);
       i += atom.length;
@@ -494,37 +509,16 @@ function findAtomicSpans(source: string): Array<[number, number]> {
   return spans;
 }
 
-function stepCursor(source: string, cursor: number, dir: -1 | 1): number {
-  const spans = findAtomicSpans(source);
-  if (dir === 1) {
-    if (cursor >= source.length) return source.length;
-    const hit = spans.find(([start, end]) => cursor >= start && cursor < end);
-    return hit ? hit[1] : cursor + 1;
-  }
-  if (cursor <= 0) return 0;
-  const hit = spans.find(([start, end]) => cursor > start && cursor <= end);
-  return hit ? hit[0] : cursor - 1;
+function stepCursor(source: string, cursor: number, dir: -1 | 1, lineMode = false): number {
+  return moveCursorHorizontal(source, cursor, dir, lineMode, findAtomicSpans(source, lineMode));
 }
 
-function deleteBeforeCursor(source: string, cursor: number): { expression: string; cursor: number } {
-  if (cursor <= 0) return { expression: source, cursor: 0 };
-  const spans = findAtomicSpans(source);
-  const hit = spans.find(([start, end]) => cursor > start && cursor <= end);
-  if (hit) {
-    const [start, end] = hit;
-    const tokenText = source.slice(start, end);
-    if (tokenText.endsWith('(')) {
-      const emptyMatch = source.slice(end).match(/^,*\)/);
-      if (emptyMatch) {
-        return {
-          expression: source.slice(0, start) + source.slice(end + emptyMatch[0].length),
-          cursor: start,
-        };
-      }
-    }
-    return { expression: source.slice(0, start) + source.slice(end), cursor: start };
-  }
-  return { expression: source.slice(0, cursor - 1) + source.slice(cursor), cursor: cursor - 1 };
+function deleteBeforeCursor(
+  source: string,
+  cursor: number,
+  lineMode = false,
+): { expression: string; cursor: number } {
+  return smartDeleteBeforeCursor(source, cursor, lineMode, findAtomicSpans(source, lineMode));
 }
 
 function closeLatches(s: CalculatorState): CalculatorState {
@@ -573,7 +567,13 @@ function insert(
   if (expression.length + text.length > 300) {
     return withNotice(s, 'وصلت للحد الأقصى للإدخال.');
   }
-  const replaceCount = !s.insertMode && s.phase === 'editing' && caretOffset === text.length && cursor < expression.length ? 1 : 0;
+  const canOverwrite =
+    !s.insertMode &&
+    s.phase === 'editing' &&
+    caretOffset === text.length &&
+    cursor < expression.length &&
+    isSafeOverwriteAt(expression, cursor, isLineModeState(s));
+  const replaceCount = canOverwrite ? 1 : 0;
   const nextExpr = expression.slice(0, cursor) + text + expression.slice(cursor + replaceCount);
   return {
     ...resetResultModifiers(s),
@@ -603,20 +603,110 @@ function insertRecurringTemplate(s: CalculatorState): CalculatorState {
 }
 
 function functionTemplate(s: CalculatorState, name: string): CalculatorState {
+  const lineMode = isLineModeState(s);
+  if (!lineMode && s.phase === 'editing' && isInsideTemplateSlot(s.expression, s.cursor, false)) {
+    const text = `${name}()`;
+    return insert(s, text, 'fresh', text.length - 1);
+  }
+  const text = `${name}(`;
+  return insert(s, text, 'fresh', text.length);
+}
+function box1Template(s: CalculatorState, name: string): CalculatorState {
+  if (isLineModeState(s)) return functionTemplate(s, name);
   const text = `${name}()`;
   return insert(s, text, 'fresh', text.length - 1);
 }
 function binaryTemplate(s: CalculatorState, name: string): CalculatorState {
+  if (isLineModeState(s)) return functionTemplate(s, name);
   const text = `${name}(,)`;
   return insert(s, text, 'fresh', name.length + 1);
 }
 function ternaryTemplate(s: CalculatorState, name: string): CalculatorState {
+  if (isLineModeState(s)) return functionTemplate(s, name);
   const text = `${name}(,,)`;
   return insert(s, text, 'fresh', name.length + 1);
 }
 function powerTemplate(s: CalculatorState, prefix: string): CalculatorState {
+  if (isLineModeState(s)) {
+    const text = `${prefix}(`;
+    return insert(s, text, prefix === '^' ? 'continue' : 'fresh', text.length);
+  }
   const text = `${prefix}()`;
-  return insert(s, text, prefix === '^' || prefix === '×10^' ? 'continue' : 'fresh', text.length - 1);
+  return insert(s, text, prefix === '^' ? 'continue' : 'fresh', text.length - 1);
+}
+function insertSmartFraction(s: CalculatorState): CalculatorState {
+  if (isLineModeState(s)) return insert(s, '÷', 'continue');
+  if (s.phase === 'result') {
+    const base =
+      s.mode === 'MATRIX' && s.matrix.showingMatrixResult
+        ? 'MatAns'
+        : s.mode === 'VECTOR' && s.vector.showingVectorResult
+          ? 'VctAns'
+          : 'Ans';
+    const expr = `frac(${base},)`;
+    return {
+      ...resetResultModifiers(s),
+      expression: expr,
+      cursor: 5 + base.length + 1,
+      phase: 'editing',
+      result: null,
+      error: null,
+      historyIndex: null,
+      pending: null,
+      shift: false,
+      alpha: false,
+      notice: null,
+    };
+  }
+  if (s.phase === 'editing') {
+    const span = extractTrailingOperandSpan(s.expression, s.cursor);
+    if (span) {
+      const wrapped = `frac(${span.text},)`;
+      const nextExpr = s.expression.slice(0, span.start) + wrapped + s.expression.slice(s.cursor);
+      if (nextExpr.length <= 300) {
+        return {
+          ...resetResultModifiers(s),
+          expression: nextExpr,
+          cursor: span.start + 5 + span.text.length + 1,
+          phase: 'editing',
+          result: null,
+          error: null,
+          historyIndex: null,
+          pending: null,
+          shift: false,
+          alpha: false,
+          notice: null,
+        };
+      }
+    }
+  }
+  return binaryTemplate(s, 'frac');
+}
+function insertSmartMixedFraction(s: CalculatorState): CalculatorState {
+  if (isLineModeState(s)) return insert(s, '÷', 'continue');
+  if (s.phase === 'editing') {
+    const span = extractTrailingOperandSpan(s.expression, s.cursor);
+    if (span) {
+      const wrapped = `mfrac(${span.text},,)`;
+      const nextExpr = s.expression.slice(0, span.start) + wrapped + s.expression.slice(s.cursor);
+      if (nextExpr.length <= 300) {
+        return {
+          ...resetResultModifiers(s),
+          expression: nextExpr,
+          cursor: span.start + 6 + span.text.length + 1,
+          phase: 'editing',
+          result: null,
+          error: null,
+          historyIndex: null,
+          pending: null,
+          shift: false,
+          alpha: false,
+          notice: null,
+        };
+      }
+    }
+  }
+  return ternaryTemplate(s, 'mfrac');
 }
 
 function effectiveResultFormat(s: CalculatorState, naturalFormat: ResultFormat): ResultFormat {
@@ -672,9 +762,11 @@ function evaluateSingleStatement(
   recordExpr: string,
   random?: number,
 ): CalculatorState {
-  const outcome = evaluateRichExpression(expr, evalContext(s, random));
+  const assign = parseAssignmentStatement(expr);
+  const exprToEval = assign ? assign.rhs : expr;
+  const outcome = evaluateRichExpression(exprToEval, evalContext(s, random));
   const primaryStored = serialize(outcome.primary);
-  let variables = s.variables;
+  let variables = assign ? { ...s.variables, [assign.target]: primaryStored } : s.variables;
   let pairResult: DisplayValue | null = null;
 
   if (outcome.pairKind && outcome.secondary) {
@@ -776,6 +868,7 @@ function calculate(s: CalculatorState, random?: number): CalculatorState {
         matrices: s.matrix.matrices,
         variables: s.variables,
         ans: s.ans,
+        angle: s.angle,
       });
       if (out.kind === 'scalar') {
         const stored = serialize(out.scalar);
@@ -872,10 +965,6 @@ function calculate(s: CalculatorState, random?: number): CalculatorState {
       }
     }
 
-    if (s.expression.includes('=')) {
-      return startSolveWorkflow(s);
-    }
-
     const statements = splitStatements(s.expression).map((p) => p.trim()).filter(Boolean);
     if (statements.length > 1) {
       const first = statements[0];
@@ -884,6 +973,10 @@ function calculate(s: CalculatorState, random?: number): CalculatorState {
         ...nextState,
         statementRun: { statements, index: 0 },
       };
+    }
+
+    if (s.expression.includes('=')) {
+      return startSolveWorkflow(s);
     }
 
     return evaluateSingleStatement(s, s.expression, s.expression, random);
@@ -924,8 +1017,12 @@ function updateMemory(s: CalculatorState, direction: 1 | -1): CalculatorState {
 
 function navigateHistory(s: CalculatorState, direction: 'up' | 'down'): CalculatorState {
   if (!s.history.length) return s;
+  if (s.historyIndex === null) {
+    if (direction === 'down') return s;
+    if (s.phase === 'editing' && s.expression.length > 0) return s;
+  }
   const index = s.historyIndex === null
-    ? (direction === 'up' ? s.history.length - 1 : s.history.length)
+    ? s.history.length - 1
     : s.historyIndex + (direction === 'up' ? -1 : 1);
   if (index >= s.history.length) {
     return { ...resetResultModifiers(s), expression: '', cursor: 0, phase: 'editing', result: null, error: null, historyIndex: null, notice: null };
@@ -1301,7 +1398,7 @@ function handleMenu(s: CalculatorState, id: string): CalculatorState {
     if (id === '5') return insert({ ...s, screen: 'normal' }, 'VctC');
     if (id === '6') return insert({ ...s, screen: 'normal' }, 'VctAns');
     if (id === '7') return insert({ ...s, screen: 'normal' }, '·', 'continue');
-    if (id === '8') return binaryTemplate({ ...s, screen: 'normal' }, 'Angle');
+    if (id === '8') return functionTemplate({ ...s, screen: 'normal' }, 'Angle');
     return s;
   }
 
@@ -1491,18 +1588,35 @@ function simpleInputChar(id: string, shift: boolean, alpha: boolean): string | n
     case 'log': return 'log(';
     case 'ln': return 'ln(';
     case 'ans': return 'Ans';
-    case 'exp': return '×10^(';
+    case 'exp': return '⏨';
     case 'pi': return 'π';
     case 'e': return 'e';
+    case 'var-x': return 'X';
+    case 'var-y': return 'Y';
+    case 'percent': return '%';
     default: return null;
   }
+}
+
+function evaluateCalcStatements(
+  s: CalculatorState,
+  sourceExpr: string,
+  random?: number,
+): CalculatorState {
+  const statements = splitStatements(sourceExpr).map((p) => p.trim()).filter(Boolean);
+  if (statements.length > 1) {
+    const first = statements[0];
+    const nextState = evaluateSingleStatement(s, first, sourceExpr, random);
+    return { ...nextState, statementRun: { statements, index: 0 } };
+  }
+  return evaluateSingleStatement(s, sourceExpr, sourceExpr, random);
 }
 
 function startCalcWorkflow(s: CalculatorState): CalculatorState {
   if (!s.expression.trim()) return s;
   try {
     const vars = extractVariables(s.expression);
-    if (vars.length === 0) return calculate(closeLatches(s));
+    if (vars.length === 0) return evaluateCalcStatements(closeLatches(s), s.expression);
     return { ...closeLatches(s), calcPrompt: { sourceExpr: s.expression, vars, index: 0, input: '' } };
   } catch (err) {
     return errorState(s, err);
@@ -1525,7 +1639,7 @@ function handleCalcPrompt(s: CalculatorState, id: string, random?: number): Calc
         return { ...s, variables: updatedVars, calcPrompt: { ...prompt, index: nextIndex, input: '' } };
       }
       const nextState = { ...s, variables: updatedVars, calcPrompt: null, expression: prompt.sourceExpr };
-      return evaluateSingleStatement(nextState, prompt.sourceExpr, prompt.sourceExpr, random);
+      return evaluateCalcStatements(nextState, prompt.sourceExpr, random);
     } catch (err) {
       return errorState(s, err);
     }
@@ -2229,6 +2343,51 @@ export function calculatorReducer(state: CalculatorState, action: CalculatorActi
     };
   }
 
+  // Global error screen recovery ([AC] :Cancel / [◀][▶]:Goto) across ALL 11 modes!
+  if (state.phase === 'error') {
+    if (id === 'shift') return { ...state, shift: !state.shift, alpha: false };
+    if (id === 'mode') {
+      return {
+        ...resetResultModifiers(closeLatches(state)),
+        phase: 'editing',
+        error: null,
+        screen: state.shift ? 'setup' : 'mode',
+        menuPage: 0,
+      };
+    }
+    if (id === 'ac') {
+      if (state.shift) return { ...closeLatches(state), phase: 'editing', error: null, screen: 'off' };
+      const isExprMode = ['COMP', 'CMPLX', 'BASE-N', 'VERIF'].includes(state.mode) ||
+        (state.mode === 'STAT' && !state.stat.editingTable) ||
+        (state.mode === 'MATRIX' && !state.matrix.editingTarget) ||
+        (state.mode === 'VECTOR' && !state.vector.editingTarget);
+      return {
+        ...resetResultModifiers(closeLatches(state)),
+        phase: 'editing',
+        error: null,
+        result: null,
+        expression: isExprMode ? '' : state.expression,
+        cursor: isExprMode ? 0 : state.cursor,
+      };
+    }
+    if (id === 'left' || id === 'right') {
+      const gotoPos =
+        state.errorCursor !== null
+          ? state.errorCursor
+          : id === 'left'
+            ? state.expression.length
+            : 0;
+      return {
+        ...resetResultModifiers(closeLatches(state)),
+        phase: 'editing',
+        error: null,
+        result: null,
+        cursor: gotoPos,
+      };
+    }
+    return state;
+  }
+
   // Active sub-prompts & interactive editors
   if (state.calcPrompt) return handleCalcPrompt(state, id, action.random);
   if (state.solvePrompt) return handleSolvePrompt(state, id, action.random);
@@ -2243,18 +2402,24 @@ export function calculatorReducer(state: CalculatorState, action: CalculatorActi
     if (tblNext) return tblNext;
   }
 
-  // Navigating Matrix / Vector result cells with arrows
+  // Navigating Matrix / Vector result cells with arrows + S⇔D toggle
   if (state.mode === 'MATRIX' && state.phase === 'result' && state.matrix.showingMatrixResult && state.matrix.matrices.MatAns) {
     const mAns = state.matrix.matrices.MatAns;
     if (id === 'up') return { ...state, matrix: { ...state.matrix, rowIdx: Math.max(0, state.matrix.rowIdx - 1) } };
     if (id === 'down') return { ...state, matrix: { ...state.matrix, rowIdx: Math.min(mAns.rows - 1, state.matrix.rowIdx + 1) } };
     if (id === 'left') return { ...state, matrix: { ...state.matrix, colIdx: Math.max(0, state.matrix.colIdx - 1) } };
     if (id === 'right') return { ...state, matrix: { ...state.matrix, colIdx: Math.min(mAns.cols - 1, state.matrix.colIdx + 1) } };
+    if (id === 'sd' && !state.shift && !state.alpha) {
+      return { ...state, resultFormat: state.resultFormat === 'exact' ? 'decimal' : 'exact' };
+    }
   }
   if (state.mode === 'VECTOR' && state.phase === 'result' && state.vector.showingVectorResult && state.vector.vectors.VctAns) {
     const vAns = state.vector.vectors.VctAns;
     if (id === 'left' || id === 'up') return { ...state, vector: { ...state.vector, coordIdx: Math.max(0, state.vector.coordIdx - 1) } };
     if (id === 'right' || id === 'down') return { ...state, vector: { ...state.vector, coordIdx: Math.min(vAns.dim - 1, state.vector.coordIdx + 1) } };
+    if (id === 'sd' && !state.shift && !state.alpha) {
+      return { ...state, resultFormat: state.resultFormat === 'exact' ? 'decimal' : 'exact' };
+    }
   }
 
   if (id === 'shift') return { ...state, shift: !state.shift, alpha: false, notice: null };
@@ -2312,19 +2477,23 @@ export function calculatorReducer(state: CalculatorState, action: CalculatorActi
   }
 
   if (id === 'left' || id === 'right') {
+    const lineMode = isLineModeState(state);
     if (state.phase !== 'editing') {
-      const nextCursor =
-        state.phase === 'error' && state.errorCursor !== null
-          ? state.errorCursor
-          : id === 'left'
-            ? state.expression.length
-            : 0;
+      const nextCursor = id === 'left' ? state.expression.length : 0;
       return { ...resetResultModifiers(state), phase: 'editing', result: null, error: null, cursor: nextCursor, notice: null };
     }
-    const nextCursor = stepCursor(state.expression, state.cursor, id === 'left' ? -1 : 1);
+    const nextCursor = stepCursor(state.expression, state.cursor, id === 'left' ? -1 : 1, lineMode);
     return { ...state, phase: 'editing', error: null, cursor: nextCursor, notice: null };
   }
-  if (id === 'up' || id === 'down') return navigateHistory(state, id);
+  if (id === 'up' || id === 'down') {
+    if (state.phase === 'editing') {
+      const vNext = moveCursorVertical(state.expression, state.cursor, id, isLineModeState(state));
+      if (vNext !== null) {
+        return { ...state, phase: 'editing', error: null, cursor: vNext, notice: null };
+      }
+    }
+    return navigateHistory(state, id);
+  }
 
   if (id === 'del') {
     if (state.shift) {
@@ -2334,7 +2503,7 @@ export function calculatorReducer(state: CalculatorState, action: CalculatorActi
       return { ...resetResultModifiers(state), phase: 'editing', result: null, error: null, cursor: state.expression.length, notice: null };
     }
     if (!state.cursor) return { ...state, phase: 'editing', error: null, notice: null };
-    const updated = deleteBeforeCursor(state.expression, state.cursor);
+    const updated = deleteBeforeCursor(state.expression, state.cursor, isLineModeState(state));
     return {
       ...resetResultModifiers(state),
       expression: updated.expression,
@@ -2406,10 +2575,10 @@ export function calculatorReducer(state: CalculatorState, action: CalculatorActi
     if (id === 'cube' || id === 'integ') return insert(s, ':', 'continue');
     if (id === 'logbase') return ternaryTemplate(s, 'prod');
     if (id === 'eng' && s.mode === 'CMPLX') return insert(s, 'i');
-    if (id === 'dot') return binaryTemplate(s, 'RanInt');
+    if (id === 'dot') return functionTemplate(s, 'RanInt');
     if (id === 'calc') return insert(s, '=', 'continue');
-    if (id === 'multiply') return binaryTemplate(s, 'GCD');
-    if (id === 'divide') return binaryTemplate(s, 'LCM');
+    if (id === 'multiply') return functionTemplate(s, 'GCD');
+    if (id === 'divide') return functionTemplate(s, 'LCM');
     if (id === 'add') return functionTemplate(s, 'Int');
     if (id === 'subtract') return functionTemplate(s, 'Intg');
     if (id === 'frac') return insert(s, '÷R', 'continue');
@@ -2447,15 +2616,15 @@ export function calculatorReducer(state: CalculatorState, action: CalculatorActi
       case '9': return { ...s, screen: 'clear' };
       case 'rcl': return { ...s, pending: 'store' };
       case 'mplus': return updateMemory(s, -1);
-      case 'frac': return ternaryTemplate(s, 'mfrac');
+      case 'frac': return insertSmartMixedFraction(s);
       case 'inverse': return insert(s, '!', 'continue');
       case 'logbase': return ternaryTemplate(s, 'sigma');
-      case 'sqrt': return functionTemplate(s, 'cbrt');
+      case 'sqrt': return box1Template(s, 'cbrt');
       case 'square': return insert(s, '^3', 'continue');
       case 'power': return binaryTemplate(s, 'root');
       case 'log': return powerTemplate(s, '10^');
       case 'ln': return powerTemplate(s, 'e^');
-      case 'hyp': return functionTemplate(s, 'abs');
+      case 'hyp': return box1Template(s, 'abs');
       case 'neg':
         if (s.mode === 'CMPLX') return insert(s, '∠', 'continue');
         return insert(s, '-');
@@ -2499,8 +2668,8 @@ export function calculatorReducer(state: CalculatorState, action: CalculatorActi
       }
       case 'multiply': return insert(s, 'nPr', 'continue');
       case 'divide': return insert(s, 'nCr', 'continue');
-      case 'add': return binaryTemplate(s, 'Pol');
-      case 'subtract': return binaryTemplate(s, 'Rec');
+      case 'add': return functionTemplate(s, 'Pol');
+      case 'subtract': return functionTemplate(s, 'Rec');
       case '0': {
         if (s.phase === 'result' && s.result) {
           const rounded = serialize(roundScalar(deserialize(s.result), s.numberFormat));
@@ -2530,27 +2699,27 @@ export function calculatorReducer(state: CalculatorState, action: CalculatorActi
     case 'multiply': return insert(s, '×', 'continue');
     case 'divide': return insert(s, '÷', 'continue');
     case 'neg': return insert(s, '-');
-    case 'open': return insert(s, '(');
+    case 'open': {
+      if (!isLineModeState(s) && s.phase === 'editing' && isInsideTemplateSlot(s.expression, s.cursor, false)) {
+        return insert(s, '()', 'fresh', 1);
+      }
+      return insert(s, '(');
+    }
     case 'close': {
-      if (s.phase === 'editing' && s.expression[s.cursor] === ')') {
-        const opens = [...s.expression].filter((c) => c === '(').length;
-        const closes = [...s.expression].filter((c) => c === ')').length;
-        if (opens <= closes) {
-          return { ...s, cursor: s.cursor + 1 };
+      if (s.phase === 'editing') {
+        const decision = handleSmartCloseParen(s.expression, s.cursor, isLineModeState(s));
+        if (decision.action === 'step') {
+          return { ...s, cursor: decision.cursor };
         }
       }
       return insert(s, ')', 'continue');
     }
-    case 'frac': {
-      const previous = s.expression[s.cursor - 1];
-      if (s.phase === 'result' || (previous && /[0-9A-FXYMπei)]/.test(previous))) return insert(s, '÷', 'continue');
-      return binaryTemplate(s, 'frac');
-    }
-    case 'mfrac': return ternaryTemplate(s, 'mfrac');
-    case 'sqrt': return functionTemplate(s, 'sqrt');
-    case 'cbrt': return functionTemplate(s, 'cbrt');
+    case 'frac': return insertSmartFraction(s);
+    case 'mfrac': return insertSmartMixedFraction(s);
+    case 'sqrt': return box1Template(s, 'sqrt');
+    case 'cbrt': return box1Template(s, 'cbrt');
     case 'root': return binaryTemplate(s, 'root');
-    case 'abs': return functionTemplate(s, 'abs');
+    case 'abs': return box1Template(s, 'abs');
     case 'square': return insert(s, '^2', 'continue');
     case 'cube': return insert(s, '^3', 'continue');
     case 'inverse': return insert(s, '^(-1)', 'continue');
@@ -2581,7 +2750,7 @@ export function calculatorReducer(state: CalculatorState, action: CalculatorActi
       if (s.mode === 'MATRIX' && s.matrix.matrices.MatAns) return insert(s, 'MatAns');
       if (s.mode === 'VECTOR' && s.vector.vectors.VctAns) return insert(s, 'VctAns');
       return insert(s, 'Ans');
-    case 'exp': return powerTemplate(s, '×10^');
+    case 'exp': return insert(s, '⏨');
     case 'sd': {
       if (s.phase !== 'result') return s;
       if (s.displayOverride === 'recur') {
@@ -2590,7 +2759,7 @@ export function calculatorReducer(state: CalculatorState, action: CalculatorActi
       if (s.displayOverride !== 'none') {
         return { ...s, displayOverride: 'none', engExponent: null, factoredText: null };
       }
-      if (s.result && s.recurEnabled && s.resultFormat === 'exact') {
+      if (s.mode === 'COMP' && s.result && s.recurEnabled && s.resultFormat === 'exact') {
         const sc = deserialize(s.result);
         if (sc.exact && sc.exact.d > 1n && computeRecurringDecimal(sc.exact.n, sc.exact.d)) {
           return { ...s, displayOverride: 'recur', pairResult: null };
@@ -2611,8 +2780,8 @@ export function calculatorReducer(state: CalculatorState, action: CalculatorActi
     case 'divr': return insert(s, '÷R', 'continue');
     case 'simp': return insert(s, '▸Simp', 'continue');
     case 'recur': return insertRecurringTemplate(s);
-    case 'gcd': return binaryTemplate(s, 'GCD');
-    case 'lcm': return binaryTemplate(s, 'LCM');
+    case 'gcd': return functionTemplate(s, 'GCD');
+    case 'lcm': return functionTemplate(s, 'LCM');
     case 'int-fn': return functionTemplate(s, 'Int');
     case 'intg-fn': return functionTemplate(s, 'Intg');
     case 'preans': return insert(s, 'PreAns');
@@ -2630,12 +2799,16 @@ export function calculatorReducer(state: CalculatorState, action: CalculatorActi
     }
     case 'pi': return insert(s, 'π');
     case 'e': return insert(s, 'e');
+    case 'var-x': return insert(s, 'X');
+    case 'var-y': return insert(s, 'Y');
+    case 'percent': return insert(s, '%', 'continue');
+    case 'toggle-ins': return { ...closeLatches(state), insertMode: !state.insertMode };
     case 'factorial': return insert(s, '!', 'continue');
     case 'ncr': return insert(s, 'nCr', 'continue');
     case 'npr': return insert(s, 'nPr', 'continue');
-    case 'pol': return binaryTemplate(s, 'Pol');
-    case 'rec': return binaryTemplate(s, 'Rec');
-    case 'ranint': return binaryTemplate(s, 'RanInt');
+    case 'pol': return functionTemplate(s, 'Pol');
+    case 'rec': return functionTemplate(s, 'Rec');
+    case 'ranint': return functionTemplate(s, 'RanInt');
     case 'rnd': return functionTemplate(s, 'Rnd');
     case 'calc': return startCalcWorkflow(s);
     case 'solve': return startSolveWorkflow(s);
@@ -2664,6 +2837,7 @@ export interface PersistentCalculator {
   contrast?: number;
   numberFormat?: NumberFormatSetting;
   defaultFractionStyle?: FractionStyle;
+  tableUseG?: boolean;
   variables: Record<VariableName, StoredScalar>;
 }
 
@@ -2679,6 +2853,7 @@ export function saveableState(state: CalculatorState): PersistentCalculator {
     contrast: state.contrast,
     numberFormat: state.numberFormat,
     defaultFractionStyle: state.defaultFractionStyle,
+    tableUseG: state.tableUseG,
     variables: state.variables,
   };
 }
@@ -2702,6 +2877,7 @@ export function hydrateState(raw: string | null): CalculatorState {
       numberFormat: data.numberFormat ?? DEFAULT_NUMBER_FORMAT,
       defaultFractionStyle: data.defaultFractionStyle === 'mixed' ? 'mixed' : 'improper',
       fractionStyle: data.defaultFractionStyle === 'mixed' ? 'mixed' : 'improper',
+      tableUseG: data.tableUseG !== false,
       variables: data.variables,
     };
   } catch {

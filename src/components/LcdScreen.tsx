@@ -682,7 +682,7 @@ function renderNormalInteractiveBody(state: CalculatorState): React.ReactElement
       const curR = Math.min(mat.rows - 1, state.matrix.rowIdx);
       const curC = Math.min(mat.cols - 1, state.matrix.colIdx);
       const activeCellScalar = deserialize(mat.cells[curR][curC]);
-      const activeCellExact = formatResult(activeCellScalar, 'exact', {
+      const activeCellExact = formatResult(activeCellScalar, isEditing ? 'exact' : state.resultFormat, {
         numberFormat: state.numberFormat,
         decimalMark: state.decimalMark,
       });
@@ -725,7 +725,7 @@ function renderNormalInteractiveBody(state: CalculatorState): React.ReactElement
     if (vct) {
       const curIdx = Math.min(vct.dim - 1, state.vector.coordIdx);
       const activeScalar = deserialize(vct.coords[curIdx]);
-      const activeExact = formatResult(activeScalar, 'exact', {
+      const activeExact = formatResult(activeScalar, isEditing ? 'exact' : state.resultFormat, {
         numberFormat: state.numberFormat,
         decimalMark: state.decimalMark,
       });

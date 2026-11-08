@@ -1,41 +1,8 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { CONSTANT_BY_TOKEN, CONVERSION_BY_TOKEN } from '../core/constants';
 import { STAT_TOKEN_LABELS } from '../core/expression';
 import type { DisplayValue, IneqSegmentDisplay } from '../core/format';
-
-interface ArgSpan {
-  start: number;
-  end: number;
-}
-
-function parseCallSpans(
-  source: string,
-  openParenIndex: number,
-  expectedArgs: number,
-): { args: ArgSpan[]; afterIndex: number } | null {
-  if (source[openParenIndex] !== '(') return null;
-  const args: ArgSpan[] = [];
-  let depth = 0;
-  let segStart = openParenIndex + 1;
-  for (let i = openParenIndex + 1; i < source.length; i++) {
-    const ch = source[i];
-    if (ch === '(') depth++;
-    else if (ch === ')') {
-      if (depth === 0) {
-        args.push({ start: segStart, end: i });
-        if (args.length === expectedArgs) {
-          return { args, afterIndex: i + 1 };
-        }
-        return null;
-      }
-      depth--;
-    } else if (ch === ',' && depth === 0) {
-      args.push({ start: segStart, end: i });
-      segStart = i + 1;
-    }
-  }
-  return null;
-}
+import { normalizeMathCursor, parseCallSpans } from '../core/mathAst';
 
 const DISPLAY_FUNC_LABELS: Record<string, string> = {
   asin: 'sin⁻¹',
@@ -53,8 +20,31 @@ const DISPLAY_FUNC_LABELS: Record<string, string> = {
 const STAT_KEYS_SORTED = Object.keys(STAT_TOKEN_LABELS).sort((a, b) => b.length - a.length);
 
 function Caret({ overwrite }: { overwrite: boolean }) {
+  const ref = useRef<HTMLSpanElement | null>(null);
+  useEffect(() => {
+    const el = ref.current;
+    const scroller = el?.closest('.lcd-expr-area') as HTMLElement | null;
+    if (!el || !scroller) return;
+    const cRect = el.getBoundingClientRect();
+    const sRect = scroller.getBoundingClientRect();
+    if (sRect.width > 0) {
+      if (cRect.right > sRect.right - 8) {
+        scroller.scrollLeft += cRect.right - (sRect.right - 8);
+      } else if (cRect.left < sRect.left + 8) {
+        scroller.scrollLeft -= (sRect.left + 8) - cRect.left;
+      }
+    }
+    if (sRect.height > 0) {
+      if (cRect.bottom > sRect.bottom - 4) {
+        scroller.scrollTop += cRect.bottom - (sRect.bottom - 4);
+      } else if (cRect.top < sRect.top + 4) {
+        scroller.scrollTop -= (sRect.top + 4) - cRect.top;
+      }
+    }
+  });
   return (
     <span
+      ref={ref}
       className={overwrite ? 'lcd-caret lcd-caret-overwrite' : 'lcd-caret'}
       data-testid="lcd-caret"
       aria-hidden="true"
@@ -398,6 +388,15 @@ function MathRange({
         }
       }
 
+      if (rest.startsWith('^(-1)')) {
+        nodes.push(
+          <sup key={`k-${keyCounter++}`} className="math-sup">
+            −1
+          </sup>,
+        );
+        pos += 5;
+        continue;
+      }
       if (rest.startsWith('^(')) {
         const parsed = parseCallSpans(source, pos + 1, 1);
         if (parsed && parsed.afterIndex <= end) {
@@ -435,6 +434,11 @@ function MathRange({
     }
 
     const ch = source[pos];
+    if (ch === '⏨') {
+      nodes.push(<span key={`k-${keyCounter++}`} className="math-sci-ten">×10</span>);
+      pos++;
+      continue;
+    }
     const displayChar = ch === '-' ? '−' : ch === '*' ? '×' : ch === '/' ? '÷' : ch;
     nodes.push(<span key={`k-${keyCounter++}`}>{displayChar}</span>);
     pos++;
@@ -460,13 +464,14 @@ export function NaturalExpression({
   overwrite = false,
   lineMode = false,
 }: NaturalExpressionProps): React.ReactElement {
+  const safeCursor = cursor === null ? null : normalizeMathCursor(expression, cursor, lineMode);
   return (
     <div className="lcd-expr-inner" dir="ltr">
       <MathRange
         source={expression}
         start={0}
         end={expression.length}
-        cursor={cursor}
+        cursor={safeCursor}
         overwrite={overwrite}
         lineMode={lineMode}
       />
