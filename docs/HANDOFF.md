@@ -33,4 +33,4 @@ Last updated: 2026-11-08.
 - Clean-room implementation; no Casio ROM or proprietary decompiled firmware is used.
 - `d/dx`, `∫dx`, and `SOLVE` use independent numerical algorithms rather than Casio's internal ROM stepping/stopping rules, so extreme ill-conditioned functions can differ in the last digits or convergence behavior.
 - Cubic equations in `EQN` use high-precision analytic roots with rational snapping rather than general Cardano radical formulas, whereas quadratic equations solve symbolically (`(a ± b√r)/d` and `a ± b√r i`).
-- Automated verification covers 95 unit & integration tests across `expression.test.ts`, `calculator.test.ts`, and `App.test.tsx`.
+- Automated verification covers 96 unit & integration tests across `expression.test.ts`, `calculator.test.ts`, and `App.test.tsx`.

@@ -917,8 +917,10 @@ button {
 }
 
 .dpad-arrow {
-  font-size: 0.52rem;
+  font-size: 0.44rem;
   line-height: 1;
+  color: rgba(15, 18, 22, 0.72);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.16);
 }
 
 /* ==========================================================================
@@ -959,12 +961,12 @@ button {
 }
 
 .calc-key-legends {
-  min-height: 12px;
+  min-height: 13px;
   display: flex;
   align-items: center;
-  padding: 0 2px;
+  padding: 0 1.5px;
   font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
-  font-size: 0.58rem;
+  font-size: 0.56rem;
   font-weight: 700;
   line-height: 1;
   white-space: nowrap;
@@ -975,26 +977,80 @@ button {
   gap: 4px;
 }
 
+.legends-right {
+  justify-content: flex-end;
+}
+
 .legends-split {
   justify-content: space-between;
+  gap: 2px;
 }
 
 .legend-shift {
   color: var(--casio-gold);
+  display: inline-flex;
+  align-items: center;
 }
 
 .legend-alpha {
   color: var(--casio-pink);
+  display: inline-flex;
+  align-items: center;
 }
 
 .legend-basen {
-  color: #7cc9d8;
-  font-size: 0.54rem;
+  color: #6bc2d4;
+  font-size: 0.52rem;
+  letter-spacing: 0.01em;
 }
 
 .legend-basen.active {
   color: #4ef0b8;
   text-decoration: underline;
+}
+
+.legend-cmplx {
+  color: #b78ef2;
+  font-size: 0.56rem;
+  font-weight: 700;
+}
+
+.legend-cmplx i {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-style: italic;
+  font-size: 0.66rem;
+}
+
+.legend-cmplx.active {
+  color: #d6b8ff;
+}
+
+/* Authentic Casio top-corner bracketed mode legend: ┌STAT┐, ┌MATRIX┐, etc. */
+.legend-mode-tag {
+  position: relative;
+  display: inline-block;
+  padding: 1.5px 3.5px 0;
+  font-size: 0.5rem;
+  letter-spacing: 0.02em;
+  border-top: 1px solid var(--casio-gold);
+}
+
+.legend-mode-tag::before,
+.legend-mode-tag::after {
+  content: '';
+  position: absolute;
+  top: -1px;
+  width: 1px;
+  height: 3.5px;
+  background: var(--casio-gold);
+}
+
+.legend-mode-tag::before {
+  left: 0;
+}
+
+.legend-mode-tag::after {
+  right: 0;
 }
 
 /* Physical Keycap Variants */
@@ -1067,6 +1123,35 @@ button {
 }
 
 /* Keycap Math Glyphs */
+.key-glyph-integ {
+  display: inline-flex;
+  align-items: center;
+  gap: 1.5px;
+}
+
+.glyph-int-sym {
+  font-size: 1.02rem;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.glyph-int-boxes {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.glyph-box-xs {
+  width: 4.5px !important;
+  height: 4.5px !important;
+}
+
+.key-glyph-dms {
+  font-size: 0.78rem;
+  letter-spacing: -0.04em;
+  font-weight: 700;
+}
+
 .key-glyph-frac {
   display: inline-flex;
   flex-direction: column;
@@ -1107,7 +1192,9 @@ button {
   display: inline-flex;
 }
 
-.key-glyph-math i {
+.key-glyph-math i,
+.legend-math-italic i,
+.legend-italic-e {
   font-family: Georgia, 'Times New Roman', serif;
   font-style: italic;
 }
@@ -1130,13 +1217,52 @@ button {
   height: 5px;
 }
 
-.legend-mfrac {
+.legend-mfrac,
+.legend-deriv,
+.legend-inline-glyph,
+.legend-sd-frac {
   display: inline-flex;
   align-items: center;
   gap: 1.5px;
 }
 
+.legend-mini-ch {
+  font-size: 0.44rem;
+  line-height: 0.9;
+}
+
+.legend-sup-num {
+  font-size: 0.45rem;
+  margin-right: -1px;
+  transform: translateY(-2px);
+}
+
+.legend-sup-box {
+  display: inline-flex;
+  transform: translateY(-2.5px);
+}
+
+.legend-overbar-gold {
+  border-top: 1px solid var(--casio-gold);
+  padding-top: 1px;
+  display: inline-flex;
+}
+
+.legend-box-pink {
+  display: inline-block;
+  width: 4.5px;
+  height: 4.5px;
+  background: var(--casio-pink);
+}
+
+.legend-overbar-pink {
+  border-top: 1.2px solid var(--casio-pink);
+  padding-top: 1px;
+  display: inline-flex;
+}
+
 .legend-box-solid {
+  display: inline-block;
   width: 4px;
   height: 4px;
   background: var(--casio-gold);
@@ -1146,10 +1272,11 @@ button {
   display: inline-flex;
   flex-direction: column;
   align-items: center;
-  gap: 1px;
+  gap: 0.8px;
 }
 
 .legend-box-hollow {
+  display: inline-block;
   width: 4px;
   height: 3.5px;
   border: 1px solid var(--casio-gold);

@@ -15,6 +15,16 @@ interface CalculatorHardwareProps {
 
 function renderKeyFace(key: KeySpec): React.ReactNode {
   switch (key.id) {
+    case 'integ':
+      return (
+        <span className="key-glyph-integ" aria-hidden="true">
+          <span className="glyph-int-sym">∫</span>
+          <span className="glyph-int-boxes">
+            <span className="glyph-box glyph-box-hollow glyph-box-xs" />
+            <span className="glyph-box glyph-box-solid glyph-box-xs" />
+          </span>
+        </span>
+      );
     case 'frac':
       return (
         <span className="key-glyph-frac" aria-hidden="true">
@@ -36,12 +46,6 @@ function renderKeyFace(key: KeySpec): React.ReactNode {
       return (
         <span className="key-glyph-math" aria-hidden="true">
           <i>x</i><sup>2</sup>
-        </span>
-      );
-    case 'cube':
-      return (
-        <span className="key-glyph-math" aria-hidden="true">
-          <i>x</i><sup>3</sup>
         </span>
       );
     case 'inverse':
@@ -69,6 +73,12 @@ function renderKeyFace(key: KeySpec): React.ReactNode {
           <span className="glyph-box glyph-box-hollow" />
         </span>
       );
+    case 'dms':
+      return (
+        <span className="key-glyph-dms" aria-hidden="true">
+          ° ’ ’ ’
+        </span>
+      );
     case 'exp':
       return (
         <span className="key-glyph-exp" aria-hidden="true">
@@ -82,19 +92,136 @@ function renderKeyFace(key: KeySpec): React.ReactNode {
 
 function renderShiftLegend(key: KeySpec): React.ReactNode {
   if (!key.shiftLabel) return null;
-  if (key.id === 'frac') {
-    return (
-      <span className="legend-mfrac" aria-hidden="true">
-        <span className="legend-box-solid" />
-        <span className="legend-frac-stack">
-          <span className="legend-box-hollow" />
-          <span className="legend-frac-bar" />
-          <span className="legend-box-hollow" />
+
+  if (key.modeTag) {
+    return <span className="legend-mode-tag">{key.shiftLabel}</span>;
+  }
+
+  switch (key.id) {
+    case 'integ':
+      return (
+        <span className="legend-deriv" aria-hidden="true">
+          <span className="legend-frac-stack">
+            <span className="legend-mini-ch">d</span>
+            <span className="legend-frac-bar" />
+            <span className="legend-mini-ch">d<i>x</i></span>
+          </span>
+          <span className="legend-box-solid" />
         </span>
+      );
+    case 'inverse':
+      return (
+        <span className="legend-math-italic" aria-hidden="true">
+          <i>x</i>!
+        </span>
+      );
+    case 'logbase':
+      return (
+        <span className="legend-inline-glyph" aria-hidden="true">
+          <span>∑</span>
+          <span className="legend-box-solid" />
+        </span>
+      );
+    case 'frac':
+      return (
+        <span className="legend-mfrac" aria-hidden="true">
+          <span className="legend-box-solid" />
+          <span className="legend-frac-stack">
+            <span className="legend-box-hollow" />
+            <span className="legend-frac-bar" />
+            <span className="legend-box-hollow" />
+          </span>
+        </span>
+      );
+    case 'sqrt':
+      return (
+        <span className="legend-inline-glyph" aria-hidden="true">
+          <sup className="legend-sup-num">3</sup>
+          <span>√</span>
+          <span className="legend-overbar-gold">
+            <span className="legend-box-solid" />
+          </span>
+        </span>
+      );
+    case 'square':
+      return (
+        <span className="legend-math-italic" aria-hidden="true">
+          <i>x</i><sup>3</sup>
+        </span>
+      );
+    case 'power':
+      return (
+        <span className="legend-inline-glyph" aria-hidden="true">
+          <sup className="legend-sup-box">
+            <span className="legend-box-solid" />
+          </sup>
+          <span>√</span>
+          <span className="legend-overbar-gold">
+            <span className="legend-box-hollow" />
+          </span>
+        </span>
+      );
+    case 'log':
+      return (
+        <span className="legend-inline-glyph" aria-hidden="true">
+          <span>10</span>
+          <sup className="legend-sup-box">
+            <span className="legend-box-solid" />
+          </sup>
+        </span>
+      );
+    case 'ln':
+      return (
+        <span className="legend-inline-glyph legend-math-italic" aria-hidden="true">
+          <i>e</i>
+          <sup className="legend-sup-box">
+            <span className="legend-box-solid" />
+          </sup>
+        </span>
+      );
+    case 'sd':
+      return (
+        <span className="legend-sd-frac" aria-hidden="true">
+          <span>a</span>
+          <span className="legend-frac-stack">
+            <span className="legend-mini-ch">b</span>
+            <span className="legend-frac-bar" />
+            <span className="legend-mini-ch">c</span>
+          </span>
+          <span>⇔</span>
+          <span className="legend-frac-stack">
+            <span className="legend-mini-ch">d</span>
+            <span className="legend-frac-bar" />
+            <span className="legend-mini-ch">c</span>
+          </span>
+        </span>
+      );
+    default:
+      return key.shiftLabel;
+  }
+}
+
+function renderAlphaLegend(key: KeySpec): React.ReactNode {
+  if (!key.alphaLabel) return null;
+  if (key.id === 'logbase') {
+    return (
+      <span className="legend-inline-glyph" aria-hidden="true">
+        <span>∏</span>
+        <span className="legend-box-pink" />
       </span>
     );
   }
-  return key.shiftLabel;
+  if (key.id === 'sqrt') {
+    return (
+      <span className="legend-overbar-pink" aria-hidden="true">
+        <span className="legend-box-pink" />
+      </span>
+    );
+  }
+  if (key.id === 'exp') {
+    return <i className="legend-italic-e">e</i>;
+  }
+  return key.alphaLabel;
 }
 
 function CalcKey({
@@ -110,33 +237,45 @@ function CalcKey({
   activeBase: string;
   onPress: (id: string) => void;
 }): React.ReactElement {
-  const shiftLegend =
-    isCmplx && spec.id === 'neg'
-      ? '∠'
-      : isCmplx && spec.id === 'equals'
-        ? 'Re⇔Im'
-        : spec.shiftLabel;
-  const alphaLegend = isCmplx && spec.id === 'eng' ? 'i' : spec.alphaLabel;
-  const hasBoth = Boolean(shiftLegend && alphaLegend);
+  const hasLeft = Boolean(spec.shiftLabel || spec.cmplxLeftLabel);
+  const hasRight = Boolean(spec.alphaLabel || spec.baseNLabel || spec.cmplxRightLabel);
+  const hasBoth = hasLeft && hasRight;
+  const onlyRight = !hasLeft && hasRight;
   const baseTagActive = isBaseN && spec.baseNLabel === activeBase;
+
+  const alignClass = hasBoth
+    ? 'legends-split'
+    : onlyRight
+      ? 'legends-right'
+      : 'legends-center';
 
   return (
     <div
       className={`calc-key-cell calc-key-cell-${spec.variant}`}
       style={spec.col ? { gridColumn: spec.col } : undefined}
     >
-      <div className={`calc-key-legends ${hasBoth ? 'legends-split' : 'legends-center'}`}>
-        {shiftLegend && (
-          <span className="legend-shift">
-            {spec.id === 'frac' ? renderShiftLegend(spec) : shiftLegend}
+      <div className={`calc-key-legends ${alignClass}`}>
+        {spec.shiftLabel && (
+          <span className="legend-shift">{renderShiftLegend(spec)}</span>
+        )}
+        {spec.cmplxLeftLabel && (
+          <span className={isCmplx ? 'legend-cmplx active' : 'legend-cmplx'}>
+            {spec.cmplxLeftLabel}
           </span>
         )}
-        {spec.baseNLabel && isBaseN && (
+        {spec.baseNLabel && (
           <span className={baseTagActive ? 'legend-basen active' : 'legend-basen'}>
             {spec.baseNLabel}
           </span>
         )}
-        {alphaLegend && <span className="legend-alpha">{alphaLegend}</span>}
+        {spec.cmplxRightLabel && (
+          <span className={isCmplx ? 'legend-cmplx active' : 'legend-cmplx'}>
+            {spec.cmplxRightLabel === 'i' ? <i>i</i> : spec.cmplxRightLabel}
+          </span>
+        )}
+        {spec.alphaLabel && (
+          <span className="legend-alpha">{renderAlphaLegend(spec)}</span>
+        )}
       </div>
       <button
         type="button"
@@ -184,7 +323,7 @@ export function CalculatorHardware({
                 type="button"
                 className={fnTrayOpen ? 'casio-fn-badge active' : 'casio-fn-badge'}
                 data-testid="fn-tray-toggle"
-                aria-label="وظائف fx-991ES PLUS C الإضافية"
+                aria-label="اختصارات إضافية سريعة"
                 aria-expanded={fnTrayOpen}
                 onClick={() => setFnTrayOpen((v) => !v)}
               >
@@ -195,7 +334,7 @@ export function CalculatorHardware({
           </div>
         </header>
 
-        {/* Natural Textbook LCD + Internal 991+ Micro-Popover (Closed by Default) */}
+        {/* Natural Textbook LCD + Internal Quick Popover (Closed by Default) */}
         <div className="casio-lcd-wrap">
           <LcdScreen state={state} />
           {fnTrayOpen && poweredOn && (
@@ -203,7 +342,7 @@ export function CalculatorHardware({
               className="casio-fn-popover"
               data-testid="fn-tray-popover"
               role="dialog"
-              aria-label="أزرار fx-991ES PLUS C الإضافية"
+              aria-label="أزرار سريعة إضافية"
             >
               <button type="button" data-testid="fn-calc" onClick={() => handlePress('calc')}>
                 CALC

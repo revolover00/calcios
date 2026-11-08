@@ -1,7 +1,7 @@
 import { mathError } from './errors';
 import { formatDecimal, formatResult, formatSymbolicLinear, type DisplayValue } from './format';
 import {
-  D, add, applyFunction, divide, makeScalar, multiply, negate, scalarFromInteger, subtract,
+  D, add, applyFunction, divide, makeScalar, multiply, negate, scalarFromInteger, scalarPi, subtract,
   type Scalar,
 } from './value';
 
@@ -24,10 +24,29 @@ function isTiny(s: Scalar): boolean {
   return s.decimal.abs().lt('1e-26');
 }
 
+export function snapExactScalar(s: Scalar): Scalar {
+  if (s.exact || s.symbolic) return s;
+  return cleanScalar(s.decimal);
+}
+
 function cleanScalar(d: InstanceType<typeof D>): Scalar {
   const cleaned = d.abs().lt('1e-22') ? new D(0) : d;
+  if (cleaned.isZero()) return scalarFromInteger(0);
   if (cleaned.isInteger() && cleaned.abs().lt('1e15')) {
     return scalarFromInteger(BigInt(cleaned.toFixed(0)));
+  }
+  // Recognize exact small rational multiples of π (e.g. ±1/2 π in INEQ/EQN)
+  const piVal = D.acos(-1);
+  const overPi = cleaned.div(piVal);
+  for (let q = 1; q <= 24; q++) {
+    const prod = overPi.times(q);
+    const nearest = prod.round();
+    if (!nearest.isZero() && nearest.abs().lte(48) && prod.minus(nearest).abs().lt('1e-24')) {
+      return divide(
+        multiply(scalarFromInteger(BigInt(nearest.toFixed(0))), scalarPi()),
+        scalarFromInteger(BigInt(q)),
+      );
+    }
   }
   return makeScalar(cleaned, undefined, false);
 }
@@ -125,11 +144,11 @@ export function solveQuadratic(coeffs: Scalar[]): EqnOutcome {
 
   const items: EqnSolutionItem[] = [];
   if (isTiny(disc)) {
-    items.push({ label: 'X', scalar: vx });
+    items.push({ label: 'X', scalar: snapExactScalar(vx) });
   } else if (disc.decimal.gt(0)) {
     const sq = applyFunction('sqrt', [disc], 'DEG');
-    const r1 = divide(add(negate(b), sq), twoA);
-    const r2 = divide(subtract(negate(b), sq), twoA);
+    const r1 = snapExactScalar(divide(add(negate(b), sq), twoA));
+    const r2 = snapExactScalar(divide(subtract(negate(b), sq), twoA));
     items.push({ label: 'X₁', scalar: r1 });
     items.push({ label: 'X₂', scalar: r2 });
   } else {
