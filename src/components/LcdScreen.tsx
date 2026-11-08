@@ -623,7 +623,7 @@ function renderNormalInteractiveBody(state: CalculatorState): React.ReactElement
     );
   }
 
-  // SOLVE prompt & 3-line Casio SOLVE result
+  // SOLVE prompt & 3-line Calcios SOLVE result
   if (state.solvePrompt) {
     if (state.solvePrompt.stage === 'prompt-x') {
       const xCurrent = formatDecimal(deserialize(state.variables.X), state.numberFormat, state.decimalMark);
@@ -859,7 +859,7 @@ function renderNormalInteractiveBody(state: CalculatorState): React.ReactElement
     );
   }
 
-  // INEQ Mode Editor & 2D Natural-V.P.A.M. Solution (matching references/fx95-layout.jpg!)
+  // INEQ Mode Editor & 2D 2D Natural Math Solution (matching Calcios LCD layout!)
   if (state.mode === 'INEQ' && state.ineq) {
     const ineq = state.ineq;
     if (ineq.solved) {

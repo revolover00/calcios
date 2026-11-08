@@ -1,88 +1,86 @@
 @font-face {
-  font-family: 'CasioESLarge';
-  src: url('../assets/casio-es-large.ttf') format('truetype');
+  font-family: 'CalciosLCDLarge';
+  src: url('../assets/calcios-lcd-large.ttf') format('truetype');
   font-weight: 400 800;
   font-style: normal;
   font-display: block;
 }
 
 @font-face {
-  font-family: 'CasioESSmall';
-  src: url('../assets/casio-es-small.ttf') format('truetype');
+  font-family: 'CalciosLCDSmall';
+  src: url('../assets/calcios-lcd-small.ttf') format('truetype');
   font-weight: 400 800;
   font-style: normal;
   font-display: block;
 }
 
 :root {
-  --casio-gold: #dcb464;
-  --casio-pink: #d86e86;
+  --calcios-gold: #dcb464;
+  --calcios-pink: #d86e86;
   --lcd-bg: #cfe3e6;
   --lcd-ink: #020405;
 }
 
 /* ==========================================================================
-   3 Authentic Casio ES PLUS (2nd edition) Injection-Molded Color Themes
-   Sampled directly from Casio hardware photography (Black, Pink, Ice Blue)
+   3 Unified Calcios Injection-Molded Color Themes (Black, Pink, Ice Blue)
+   Identical 3D sculpted chassis, solar bezel, spun-metal controls & key hierarchy
    ========================================================================== */
-.casio-casing.theme-black {
-  --casio-gold: #dcb464;
-  --casio-pink: #dc7088;
-  --legend-basen: #6dc4d6;
-  --legend-cmplx: #b990f4;
-  --brand-ink: #edf1f4;
-  --vpam-ink: #d4e2e6;
-  --mode-on-ink: #e8ecef;
-  --shell-lip: #111315;
-  --shell-rail-hi: #3f4348;
-  --shell-mid: #222427;
-  --shell-bot: #16181a;
-  --face-top: #2f3033;
-  --face-mid: #28292c;
-  --face-bot: #222326;
-  --face-seam: rgba(255, 255, 255, 0.08);
+.calcios-casing.theme-black {
+  --calcios-gold: #d9b25f;
+  --calcios-pink: #d96c86;
+  --legend-basen: #8fa3b3;
+  --legend-cmplx: #b694e8;
+  --brand-ink: #f4f7f9;
+  --mode-on-ink: #eceff2;
+  --shell-lip: #16181c;
+  --shell-rail-hi: #585e68;
+  --shell-mid: #2a2d33;
+  --shell-bot: #1f2227;
+  --face-top: #3a3e45;
+  --face-mid: #30343a;
+  --face-bot: #282b31;
+  --face-seam: rgba(255, 255, 255, 0.16);
   --bezel-bg:
-    linear-gradient(90deg, #3c4045 0%, #0b0d0f 3.5%, #090b0d 96.5%, #3c4045 100%),
-    linear-gradient(180deg, #060709 0%, #15181b 100%);
-  --bezel-top-bdr: #050608;
-  --bezel-side-bdr: #121518;
-  --bezel-bot-bdr: rgba(255, 255, 255, 0.16);
-  --lcd-frame-bdr: #080b0d;
-  --groove-bg: linear-gradient(180deg, #1b1d20 0%, #26282b 100%);
-  --well-bg: #0c0e10;
-  --metal-hi: #8c9096;
-  --metal-mid: #26282b;
-  --metal-lo: #17191b;
-  --metal-bdr: #0d0f11;
-  --dpad-knurl-a: rgba(10, 12, 14, 0.8);
-  --dpad-knurl-b: rgba(39, 43, 48, 0.8);
-  --dpad-base: radial-gradient(circle, #202328 0%, #0e1013 100%);
-  --dpad-bdr: #0b0d0f;
-  --dpad-arrow: rgba(12, 14, 17, 0.78);
-  --sci-top: #474749;
-  --sci-bot: #3a3a3c;
-  --sci-shadow: #111214;
-  --sci-well: #111214;
-  --sci-ink: #f4f6f8;
-  --num-top: #676765;
-  --num-bot: #595957;
-  --num-shadow: #161719;
-  --num-well: #141517;
-  --num-ink: #f6f8fa;
-  --acc-top: #8ea748;
-  --acc-bot: #7a9338;
-  --acc-shadow: #252e11;
-  --acc-well: #181e0b;
-  --acc-ink: #f7faef;
+    linear-gradient(90deg, #272a30 0%, #31353c 4%, #31353c 96%, #272a30 100%),
+    linear-gradient(180deg, #212429 0%, #4a4f58 100%);
+  --bezel-top-bdr: #181a1f;
+  --bezel-side-bdr: #24282e;
+  --bezel-bot-bdr: rgba(255, 255, 255, 0.28);
+  --lcd-frame-bdr: #14171b;
+  --groove-bg: linear-gradient(180deg, #23262c 0%, #383c43 100%);
+  --well-bg: #131519;
+  --metal-hi: #969ca6;
+  --metal-mid: #3a3e46;
+  --metal-lo: #22252b;
+  --metal-bdr: #14161a;
+  --dpad-knurl-a: rgba(24, 27, 32, 0.78);
+  --dpad-knurl-b: rgba(62, 67, 75, 0.85);
+  --dpad-base: radial-gradient(circle, #383c44 0%, #202328 100%);
+  --dpad-bdr: #1a1d22;
+  --dpad-arrow: rgba(15, 18, 22, 0.72);
+  --sci-top: #4b4f57;
+  --sci-bot: #3e4249;
+  --sci-shadow: #17191d;
+  --sci-well: #15171b;
+  --sci-ink: #f8fafc;
+  --num-top: #373a41;
+  --num-bot: #2b2e34;
+  --num-shadow: #121418;
+  --num-well: #101216;
+  --num-ink: #ffffff;
+  --acc-top: #d6beaf;
+  --acc-bot: #c4ab9c;
+  --acc-shadow: #29221e;
+  --acc-well: #1d1815;
+  --acc-ink: #2b2421;
 }
 
-.casio-casing.theme-pink {
-  --casio-gold: #9d6f18;
-  --casio-pink: #9f2244;
+.calcios-casing.theme-pink {
+  --calcios-gold: #9d6f18;
+  --calcios-pink: #9f2244;
   --legend-basen: #433a3d;
   --legend-cmplx: #7b3564;
   --brand-ink: #fdf9fa;
-  --vpam-ink: #fbf6f7;
   --mode-on-ink: #fcf7f8;
   --shell-lip: #a57f84;
   --shell-rail-hi: #f5dde0;
@@ -127,13 +125,12 @@
   --acc-ink: #473a36;
 }
 
-.casio-casing.theme-blue {
-  --casio-gold: #c99935;
-  --casio-pink: #9c2446;
+.calcios-casing.theme-blue {
+  --calcios-gold: #c99935;
+  --calcios-pink: #9c2446;
   --legend-basen: #2d3840;
   --legend-cmplx: #5d387a;
   --brand-ink: #f8fbfd;
-  --vpam-ink: #f3f8fb;
   --mode-on-ink: #f6fafc;
   --shell-lip: #6f8091;
   --shell-rail-hi: #d3e3ef;
@@ -192,7 +189,7 @@ body,
   width: 100%;
   height: 100dvh;
   overflow: hidden;
-  background: #14171b;
+  background: radial-gradient(circle at 50% 35%, #1d2128 0%, #101317 100%);
   color: #f0f3f6;
   font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -206,15 +203,13 @@ button {
 }
 
 /* ==========================================================================
-   Frameless Orientation-Adaptive Viewport:
-   - Portrait (height > width): edge-to-edge full screen (100vw × 100dvh), zero frame
-   - Landscape (width >= height): original physical Casio size centered cleanly
+   Centered Handheld Viewport Across ALL Devices (Never Stretched Full-Screen)
    ========================================================================== */
 .calc-viewport {
   width: 100vw;
   height: 100dvh;
   margin: 0;
-  padding: 0;
+  padding: 16px 14px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -222,13 +217,15 @@ button {
 }
 
 /* ==========================================================================
-   3D Cylindrical Molded Casio Hardware Shell
+   3D Cylindrical Molded Calcios Handheld Shell (Real Physical Proportions)
    ========================================================================== */
-.casio-casing {
-  width: 366px;
-  max-width: 100%;
+.calcios-casing {
+  width: 356px;
+  flex-shrink: 0;
   padding: 7px;
   border-radius: 30px 30px 34px 34px;
+  transform: scale(var(--calc-scale, 1));
+  transform-origin: center center;
   background:
     linear-gradient(
       90deg,
@@ -241,14 +238,14 @@ button {
     ),
     linear-gradient(180deg, var(--face-top) 0%, var(--shell-mid) 50%, var(--shell-bot) 100%);
   box-shadow:
-    0 22px 52px rgba(0, 0, 0, 0.65),
+    0 24px 56px rgba(0, 0, 0, 0.68),
     inset 0 1.5px 1px rgba(255, 255, 255, 0.35),
     inset 0 -3px 5px rgba(0, 0, 0, 0.45);
   font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
   transition: background 0.18s ease;
 }
 
-.casio-inner-rim {
+.calcios-inner-rim {
   padding: 13px 15px 16px;
   border-radius: 24px 24px 28px 28px;
   background:
@@ -267,40 +264,34 @@ button {
   justify-content: space-between;
 }
 
-/* Branding & Solar Panel Header */
-.casio-header {
+/* Unified Calcios Branding & Solar Panel Header */
+.calcios-header {
   padding: 1px 3px 5px;
   flex-shrink: 0;
 }
 
-.casio-brand-row {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-}
-
-.casio-solar-top {
+.calcios-solar-top {
   display: grid;
-  grid-template-columns: 1fr 144px;
+  grid-template-columns: 1fr 142px;
   align-items: center;
   gap: 8px;
 }
 
-.casio-brand-stack {
+.calcios-brand-stack {
   display: flex;
   flex-direction: column;
-  gap: 1.5px;
+  justify-content: center;
 }
 
-.casio-solar-bezel {
-  height: 40px;
+.calcios-solar-bezel {
+  height: 38px;
   padding: 3px;
   border-radius: 6px;
-  background: linear-gradient(180deg, var(--bezel-top-bdr) 0%, rgba(255, 255, 255, 0.55) 100%);
+  background: linear-gradient(180deg, var(--bezel-top-bdr) 0%, rgba(255, 255, 255, 0.48) 100%);
   box-shadow: inset 0 1.5px 3px rgba(0, 0, 0, 0.38);
 }
 
-.casio-solar-cell {
+.calcios-solar-cell {
   width: 100%;
   height: 100%;
   border-radius: 4px;
@@ -315,60 +306,34 @@ button {
   box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.72);
 }
 
-.casio-logo {
+.calcios-logo {
   font-family: 'Arial Black', system-ui, -apple-system, sans-serif;
   font-weight: 900;
-  font-size: 1.18rem;
-  letter-spacing: 0.08em;
+  font-size: 1.24rem;
+  letter-spacing: 0.09em;
   line-height: 1.05;
   color: var(--brand-ink);
 }
 
-.casio-model {
-  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
-  font-style: normal;
-  font-weight: 600;
-  font-size: 0.82rem;
-  letter-spacing: 0.02em;
-  line-height: 1.15;
-  color: var(--brand-ink);
-}
-
-.casio-vpam-row {
-  display: flex;
-  justify-content: center;
-  margin-top: 4px;
-}
-
-.casio-vpam {
-  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
-  font-style: italic;
-  font-weight: 800;
-  font-size: 0.72rem;
-  letter-spacing: 0.05em;
-  line-height: 1.1;
-  color: var(--vpam-ink);
-}
-
-.casio-edition-row {
+.calcios-controls-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin-top: 3px;
+  justify-content: flex-start;
+  margin-top: 4px;
   padding: 0 2px;
   min-height: 15px;
 }
 
-.casio-edition-controls {
+.calcios-edition-controls {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
 }
 
-.casio-theme-dots {
+.calcios-theme-dots {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 4.5px;
 }
 
 .theme-dot {
@@ -403,41 +368,33 @@ button {
   background: radial-gradient(circle at 35% 35%, #d2e3f0 0%, #8597a7 100%);
 }
 
-.casio-edition {
-  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
-  font-size: 0.67rem;
-  font-weight: 700;
-  letter-spacing: 0.01em;
-  color: var(--brand-ink);
-}
-
-/* Subtle Flush Micro-Switch for fx-991ES PLUS C Quick Tray */
-.casio-fn-badge {
+/* Subtle Flush Micro-Switch for Quick Function Popover */
+.calcios-fn-badge {
   padding: 1px 4px;
   border-radius: 3px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(14, 16, 19, 0.45);
-  color: rgba(210, 216, 222, 0.42);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(14, 16, 19, 0.32);
+  color: rgba(240, 244, 248, 0.62);
   font-family: system-ui, -apple-system, sans-serif;
   font-size: 0.52rem;
   font-weight: 700;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.04em;
   line-height: 1.2;
   transition: color 0.14s ease, border-color 0.14s ease, background 0.14s ease;
 }
 
-.casio-fn-badge:hover,
-.casio-fn-badge.active {
-  background: rgba(224, 183, 102, 0.14);
-  border-color: rgba(224, 183, 102, 0.55);
-  color: var(--casio-gold);
+.calcios-fn-badge:hover,
+.calcios-fn-badge.active {
+  background: rgba(224, 183, 102, 0.16);
+  border-color: rgba(224, 183, 102, 0.58);
+  color: var(--calcios-gold);
 }
 
-.casio-lcd-wrap {
+.calcios-lcd-wrap {
   position: relative;
 }
 
-.casio-fn-popover {
+.calcios-fn-popover {
   position: absolute;
   inset: 9px 10px;
   z-index: 12;
@@ -452,7 +409,7 @@ button {
   align-content: center;
 }
 
-.casio-fn-popover button {
+.calcios-fn-popover button {
   padding: 6px 2px;
   border-radius: 4px;
   border: 1px solid #343a42;
@@ -464,13 +421,13 @@ button {
   box-shadow: 0 2px 0 #0e1013;
 }
 
-.casio-fn-popover button:hover {
-  border-color: var(--casio-gold);
-  color: var(--casio-gold);
+.calcios-fn-popover button:hover {
+  border-color: var(--calcios-gold);
+  color: var(--calcios-gold);
 }
 
 /* ==========================================================================
-   Authentic Recessed Casio Bezel & 96×31 FSTN Dot-Matrix LCD Panel (#cfe3e6)
+   Recessed 3D Molded Bezel & 96×31 Dot-Matrix LCD Panel (#cfe3e6)
    ========================================================================== */
 .lcd-bezel {
   margin: 2px -4px 0;
@@ -494,7 +451,7 @@ button {
   border: 1.5px solid var(--lcd-frame-bdr);
   background: var(--lcd-bg);
   color: var(--lcd-ink);
-  font-family: 'CasioESLarge', 'IBM Plex Mono', monospace;
+  font-family: 'CalciosLCDLarge', 'IBM Plex Mono', monospace;
   font-weight: 400;
   -webkit-font-smoothing: none;
   font-smooth: never;
@@ -578,7 +535,7 @@ button {
   line-height: 1.05;
 }
 
-/* Home Expression & Result Areas — Exact 5×9 & 5×6 Casio Dot-Matrix Proportions */
+/* Home Expression & Result Areas — Exact 5×9 & 5×6 Calcios Dot-Matrix Proportions */
 .lcd-home {
   flex: 1;
   min-height: 0;
@@ -595,7 +552,7 @@ button {
   align-items: flex-start;
   gap: 5px;
   padding-top: 2px;
-  font-family: 'CasioESLarge', 'IBM Plex Mono', monospace;
+  font-family: 'CalciosLCDLarge', 'IBM Plex Mono', monospace;
   font-size: 28px;
   font-weight: 400;
   letter-spacing: 0;
@@ -610,7 +567,7 @@ button {
 }
 
 .math-sci-ten {
-  font-family: 'CasioESSmall', 'CasioESLarge', monospace;
+  font-family: 'CalciosLCDSmall', 'CalciosLCDLarge', monospace;
   font-size: 18px;
   margin: 0 1px;
   vertical-align: 0;
@@ -651,7 +608,7 @@ button {
 }
 
 .lcd-result-text {
-  font-family: 'CasioESLarge', 'IBM Plex Mono', monospace;
+  font-family: 'CalciosLCDLarge', 'IBM Plex Mono', monospace;
   font-size: 29px;
   font-weight: 400;
   letter-spacing: 0;
@@ -661,19 +618,19 @@ button {
 }
 
 .lcd-pi-sym {
-  font-family: 'CasioESLarge', 'IBM Plex Mono', monospace;
+  font-family: 'CalciosLCDLarge', 'IBM Plex Mono', monospace;
   font-size: 29px;
   margin-left: 1px;
 }
 
 .lcd-ten-pow {
-  font-family: 'CasioESSmall', 'CasioESLarge', monospace;
+  font-family: 'CalciosLCDSmall', 'CalciosLCDLarge', monospace;
   font-size: 18.5px;
   margin-left: 1px;
 }
 
 .lcd-exp {
-  font-family: 'CasioESSmall', 'CasioESLarge', monospace;
+  font-family: 'CalciosLCDSmall', 'CalciosLCDLarge', monospace;
   font-size: 18.5px;
   vertical-align: super;
 }
@@ -691,7 +648,7 @@ button {
   border: 0;
 }
 
-/* Blinking 2-Dot-Wide Casio LCD Caret & 5×7 Geometric Casio ■ / □ Template Boxes */
+/* Blinking 2-Dot-Wide Calcios LCD Caret & 5×7 Geometric Calcios ■ / □ Template Boxes */
 @keyframes lcd-blink {
   0%, 49% { opacity: 1; }
   50%, 100% { opacity: 0; }
@@ -713,7 +670,7 @@ button {
   vertical-align: -0.1em;
 }
 
-/* 2D Natural-V.P.A.M. Math Nodes (using authentic 5×6 CasioESSmall at identical dot pitch!) */
+/* 2D 2D Natural Textbook Math Nodes (using authentic 5×6 CalciosLCDSmall at identical dot pitch!) */
 .math-seq {
   display: inline-flex;
   align-items: center;
@@ -754,26 +711,26 @@ button {
   align-items: center;
   vertical-align: middle;
   margin: 0 2px;
-  font-family: 'CasioESSmall', 'CasioESLarge', monospace;
+  font-family: 'CalciosLCDSmall', 'CalciosLCDLarge', monospace;
   font-size: 18px;
   line-height: 1;
 }
 
 .math-frac-result {
-  font-family: 'CasioESSmall', 'CasioESLarge', monospace;
+  font-family: 'CalciosLCDSmall', 'CalciosLCDLarge', monospace;
   font-size: 18.8px;
   font-weight: 400;
   line-height: 1;
 }
 
 .math-frac-mini {
-  font-family: 'CasioESSmall', monospace;
+  font-family: 'CalciosLCDSmall', monospace;
   font-size: 15px;
   margin-right: 2px;
 }
 
 .math-frac-mini-res {
-  font-family: 'CasioESSmall', monospace;
+  font-family: 'CalciosLCDSmall', monospace;
   font-size: 18.5px;
   font-weight: 400;
   margin: 0 2px;
@@ -788,7 +745,7 @@ button {
 }
 
 .lcd-ineq-2d {
-  font-family: 'CasioESLarge', monospace;
+  font-family: 'CalciosLCDLarge', monospace;
   font-size: 28px;
   font-weight: 400;
   gap: 1px;
@@ -841,7 +798,7 @@ button {
 
 .lcd-mfrac-whole,
 .lcd-frac-sign {
-  font-family: 'CasioESLarge', monospace;
+  font-family: 'CalciosLCDLarge', monospace;
   font-size: 29px;
   font-weight: 400;
 }
@@ -855,7 +812,7 @@ button {
 }
 
 .math-root-idx {
-  font-family: 'CasioESSmall', monospace;
+  font-family: 'CalciosLCDSmall', monospace;
   font-size: 16px;
   margin-right: -2px;
   align-self: flex-start;
@@ -886,7 +843,7 @@ button {
 }
 
 .math-sup {
-  font-family: 'CasioESSmall', monospace;
+  font-family: 'CalciosLCDSmall', monospace;
   font-size: 17.5px;
   line-height: 1;
   align-self: flex-start;
@@ -894,7 +851,7 @@ button {
 }
 
 .math-sub {
-  font-family: 'CasioESSmall', monospace;
+  font-family: 'CalciosLCDSmall', monospace;
   font-size: 16.5px;
   line-height: 1;
   align-self: flex-end;
@@ -973,7 +930,7 @@ button {
 
 .math-limit-top,
 .math-limit-bot {
-  font-family: 'CasioESSmall', monospace;
+  font-family: 'CalciosLCDSmall', monospace;
   font-size: 15.5px;
 }
 
@@ -987,7 +944,7 @@ button {
 }
 
 .math-conv {
-  font-family: 'CasioESSmall', monospace;
+  font-family: 'CalciosLCDSmall', monospace;
   font-size: 17px;
   padding: 0 3px;
   margin-left: 2px;
@@ -995,7 +952,7 @@ button {
 }
 
 /* ==========================================================================
-   LCD Firmware Menus, Prompts, Tables, Matrices & Equations (CasioESLarge)
+   LCD Firmware Menus, Prompts, Tables, Matrices & Equations (CalciosLCDLarge)
    ========================================================================== */
 .lcd-menu,
 .lcd-prompt-screen,
@@ -1008,7 +965,7 @@ button {
   flex-direction: column;
   justify-content: space-between;
   padding-top: 3px;
-  font-family: 'CasioESLarge', 'IBM Plex Mono', monospace;
+  font-family: 'CalciosLCDLarge', 'IBM Plex Mono', monospace;
   font-size: 19.5px;
   font-weight: 400;
   letter-spacing: 0;
@@ -1174,7 +1131,7 @@ button {
 }
 
 .lcd-eqn-res-label {
-  font-family: 'CasioESLarge', monospace;
+  font-family: 'CalciosLCDLarge', monospace;
   font-size: 28px;
 }
 
@@ -1187,7 +1144,7 @@ button {
 /* ==========================================================================
    Upper Deck: Spun-Metal Round Keys + Central Diamond-Checkered D-Pad
    ========================================================================== */
-.casio-upper-deck {
+.calcios-upper-deck {
   position: relative;
   display: grid;
   grid-template-columns: 1fr 106px 1fr;
@@ -1196,13 +1153,13 @@ button {
   margin-bottom: 4px;
 }
 
-.casio-round-side {
+.calcios-round-side {
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 
-.casio-round-labels {
+.calcios-round-labels {
   display: grid;
   grid-template-columns: 1fr 1fr;
   text-align: center;
@@ -1219,11 +1176,11 @@ button {
 
 .round-lbl-shift,
 .round-lbl-setup {
-  color: var(--casio-gold);
+  color: var(--calcios-gold);
 }
 
 .round-lbl-alpha {
-  color: var(--casio-pink);
+  color: var(--calcios-pink);
 }
 
 .round-lbl-mode,
@@ -1244,7 +1201,7 @@ button {
   white-space: nowrap;
 }
 
-.casio-round-groove {
+.calcios-round-groove {
   display: flex;
   align-items: center;
   justify-content: space-around;
@@ -1256,7 +1213,7 @@ button {
     0 1px 0 rgba(255, 255, 255, 0.22);
 }
 
-.casio-round-well {
+.calcios-round-well {
   width: 31px;
   height: 31px;
   border-radius: 50%;
@@ -1268,7 +1225,7 @@ button {
 }
 
 /* Exact vertical 12/6-o'clock spun-metal bowtie reflection across Black, Pink & Blue */
-.casio-metal-btn {
+.calcios-metal-btn {
   width: 27px;
   height: 27px;
   border-radius: 50%;
@@ -1291,8 +1248,8 @@ button {
   transition: transform 0.07s ease;
 }
 
-.casio-metal-btn:active,
-.casio-metal-btn.active {
+.calcios-metal-btn:active,
+.calcios-metal-btn.active {
   transform: translateY(1.5px);
   box-shadow:
     0 1px 1px rgba(0, 0, 0, 0.55),
@@ -1300,7 +1257,7 @@ button {
 }
 
 /* Central Sculpted 4-Way D-Pad */
-.casio-dpad-zone {
+.calcios-dpad-zone {
   display: flex;
   justify-content: center;
   z-index: 3;
@@ -1308,7 +1265,7 @@ button {
   margin-bottom: -38px;
 }
 
-.casio-dpad-ring {
+.calcios-dpad-ring {
   position: relative;
   width: 100px;
   height: 84px;
@@ -1420,28 +1377,28 @@ button {
 /* ==========================================================================
    Scientific 6-Column Key Grid & Lower 5-Column Key Grid
    ========================================================================== */
-.casio-sci-section {
+.calcios-sci-section {
   display: flex;
   flex-direction: column;
   gap: 5px;
   margin-top: 6px;
 }
 
-.casio-sci-row {
+.calcios-sci-row {
   display: grid;
   grid-template-columns: repeat(6, 1fr);
   gap: 6px;
   align-items: end;
 }
 
-.casio-num-section {
+.calcios-num-section {
   display: flex;
   flex-direction: column;
   gap: 6px;
   margin-top: 12px;
 }
 
-.casio-num-row {
+.calcios-num-row {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   gap: 8px;
@@ -1481,13 +1438,13 @@ button {
 }
 
 .legend-shift {
-  color: var(--casio-gold);
+  color: var(--calcios-gold);
   display: inline-flex;
   align-items: center;
 }
 
 .legend-alpha {
-  color: var(--casio-pink);
+  color: var(--calcios-pink);
   display: inline-flex;
   align-items: center;
 }
@@ -1519,14 +1476,14 @@ button {
   text-decoration: underline;
 }
 
-/* Authentic Casio top-corner bracketed mode legend: ┌STAT┐, ┌MATRIX┐, etc. */
+/* Authentic Calcios top-corner bracketed mode legend: ┌STAT┐, ┌MATRIX┐, etc. */
 .legend-mode-tag {
   position: relative;
   display: inline-block;
   padding: 1.5px 3.5px 0;
   font-size: 0.5rem;
   letter-spacing: 0.02em;
-  border-top: 1px solid var(--casio-gold);
+  border-top: 1px solid var(--calcios-gold);
 }
 
 .legend-mode-tag::before,
@@ -1536,7 +1493,7 @@ button {
   top: -1px;
   width: 1px;
   height: 3.5px;
-  background: var(--casio-gold);
+  background: var(--calcios-gold);
 }
 
 .legend-mode-tag::before {
@@ -1746,7 +1703,7 @@ button {
 }
 
 .legend-overbar-gold {
-  border-top: 1px solid var(--casio-gold);
+  border-top: 1px solid var(--calcios-gold);
   padding-top: 1px;
   display: inline-flex;
 }
@@ -1755,11 +1712,11 @@ button {
   display: inline-block;
   width: 4.5px;
   height: 4.5px;
-  background: var(--casio-pink);
+  background: var(--calcios-pink);
 }
 
 .legend-overbar-pink {
-  border-top: 1.2px solid var(--casio-pink);
+  border-top: 1.2px solid var(--calcios-pink);
   padding-top: 1px;
   display: inline-flex;
 }
@@ -1768,7 +1725,7 @@ button {
   display: inline-block;
   width: 4px;
   height: 4px;
-  background: var(--casio-gold);
+  background: var(--calcios-gold);
 }
 
 .legend-frac-stack {
@@ -1782,16 +1739,16 @@ button {
   display: inline-block;
   width: 4px;
   height: 3.5px;
-  border: 1px solid var(--casio-gold);
+  border: 1px solid var(--calcios-gold);
 }
 
 .legend-frac-bar {
   width: 6px;
   height: 1px;
-  background: var(--casio-gold);
+  background: var(--calcios-gold);
 }
 
-/* ▸Simp divisor badge & 2D CMPLX Natural-V.P.A.M. layout */
+/* ▸Simp divisor badge & 2D CMPLX 2D Natural Textbook layout */
 .math-simp-factor {
   display: inline-flex;
   align-items: center;
@@ -1836,161 +1793,4 @@ button {
   font-size: 0.82rem;
   font-weight: 700;
   opacity: 0.9;
-}
-
-/* ==========================================================================
-   Orientation Layout Rules:
-   1. Portrait (height > width): Zero outer frame — fills 100vw × 100dvh
-      edge-to-edge while preserving authentic Casio hardware proportions.
-   2. Landscape (width >= height): Original physical Casio size centered cleanly,
-      scaling smoothly only if viewport height is shorter than the body.
-   ========================================================================== */
-@media (orientation: portrait) {
-  .calc-viewport {
-    align-items: stretch;
-    justify-content: stretch;
-  }
-
-  .casio-casing {
-    width: 100vw;
-    height: 100dvh;
-    max-width: none;
-    padding: 0;
-    border-radius: 0;
-    box-shadow: none;
-  }
-
-  .casio-inner-rim {
-    width: 100%;
-    height: 100%;
-    border-radius: 0;
-    border: none;
-    box-shadow: none;
-    /* Keeps edge-to-edge full screen while constraining inner column on near-square portrait tablets */
-    padding:
-      clamp(8px, 1.5dvh, 18px)
-      max(3.8vw, calc((100vw - 55dvh) / 2))
-      clamp(10px, 1.9dvh, 22px);
-  }
-
-  .lcd-bezel {
-    margin: 2px 0 0;
-  }
-
-  .lcd-glass {
-    height: clamp(108px, 18.2dvh, 196px);
-  }
-
-  .lcd-expr-area {
-    font-size: clamp(25px, 3.6dvh, 36px);
-  }
-
-  .lcd-result-text,
-  .lcd-pi-sym,
-  .lcd-ineq-2d,
-  .lcd-mfrac-whole,
-  .lcd-frac-sign {
-    font-size: clamp(26px, 3.75dvh, 38px);
-  }
-
-  .math-frac,
-  .math-frac-result,
-  .math-sup,
-  .math-sub,
-  .lcd-ten-pow,
-  .lcd-exp,
-  .math-sci-ten {
-    font-size: clamp(16.5px, 2.38dvh, 24px);
-  }
-
-  .casio-upper-deck {
-    margin-top: clamp(6px, 1.2dvh, 14px);
-    margin-bottom: clamp(2px, 0.5dvh, 6px);
-    grid-template-columns: 1fr clamp(98px, 13.8dvh, 128px) 1fr;
-  }
-
-  .casio-round-well {
-    width: clamp(29px, 4.2dvh, 38px);
-    height: clamp(29px, 4.2dvh, 38px);
-  }
-
-  .casio-metal-btn {
-    width: clamp(25px, 3.6dvh, 33px);
-    height: clamp(25px, 3.6dvh, 33px);
-  }
-
-  .casio-dpad-ring {
-    width: clamp(94px, 13.2dvh, 124px);
-    height: clamp(78px, 10.8dvh, 104px);
-  }
-
-  .casio-dpad-zone {
-    margin-bottom: calc(clamp(78px, 10.8dvh, 104px) * -0.45);
-  }
-
-  .casio-sci-section {
-    flex: 1;
-    justify-content: space-evenly;
-    gap: clamp(2px, 0.55dvh, 7px);
-    margin-top: clamp(4px, 0.7dvh, 10px);
-  }
-
-  .casio-sci-row {
-    gap: clamp(5px, 1.5vw, 9px);
-  }
-
-  .calc-btn-sci {
-    height: clamp(25px, 3.85dvh, 40px);
-    font-size: clamp(0.76rem, 1.65dvh, 1rem);
-  }
-
-  .casio-num-section {
-    flex: 1.22;
-    justify-content: space-evenly;
-    gap: clamp(3px, 0.7dvh, 9px);
-    margin-top: clamp(6px, 1.2dvh, 14px);
-  }
-
-  .casio-num-row {
-    gap: clamp(6px, 2vw, 11px);
-  }
-
-  .calc-btn-num,
-  .calc-btn-op,
-  .calc-btn-accent {
-    height: clamp(31px, 5dvh, 52px);
-  }
-
-  .calc-btn-num {
-    font-size: clamp(1.28rem, 2.65dvh, 1.85rem);
-  }
-
-  .calc-btn-op {
-    font-size: clamp(1.04rem, 2.15dvh, 1.45rem);
-  }
-
-  .calc-btn-accent {
-    font-size: clamp(0.96rem, 2dvh, 1.35rem);
-  }
-}
-
-@media (orientation: landscape) and (max-height: 735px) {
-  .casio-casing {
-    transform: scale(0.91);
-    transform-origin: center center;
-  }
-}
-
-@media (orientation: landscape) and (max-height: 665px) {
-  .casio-casing {
-    transform: scale(0.82);
-    transform-origin: center center;
-  }
-}
-
-@media (orientation: landscape) and (max-height: 595px) {
-  .casio-casing {
-    transform: scale(0.73);
-    transform-origin: center center;
-  }
 }

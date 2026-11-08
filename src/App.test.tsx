@@ -8,20 +8,21 @@ function clickHardwareKey(container: HTMLElement, keyId: string) {
   fireEvent.click(btn);
 }
 
-describe('Calculator-Only Viewport & fx-991ES PLUS C Integration', () => {
+describe('Calcios Handheld Viewport & Scientific Engine Integration', () => {
   beforeEach(() => {
     window.localStorage.clear();
   });
 
-  it('renders ONLY the code-drawn fx-95ES PLUS calculator on screen with no external panels or images', () => {
+  it('renders ONLY the code-drawn Calcios calculator on screen with no external panels, images, or legacy brand/model strings', () => {
     const { container } = render(<App />);
     const viewport = screen.getByTestId('calc-viewport');
     expect(viewport.children.length).toBe(1);
     expect(screen.getByTestId('calculator-hardware')).toBeInTheDocument();
-    expect(screen.getByText('CASIO')).toBeInTheDocument();
-    expect(screen.getByText('fx-95ES PLUS')).toBeInTheDocument();
-    expect(screen.getByText('2nd edition')).toBeInTheDocument();
+    expect(screen.getByText('CALCIOS')).toBeInTheDocument();
+    expect(container.querySelector('.calcios-solar-cell')).not.toBeNull();
     expect(screen.queryByTestId('fn-tray-popover')).toBeNull();
+    const forbidden = new RegExp(['CA' + 'SIO', 'fx-', 'V\\.P\\.A\\.M', '2nd edition'].join('|'), 'i');
+    expect(container.textContent).not.toMatch(forbidden);
 
     const imgs = container.querySelectorAll('img');
     expect(imgs.length).toBe(0);
@@ -97,10 +98,10 @@ describe('Calculator-Only Viewport & fx-991ES PLUS C Integration', () => {
     expect(screen.getByTestId('lcd-result').textContent).toBe('212');
   });
 
-  it('provides discreet internal 991+ bezel popover for dedicated calculus/CALC/SOLVE keys and switches all 11 modes', () => {
+  it('provides discreet internal FN bezel popover for dedicated calculus/CALC/SOLVE keys and switches all 11 modes', () => {
     const { container } = render(<App />);
 
-    // Open internal 991+ micro-popover, insert definite integral ∫(X^2, 0, 3) = 9
+    // Open internal FN micro-popover, insert definite integral ∫(X^2, 0, 3) = 9
     fireEvent.click(screen.getByTestId('fn-tray-toggle'));
     expect(screen.getByTestId('fn-tray-popover')).toBeInTheDocument();
     fireEvent.click(screen.getByTestId('fn-integ'));
@@ -135,7 +136,7 @@ describe('Calculator-Only Viewport & fx-991ES PLUS C Integration', () => {
     expect(screen.getByTestId('lcd-result').textContent).toBe('TRUE');
   });
 
-  it('renders 2D Natural-V.P.A.M. INEQ header (X<A, B<X) and recurring decimal overbar on the LCD', () => {
+  it('renders 2D 2D Natural Math INEQ header (X<A, B<X) and recurring decimal overbar on the LCD', () => {
     const { container } = render(<App />);
 
     // 1 ÷ 3 = -> 1/3 -> S⇔D -> 0.3̅ with vinculum overbar
@@ -290,23 +291,25 @@ describe('Calculator-Only Viewport & fx-991ES PLUS C Integration', () => {
     expect(screen.getByTestId('lcd-result').textContent).toContain('2');
   });
 
-  it('switches between Black, Pink, and Blue hardware editions and evaluates ∫_0^(π/2) cos(X)dx = 1 in Radian mode', () => {
-    window.localStorage.removeItem('casio-body-theme');
+  it('switches between unified Black, Pink, and Blue Calcios editions and evaluates ∫_0^(π/2) cos(X)dx = 1 in Radian mode', () => {
+    window.localStorage.removeItem('calcios-body-theme');
     const { container } = render(<App />);
 
     const hw = screen.getByTestId('calculator-hardware');
     expect(hw).toHaveAttribute('data-theme', 'black');
-    expect(screen.getByText('fx-95ES PLUS')).toBeVisible();
+    expect(screen.getByText('CALCIOS')).toBeVisible();
+    expect(container.querySelector('.calcios-solar-cell')).not.toBeNull();
 
-    // Switch to Dusty Rose Pink edition -> fx-991ES PLUS with solar panel
+    // Switch to Dusty Rose Pink edition -> unified solar design
     fireEvent.click(screen.getByTestId('theme-pink'));
     expect(hw).toHaveAttribute('data-theme', 'pink');
-    expect(screen.getByText('fx-991ES PLUS')).toBeVisible();
-    expect(container.querySelector('.casio-solar-cell')).not.toBeNull();
+    expect(screen.getByText('CALCIOS')).toBeVisible();
+    expect(container.querySelector('.calcios-solar-cell')).not.toBeNull();
 
     // Switch to Ice Steel Blue edition
     fireEvent.click(screen.getByTestId('theme-blue'));
     expect(hw).toHaveAttribute('data-theme', 'blue');
+    expect(container.querySelector('.calcios-solar-cell')).not.toBeNull();
     expect(container.querySelectorAll('img')).toHaveLength(0);
     expect(screen.getByTestId('calc-viewport').children).toHaveLength(1);
 

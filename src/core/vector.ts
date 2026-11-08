@@ -47,7 +47,7 @@ export function dotVector(a: VectorValue, b: VectorValue): Scalar {
   return a.coords.reduce((sum, val, i) => add(sum, multiply(val, b.coords[i])), scalarFromInteger(0));
 }
 
-/** Casio fx-991ES PLUS cross product: promotes 2D vectors [x, y] to [x, y, 0] in 3D! */
+/** Calcios Calciosross product: promotes 2D vectors [x, y] to [x, y, 0] in 3D! */
 export function crossVector(a: VectorValue, b: VectorValue): VectorValue {
   if (a.dim !== b.dim) throw new CalculatorError('Argument ERROR', 'Cross product dimension mismatch');
   const ax = a.coords[0], ay = a.coords[1], az = a.dim === 3 ? a.coords[2] : scalarFromInteger(0);

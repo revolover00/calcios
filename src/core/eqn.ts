@@ -130,7 +130,7 @@ export function solveLinear3(coeffs: Scalar[]): EqnOutcome {
   };
 }
 
-/** 3: aX² + bX + c = 0 (with vertex min/max like fx-95ES / fx-991ES PLUS) */
+/** 3: aX² + bX + c = 0 (with vertex min/max like Calcios / Calcios) */
 export function solveQuadratic(coeffs: Scalar[]): EqnOutcome {
   const [a, b, c] = coeffs;
   if (isTiny(a)) mathError('Leading coefficient a cannot be zero');

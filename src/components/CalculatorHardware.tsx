@@ -291,11 +291,11 @@ function CalcKey({
   );
 }
 
-export type CasioBodyTheme = 'black' | 'pink' | 'blue';
+export type CalciosBodyTheme = 'black' | 'pink' | 'blue';
 
-function loadBodyTheme(): CasioBodyTheme {
+function loadBodyTheme(): CalciosBodyTheme {
   try {
-    const saved = window.localStorage.getItem('casio-body-theme');
+    const saved = window.localStorage.getItem('calcios-body-theme');
     if (saved === 'black' || saved === 'pink' || saved === 'blue') return saved;
   } catch {
     // ignore storage errors
@@ -308,12 +308,12 @@ export function CalculatorHardware({
   dispatch,
 }: CalculatorHardwareProps): React.ReactElement {
   const [fnTrayOpen, setFnTrayOpen] = useState(false);
-  const [bodyTheme, setBodyTheme] = useState<CasioBodyTheme>(loadBodyTheme);
+  const [bodyTheme, setBodyTheme] = useState<CalciosBodyTheme>(loadBodyTheme);
 
-  const selectTheme = (next: CasioBodyTheme) => {
+  const selectTheme = (next: CalciosBodyTheme) => {
     setBodyTheme(next);
     try {
-      window.localStorage.setItem('casio-body-theme', next);
+      window.localStorage.setItem('calcios-body-theme', next);
     } catch {
       // ignore storage errors
     }
@@ -329,58 +329,43 @@ export function CalculatorHardware({
   const isShift = state.shift;
   const isAlpha = state.alpha;
   const poweredOn = state.screen !== 'off';
-  const hasSolar = bodyTheme === 'pink' || bodyTheme === 'blue';
 
   return (
     <div
-      className={`casio-casing theme-${bodyTheme}`}
+      className={`calcios-casing theme-${bodyTheme}`}
       dir="ltr"
       data-testid="calculator-hardware"
       data-theme={bodyTheme}
     >
-      <div className="casio-inner-rim">
-        {/* Top Brand, Solar Window (on 991ES Pink/Blue) & Edition Header */}
-        <header className={hasSolar ? 'casio-header has-solar' : 'casio-header'}>
-          {hasSolar ? (
-            <div className="casio-solar-top">
-              <div className="casio-brand-stack">
-                <span className="casio-logo">CASIO</span>
-                <span className="casio-model">fx-991ES PLUS</span>
-                <span className="casio-vpam">NATURAL-V.P.A.M.</span>
-              </div>
-              <div className="casio-solar-bezel" aria-hidden="true">
-                <div className="casio-solar-cell" />
-              </div>
+      <div className="calcios-inner-rim">
+        {/* Unified Top Brand & Solar Window Header across Black, Pink & Blue */}
+        <header className="calcios-header">
+          <div className="calcios-solar-top">
+            <div className="calcios-brand-stack">
+              <span className="calcios-logo">CALCIOS</span>
             </div>
-          ) : (
-            <>
-              <div className="casio-brand-row">
-                <span className="casio-logo">CASIO</span>
-                <span className="casio-model">fx-95ES PLUS</span>
-              </div>
-              <div className="casio-vpam-row">
-                <span className="casio-vpam">NATURAL-V.P.A.M.</span>
-              </div>
-            </>
-          )}
-          <div className="casio-edition-row">
-            <div className="casio-edition-controls">
+            <div className="calcios-solar-bezel" aria-hidden="true">
+              <div className="calcios-solar-cell" />
+            </div>
+          </div>
+          <div className="calcios-controls-row">
+            <div className="calcios-edition-controls">
               <button
                 type="button"
-                className={fnTrayOpen ? 'casio-fn-badge active' : 'casio-fn-badge'}
+                className={fnTrayOpen ? 'calcios-fn-badge active' : 'calcios-fn-badge'}
                 data-testid="fn-tray-toggle"
                 aria-label="اختصارات إضافية سريعة"
                 aria-expanded={fnTrayOpen}
                 onClick={() => setFnTrayOpen((v) => !v)}
               >
-                991+
+                FN
               </button>
-              <div className="casio-theme-dots" role="group" aria-label="ألوان الآلة الحاسبة">
+              <div className="calcios-theme-dots" role="group" aria-label="ألوان الآلة الحاسبة">
                 <button
                   type="button"
                   className={bodyTheme === 'black' ? 'theme-dot dot-black active' : 'theme-dot dot-black'}
                   data-testid="theme-black"
-                  aria-label="اللون الأسود الكلاسيكي"
+                  aria-label="اللون الأسود"
                   aria-pressed={bodyTheme === 'black'}
                   onClick={() => selectTheme('black')}
                 />
@@ -388,7 +373,7 @@ export function CalculatorHardware({
                   type="button"
                   className={bodyTheme === 'pink' ? 'theme-dot dot-pink active' : 'theme-dot dot-pink'}
                   data-testid="theme-pink"
-                  aria-label="اللون الوردي (Pink)"
+                  aria-label="اللون الوردي"
                   aria-pressed={bodyTheme === 'pink'}
                   onClick={() => selectTheme('pink')}
                 />
@@ -396,22 +381,21 @@ export function CalculatorHardware({
                   type="button"
                   className={bodyTheme === 'blue' ? 'theme-dot dot-blue active' : 'theme-dot dot-blue'}
                   data-testid="theme-blue"
-                  aria-label="اللون الأزرق (Ice Blue)"
+                  aria-label="اللون الأزرق"
                   aria-pressed={bodyTheme === 'blue'}
                   onClick={() => selectTheme('blue')}
                 />
               </div>
             </div>
-            <span className="casio-edition">2nd edition</span>
           </div>
         </header>
 
         {/* Natural Textbook LCD + Internal Quick Popover (Closed by Default) */}
-        <div className="casio-lcd-wrap">
+        <div className="calcios-lcd-wrap">
           <LcdScreen state={state} />
           {fnTrayOpen && poweredOn && (
             <div
-              className="casio-fn-popover"
+              className="calcios-fn-popover"
               data-testid="fn-tray-popover"
               role="dialog"
               aria-label="أزرار سريعة إضافية"
@@ -475,10 +459,10 @@ export function CalculatorHardware({
         </div>
 
         {/* Upper Control Row + Central Sculpted 4-Way D-Pad */}
-        <div className="casio-upper-deck">
+        <div className="calcios-upper-deck">
           {/* Left Pair: SHIFT & ALPHA aligned horizontally inside subtle recessed contour */}
-          <div className="casio-round-side">
-            <div className="casio-round-labels">
+          <div className="calcios-round-side">
+            <div className="calcios-round-labels">
               <span className={isShift ? 'round-lbl round-lbl-shift active' : 'round-lbl round-lbl-shift'}>
                 SHIFT
               </span>
@@ -486,21 +470,21 @@ export function CalculatorHardware({
                 ALPHA
               </span>
             </div>
-            <div className="casio-round-groove">
-              <div className="casio-round-well">
+            <div className="calcios-round-groove">
+              <div className="calcios-round-well">
                 <button
                   type="button"
-                  className={isShift ? 'casio-metal-btn active' : 'casio-metal-btn'}
+                  className={isShift ? 'calcios-metal-btn active' : 'calcios-metal-btn'}
                   data-key-id="shift"
                   aria-label="SHIFT الوظائف الثانوية"
                   aria-pressed={isShift}
                   onClick={() => handlePress('shift')}
                 />
               </div>
-              <div className="casio-round-well">
+              <div className="calcios-round-well">
                 <button
                   type="button"
-                  className={isAlpha ? 'casio-metal-btn active' : 'casio-metal-btn'}
+                  className={isAlpha ? 'calcios-metal-btn active' : 'calcios-metal-btn'}
                   data-key-id="alpha"
                   aria-label="ALPHA المتغيرات والرموز"
                   aria-pressed={isAlpha}
@@ -511,8 +495,8 @@ export function CalculatorHardware({
           </div>
 
           {/* Center 4-Way Replay Pad */}
-          <div className="casio-dpad-zone">
-            <div className="casio-dpad-ring" role="group" aria-label="أزرار الاتجاهات ومراجعة العمليات">
+          <div className="calcios-dpad-zone">
+            <div className="calcios-dpad-ring" role="group" aria-label="أزرار الاتجاهات ومراجعة العمليات">
               <button
                 type="button"
                 className="dpad-lobe dpad-up"
@@ -555,28 +539,28 @@ export function CalculatorHardware({
           </div>
 
           {/* Right Pair: MODE/SETUP & ON aligned horizontally inside subtle recessed contour */}
-          <div className="casio-round-side">
-            <div className="casio-round-labels">
+          <div className="calcios-round-side">
+            <div className="calcios-round-labels">
               <span className="round-lbl-mode-group">
                 <span className="round-lbl round-lbl-mode">MODE</span>
                 <span className="round-lbl round-lbl-setup">SETUP</span>
               </span>
               <span className="round-lbl round-lbl-on">ON</span>
             </div>
-            <div className="casio-round-groove">
-              <div className="casio-round-well">
+            <div className="calcios-round-groove">
+              <div className="calcios-round-well">
                 <button
                   type="button"
-                  className="casio-metal-btn"
+                  className="calcios-metal-btn"
                   data-key-id="mode"
                   aria-label="MODE الأوضاع أو SETUP الإعدادات"
                   onClick={() => handlePress('mode')}
                 />
               </div>
-              <div className="casio-round-well">
+              <div className="calcios-round-well">
                 <button
                   type="button"
-                  className="casio-metal-btn"
+                  className="calcios-metal-btn"
                   data-key-id="on"
                   aria-label="ON تشغيل"
                   onClick={() => handlePress('on')}
@@ -587,9 +571,9 @@ export function CalculatorHardware({
         </div>
 
         {/* Scientific 6-Column Block */}
-        <section className="casio-sci-section" aria-label="الأزرار العلمية">
+        <section className="calcios-sci-section" aria-label="الأزرار العلمية">
           {/* Row 1 flanking lower D-Pad */}
-          <div className="casio-sci-row casio-sci-row-flank">
+          <div className="calcios-sci-row calcios-sci-row-flank">
             {SCIENTIFIC_ROW_1.map((spec) => (
               <CalcKey
                 key={spec.id}
@@ -604,7 +588,7 @@ export function CalculatorHardware({
 
           {/* Rows 2 to 4 */}
           {SCIENTIFIC_ROWS_2_TO_4.map((row, rIdx) => (
-            <div key={rIdx} className="casio-sci-row">
+            <div key={rIdx} className="calcios-sci-row">
               {row.map((spec) => (
                 <CalcKey
                   key={spec.id}
@@ -620,9 +604,9 @@ export function CalculatorHardware({
         </section>
 
         {/* Main 5-Column Numeric & Operator Block */}
-        <section className="casio-num-section" aria-label="الأرقام والعمليات الأساسية">
+        <section className="calcios-num-section" aria-label="الأرقام والعمليات الأساسية">
           {LOWER_KEYPAD_ROWS.map((row, rIdx) => (
-            <div key={rIdx} className="casio-num-row">
+            <div key={rIdx} className="calcios-num-row">
               {row.map((spec) => (
                 <CalcKey
                   key={spec.id}

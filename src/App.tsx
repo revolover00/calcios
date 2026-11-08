@@ -1,8 +1,20 @@
-import React, { useEffect, useReducer } from 'react';
+import React, { useEffect, useReducer, useState } from 'react';
 import { CalculatorHardware } from './components/CalculatorHardware';
 import { calculatorReducer, hydrateState, saveableState } from './core/calculator';
 
-const STORAGE_KEY = 'scientific-calc-fx991es-state-v1';
+const STORAGE_KEY = 'calcios-state-v1';
+const PHYSICAL_WIDTH = 356;
+const PHYSICAL_HEIGHT = 708;
+
+function computeDeviceScale(): number {
+  if (typeof window === 'undefined') return 1;
+  const vw = window.visualViewport?.width ?? window.innerWidth;
+  const vh = window.visualViewport?.height ?? window.innerHeight;
+  if (!vw || !vh) return 1;
+  const availW = Math.max(200, vw - 28);
+  const availH = Math.max(320, vh - 32);
+  return Math.min(1, availW / PHYSICAL_WIDTH, availH / PHYSICAL_HEIGHT);
+}
 
 function mapKeyboardEvent(e: KeyboardEvent, isHexBaseN: boolean, isCmplx: boolean): string | null {
   if (e.ctrlKey || e.metaKey || e.altKey) return null;
@@ -84,6 +96,19 @@ export function App(): React.ReactElement {
     state.variables,
   ]);
 
+  const [deviceScale, setDeviceScale] = useState<number>(computeDeviceScale);
+
+  useEffect(() => {
+    const updateScale = () => setDeviceScale(computeDeviceScale());
+    updateScale();
+    window.addEventListener('resize', updateScale);
+    window.visualViewport?.addEventListener('resize', updateScale);
+    return () => {
+      window.removeEventListener('resize', updateScale);
+      window.visualViewport?.removeEventListener('resize', updateScale);
+    };
+  }, []);
+
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
@@ -103,7 +128,11 @@ export function App(): React.ReactElement {
   }, [state.mode, state.baseN.base]);
 
   return (
-    <main className="calc-viewport" data-testid="calc-viewport">
+    <main
+      className="calc-viewport"
+      data-testid="calc-viewport"
+      style={{ '--calc-scale': String(deviceScale) } as React.CSSProperties}
+    >
       <CalculatorHardware state={state} dispatch={dispatch} />
     </main>
   );
