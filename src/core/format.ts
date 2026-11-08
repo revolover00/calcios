@@ -23,13 +23,22 @@ export type IneqSegmentDisplay =
 export type DisplayValue =
   | { type: 'text'; text: string }
   | { type: 'fraction'; sign: string; numerator: string; denominator: string; simpFactor?: string }
-  | { type: 'mixed-fraction'; sign: string; whole: string; numerator: string; denominator: string }
+  | { type: 'mixed-fraction'; sign: string; whole: string; numerator: string; denominator: string; simpFactor?: string }
   | { type: 'symbolic-pi'; sign: string; numerator: string; denominator: string }
   | { type: 'symbolic-surd'; a: string; b: string; rad: string; d: string }
   | { type: 'symbolic-multisurd'; terms: Array<{ coef: string; rad: string }>; d: string }
   | { type: 'recurring-decimal'; sign: string; intPart: string; nonRepeat: string; repeat: string }
   | { type: 'pair'; label1: string; value1: string; label2: string; value2: string }
-  | { type: 'ineq-2d'; header: string; segments: IneqSegmentDisplay[] };
+  | { type: 'ineq-2d'; header: string; segments: IneqSegmentDisplay[] }
+  | {
+      type: 'complex-2d';
+      form: 'rect' | 'polar';
+      re?: DisplayValue;
+      im?: DisplayValue;
+      imSign?: '+' | '−';
+      r?: DisplayValue;
+      theta?: DisplayValue;
+    };
 
 export const DEFAULT_NUMBER_FORMAT: NumberFormatSetting = { mode: 'Norm', sub: 1 };
 
@@ -216,6 +225,24 @@ export function formatResult(
 
   const setting = options?.numberFormat ?? DEFAULT_NUMBER_FORMAT;
   if (format === 'exact' && setting.mode === 'Norm') {
+    if (value.simpUnreduced) {
+      const { n, d } = value.simpUnreduced;
+      const sf = value.simpFactor?.toString();
+      if (d === 1n) return { type: 'text', text: formatDecimal(value, setting, mark) };
+      const absN = n < 0n ? -n : n;
+      const sign = n < 0n ? '−' : '';
+      const style = options?.fractionStyle ?? 'improper';
+      if (style === 'mixed' && absN > d) {
+        const whole = (absN / d).toString();
+        const rem = (absN % d).toString();
+        const den = d.toString();
+        if (whole.length + rem.length + den.length <= 11) {
+          return { type: 'mixed-fraction', sign, whole, numerator: rem, denominator: den, simpFactor: sf };
+        }
+      }
+      return { type: 'fraction', sign, numerator: absN.toString(), denominator: d.toString(), simpFactor: sf };
+    }
+
     if (value.exact) {
       const { n, d } = value.exact;
       if (d === 1n) return { type: 'text', text: formatDecimal(value, setting, mark) };

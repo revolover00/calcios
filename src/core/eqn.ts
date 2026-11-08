@@ -11,6 +11,7 @@ export interface EqnSolutionItem {
   label: string;
   scalar?: Scalar;
   complexText?: string;
+  complexParts?: { re: Scalar; im: Scalar };
 }
 
 export type EqnOutcome =
@@ -140,16 +141,16 @@ export function solveQuadratic(coeffs: Scalar[]): EqnOutcome {
     if (rSym !== null && iSym !== null) {
       const iPart = iSym === '1' ? 'i' : iSym.includes('+') || iSym.includes('−') ? `(${iSym})i` : `${iSym}i`;
       if (realS.decimal.abs().lt('1e-24')) {
-        items.push({ label: 'X₁', complexText: iPart });
-        items.push({ label: 'X₂', complexText: `−${iPart}` });
+        items.push({ label: 'X₁', complexText: iPart, complexParts: { re: realS, im: imagS } });
+        items.push({ label: 'X₂', complexText: `−${iPart}`, complexParts: { re: realS, im: negate(imagS) } });
       } else {
-        items.push({ label: 'X₁', complexText: `${rSym}+${iPart}` });
-        items.push({ label: 'X₂', complexText: `${rSym}−${iPart}` });
+        items.push({ label: 'X₁', complexText: `${rSym}+${iPart}`, complexParts: { re: realS, im: imagS } });
+        items.push({ label: 'X₂', complexText: `${rSym}−${iPart}`, complexParts: { re: realS, im: negate(imagS) } });
       }
     } else {
       const [c1, c2] = formatComplex(realS.decimal, imagS.decimal.abs());
-      items.push({ label: 'X₁', complexText: c1 });
-      items.push({ label: 'X₂', complexText: c2 });
+      items.push({ label: 'X₁', complexText: c1, complexParts: { re: realS, im: imagS } });
+      items.push({ label: 'X₂', complexText: c2, complexParts: { re: realS, im: negate(imagS) } });
     }
   }
 

@@ -1,8 +1,11 @@
 import { CalculatorError, mathError, syntax } from './errors';
 import { completeParentheses } from './expression';
-import { formatDecimal, formatSymbolicLinear, type NumberFormatSetting } from './format';
 import {
-  D, VARIABLES, add, applyFunction, deserialize, divide, fromRadians, makeScalar,
+  formatDecimal, formatResult, formatSymbolicLinear,
+  type DecimalMark, type DisplayValue, type NumberFormatSetting,
+} from './format';
+import {
+  D, VARIABLES, add, applyFunction, deserialize, divide, factorial, fromRadians, makeScalar,
   multiply, negate, scalarFromInteger, scalarFromLiteral, scalarPi, serialize, subtract, zeroStored,
   type AngleUnit, type Scalar, type StoredScalar, type VariableName,
 } from './value';
@@ -73,6 +76,24 @@ export function absComplex(a: Complex, angle: AngleUnit): Complex {
 
 export function argComplex(a: Complex, angle: AngleUnit): Complex {
   if (a.re.decimal.isZero() && a.im.decimal.isZero()) mathError('Argument of 0 is undefined');
+  const halfTurn =
+    angle === 'RAD' ? scalarPi() : angle === 'GRA' ? scalarFromInteger(200) : scalarFromInteger(180);
+  const quarterTurn = divide(halfTurn, scalarFromInteger(2));
+
+  if (a.re.decimal.abs().lt('1e-26')) {
+    return realToComplex(a.im.decimal.gt(0) ? quarterTurn : negate(quarterTurn));
+  }
+  if (a.im.decimal.abs().lt('1e-26')) {
+    return realToComplex(a.re.decimal.gt(0) ? scalarFromInteger(0) : halfTurn);
+  }
+
+  const ratio = divide(a.im, a.re);
+  const baseAtan = applyFunction('atan', [ratio], angle);
+  if (!baseAtan.preferDecimal) {
+    if (a.re.decimal.gt(0)) return realToComplex(baseAtan);
+    return realToComplex(a.im.decimal.gte(0) ? add(baseAtan, halfTurn) : subtract(baseAtan, halfTurn));
+  }
+
   const rad = D.atan2(a.im.decimal, a.re.decimal);
   const converted = fromRadians(rad, angle);
   return realToComplex(makeScalar(converted, undefined, true));
@@ -127,17 +148,20 @@ export function sqrtComplex(z: Complex, angle: AngleUnit): Complex {
 }
 
 type CmplxToken =
-  | { type: 'number'; text: string }
-  | { type: 'i' }
-  | { type: 'id'; text: string }
-  | { type: 'op'; text: string }
-  | { type: 'postfix'; text: '▸polar' | '▸rect' }
-  | { type: 'open' }
-  | { type: 'close' }
-  | { type: 'comma' }
-  | { type: 'end' };
+  | { type: 'number'; text: string; offset: number }
+  | { type: 'i'; offset: number }
+  | { type: 'id'; text: string; offset: number }
+  | { type: 'op'; text: string; offset: number }
+  | { type: 'postfix'; text: '▸polar' | '▸rect' | '!' | '%'; offset: number }
+  | { type: 'open'; offset: number }
+  | { type: 'close'; offset: number }
+  | { type: 'comma'; offset: number }
+  | { type: 'end'; offset: number };
 
-const CMPLX_FUNCS = ['Conjg', 'arg', 'abs', 'sqrt', 'frac', 'sin', 'cos', 'tan', 'asin', 'acos', 'atan', 'ln', 'log'];
+const CMPLX_FUNCS = [
+  'Conjg', 'mfrac', 'cbrt', 'root', 'logb', 'arg', 'abs', 'sqrt', 'frac',
+  'sin', 'cos', 'tan', 'asin', 'acos', 'atan', 'ln', 'log',
+];
 const VAR_SET = new Set<string>(VARIABLES);
 
 function tokenizeCmplx(source: string): CmplxToken[] {
@@ -148,37 +172,42 @@ function tokenizeCmplx(source: string): CmplxToken[] {
     if (/\s/.test(ch)) { i++; continue; }
     const rest = source.slice(i);
 
-    if (rest.startsWith('▸r∠θ')) { tokens.push({ type: 'postfix', text: '▸polar' }); i += 4; continue; }
-    if (rest.startsWith('▸a+bi')) { tokens.push({ type: 'postfix', text: '▸rect' }); i += 5; continue; }
+    if (rest.startsWith('▸r∠θ')) { tokens.push({ type: 'postfix', text: '▸polar', offset: i }); i += 4; continue; }
+    if (rest.startsWith('▸a+bi')) { tokens.push({ type: 'postfix', text: '▸rect', offset: i }); i += 5; continue; }
 
     const num = rest.match(/^(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?/);
     if (num) {
-      tokens.push({ type: 'number', text: num[0] });
+      tokens.push({ type: 'number', text: num[0], offset: i });
       i += num[0].length;
       continue;
     }
 
     const fn = [...CMPLX_FUNCS, 'Ans'].sort((a, b) => b.length - a.length).find((w) => rest.startsWith(w));
     if (fn) {
-      tokens.push({ type: 'id', text: fn });
+      tokens.push({ type: 'id', text: fn, offset: i });
       i += fn.length;
       continue;
     }
 
-    if (ch === 'i') { tokens.push({ type: 'i' }); i++; continue; }
-    if (VAR_SET.has(ch) || ch === 'π' || ch === 'e') { tokens.push({ type: 'id', text: ch }); i++; continue; }
+    if (ch === 'i') { tokens.push({ type: 'i', offset: i }); i++; continue; }
+    if (VAR_SET.has(ch) || charIsPiOrE(ch)) { tokens.push({ type: 'id', text: ch, offset: i }); i++; continue; }
+    if (ch === '!' || ch === '%') { tokens.push({ type: 'postfix', text: ch, offset: i }); i++; continue; }
     if ('+-−×÷*/^∠'.includes(ch)) {
-      tokens.push({ type: 'op', text: ch === '−' ? '-' : ch });
+      tokens.push({ type: 'op', text: ch === '−' ? '-' : ch, offset: i });
       i++;
       continue;
     }
-    if (ch === '(') { tokens.push({ type: 'open' }); i++; continue; }
-    if (ch === ')') { tokens.push({ type: 'close' }); i++; continue; }
-    if (ch === ',') { tokens.push({ type: 'comma' }); i++; continue; }
-    syntax(`Unexpected character '${ch}' in CMPLX`);
+    if (ch === '(') { tokens.push({ type: 'open', offset: i }); i++; continue; }
+    if (ch === ')') { tokens.push({ type: 'close', offset: i }); i++; continue; }
+    if (ch === ',') { tokens.push({ type: 'comma', offset: i }); i++; continue; }
+    syntax(`Unexpected character '${ch}' in CMPLX`, i);
   }
-  tokens.push({ type: 'end' });
+  tokens.push({ type: 'end', offset: source.length });
   return tokens;
+}
+
+function charIsPiOrE(ch: string): boolean {
+  return ch === 'π' || ch === 'e';
 }
 
 export interface CmplxEvalContext {
@@ -203,6 +232,13 @@ export function evaluateComplex(
       for (;;) {
         const next = peek();
         if (next.type === 'postfix') {
+          if (next.text === '!' || next.text === '%') {
+            if (40 < minPrec) break;
+            take();
+            if (!left.im.decimal.isZero()) mathError('Factorial/% requires real value');
+            left = realToComplex(next.text === '!' ? factorial(left.re) : divide(left.re, scalarFromInteger(100)));
+            continue;
+          }
           take();
           preferredFormat = next.text === '▸polar' ? 'polar' : 'rect';
           continue;
@@ -246,24 +282,36 @@ export function evaluateComplex(
       if (tok.type === 'i') return { re: scalarFromInteger(0), im: scalarFromInteger(1) };
       if (tok.type === 'open') {
         const v = parseExpr(0);
-        if (peek().type !== 'close') syntax('Expected )');
+        if (peek().type !== 'close') syntax('Expected )', peek().offset);
         take();
         return v;
       }
       if (tok.type === 'id') {
         if (CMPLX_FUNCS.includes(tok.text)) {
-          if (peek().type !== 'open') syntax('Expected (');
+          if (peek().type !== 'open') syntax('Expected (', peek().offset);
           take();
           const a1 = parseExpr(0);
           const args = [a1];
           while (peek().type === 'comma') { take(); args.push(parseExpr(0)); }
-          if (peek().type !== 'close') syntax('Expected )');
+          if (peek().type !== 'close') syntax('Expected )', peek().offset);
           take();
           if (tok.text === 'frac') {
-            if (args.length !== 2) syntax('frac expects 2 args');
+            if (args.length !== 2) syntax('frac expects 2 args', tok.offset);
             return divComplex(args[0], args[1]);
           }
-          if (args.length !== 1) syntax('Expected 1 argument');
+          if (tok.text === 'mfrac') {
+            if (args.length !== 3) syntax('mfrac expects 3 args', tok.offset);
+            if (args.some((a) => !a.im.decimal.isZero())) mathError('mfrac requires real arguments');
+            return realToComplex(applyFunction('mfrac', [args[0].re, args[1].re, args[2].re], ctx.angle));
+          }
+          if (tok.text === 'root' || tok.text === 'logb') {
+            if (args.length !== 2) syntax(`${tok.text} expects 2 args`, tok.offset);
+            if (!args[0].im.decimal.isZero() || !args[1].im.decimal.isZero()) {
+              mathError(`${tok.text} requires real arguments`);
+            }
+            return realToComplex(applyFunction(tok.text, [args[0].re, args[1].re], ctx.angle));
+          }
+          if (args.length !== 1) syntax('Expected 1 argument', tok.offset);
           if (tok.text === 'Conjg') return conjComplex(a1);
           if (tok.text === 'arg') return argComplex(a1, ctx.angle);
           if (tok.text === 'abs') return absComplex(a1, ctx.angle);
@@ -272,16 +320,16 @@ export function evaluateComplex(
           return realToComplex(applyFunction(tok.text, [a1.re], ctx.angle));
         }
         if (tok.text === 'π') return realToComplex(scalarPi());
-        if (tok.text === 'e') return realToComplex(makeScalar(new D(1).exp(), undefined, true));
+        if (tok.text === 'e') return realToComplex(makeScalar(new D(1).exp(), undefined, false));
         if (tok.text === 'Ans') return deserializeComplex(ctx.cmplxAns);
         if (VAR_SET.has(tok.text)) return realToComplex(deserialize(ctx.variables[tok.text as VariableName]));
       }
-      return syntax('Expected complex value');
+      return syntax('Expected complex value', tok.offset);
     }
 
-    if (peek().type === 'end') syntax('Empty expression');
+    if (peek().type === 'end') syntax('Empty expression', 0);
     const value = parseExpr(0);
-    if (peek().type !== 'end') syntax('Unexpected token');
+    if (peek().type !== 'end') syntax('Unexpected token', peek().offset);
     return { value, preferredFormat };
   } catch (err) {
     if (err instanceof CalculatorError) throw err;
@@ -321,4 +369,55 @@ export function formatComplexDisplay(
   }
   const reStr = fmtPart(z.re);
   return `${reStr}${imNeg ? '−' : '+'}${imBody}`;
+}
+
+export function formatComplex2D(
+  z: Complex,
+  format: ComplexFormat,
+  angle: AngleUnit,
+  preferExact: boolean,
+  numFmt?: NumberFormatSetting,
+  decimalMark: DecimalMark = 'Dot',
+): DisplayValue {
+  const reZero = z.re.decimal.abs().lt('1e-24');
+  const imZero = z.im.decimal.abs().lt('1e-24');
+  const fmt = preferExact ? 'exact' : 'decimal';
+
+  if (format === 'polar') {
+    const r = absComplex(z, angle).re;
+    const theta = reZero && imZero ? scalarFromInteger(0) : argComplex(z, angle).re;
+    return {
+      type: 'complex-2d',
+      form: 'polar',
+      r: formatResult(r, fmt, { numberFormat: numFmt, decimalMark }),
+      theta: formatResult(theta, fmt, { numberFormat: numFmt, decimalMark }),
+    };
+  }
+
+  if (imZero) {
+    return reZero
+      ? { type: 'text', text: '0' }
+      : formatResult(z.re, fmt, { numberFormat: numFmt, decimalMark });
+  }
+
+  const imNeg = z.im.decimal.isNegative();
+  const absIm = imNeg ? negate(z.im) : z.im;
+  const imDisp = formatResult(absIm, fmt, { numberFormat: numFmt, decimalMark });
+
+  if (reZero) {
+    return {
+      type: 'complex-2d',
+      form: 'rect',
+      imSign: imNeg ? '−' : '+',
+      im: imDisp,
+    };
+  }
+
+  return {
+    type: 'complex-2d',
+    form: 'rect',
+    re: formatResult(z.re, fmt, { numberFormat: numFmt, decimalMark }),
+    imSign: imNeg ? '−' : '+',
+    im: imDisp,
+  };
 }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  calculatorReducer, createInitialState, formatActiveInequalityDisplay, formatActiveResult,
-  hydrateState, saveableState, type CalculatorState,
+  calculatorReducer, createInitialState, formatActiveComplexDisplay, formatActiveEqnItemDisplay,
+  formatActiveInequalityDisplay, formatActiveResult, hydrateState, saveableState, type CalculatorState,
 } from './calculator';
 import { deserialize } from './value';
 import { formatDecimal, formatResult } from './format';
@@ -383,5 +383,118 @@ describe('calculator state machine', () => {
     // TABLE Start?/End?/Step? replaces default on first digit rather than appending
     const sTblReplace = press('mode', '7', 'alpha', 'close', 'equals', 'equals', '0', 'equals', '2', 'equals', '1', 'equals');
     expect(sTblReplace.table?.rows.map((r) => r.x)).toEqual(['0', '1', '2']);
+  });
+
+  it('supports exact [◀][▶]:Goto cursor jump, ▸Simp, SHIFT+= (≈ & Re⇔Im), 2D CMPLX/EQN, dynamic DIST List, and M+/STO display', () => {
+    // 1) Exact [◀][▶]:Goto on Syntax ERROR: '12+×5' -> offset 3 (right at '×')
+    const sErr = press('1', '2', 'add', 'multiply', '5', 'equals');
+    expect(sErr.phase).toBe('error');
+    expect(sErr.errorCursor).toBe(3);
+    const sGoto = calculatorReducer(sErr, { type: 'key', id: 'left' });
+    expect(sGoto.phase).toBe('editing');
+    expect(sGoto.cursor).toBe(3);
+
+    // 2) Manual ▸Simp across steps: 12 ÷ 18 ▸Simp = -> 6/9 (÷2), then ▸Simp = -> 2/3 (÷3)
+    const sSimp1 = press('1', '2', 'divide', '1', '8', 'simp', 'equals');
+    expect(formatActiveResult(sSimp1)).toEqual({
+      type: 'fraction',
+      sign: '',
+      numerator: '6',
+      denominator: '9',
+      simpFactor: '2',
+    });
+    const sSimp2 = calculatorReducer(
+      calculatorReducer(sSimp1, { type: 'key', id: 'simp' }),
+      { type: 'key', id: 'equals' },
+    );
+    expect(formatActiveResult(sSimp2)).toEqual({
+      type: 'fraction',
+      sign: '',
+      numerator: '2',
+      denominator: '3',
+      simpFactor: '3',
+    });
+
+    // 3) SHIFT + = (≈) evaluates 1 ÷ 3 directly as decimal approximation
+    const sApprox = press('1', 'divide', '3', 'shift', 'equals');
+    expect(sApprox.resultFormat).toBe('decimal');
+    expect(formatActiveResult(sApprox)).toEqual({ type: 'text', text: '0.3333333333' });
+
+    // 4) 2D CMPLX rendering + Re⇔Im toggle via SHIFT + = + exact polar angle in RAD
+    const sCmplx2D = press('mode', '2', 'open', '1', 'add', 'eng', 'close', 'divide', '2', 'equals');
+    const cDisp = formatActiveComplexDisplay(sCmplx2D);
+    expect(cDisp?.partLabel).toBeNull();
+    expect(cDisp?.value).toEqual({
+      type: 'complex-2d',
+      form: 'rect',
+      re: { type: 'fraction', sign: '', numerator: '1', denominator: '2' },
+      imSign: '+',
+      im: { type: 'fraction', sign: '', numerator: '1', denominator: '2' },
+    });
+    const sRe = press('mode', '2', 'open', '1', 'add', 'eng', 'close', 'divide', '2', 'equals', 'shift', 'equals');
+    expect(formatActiveComplexDisplay(sRe)?.partLabel).toBe('Re=');
+    const sIm = calculatorReducer(sRe, { type: 'key', id: 'shift' });
+    const sIm2 = calculatorReducer(sIm, { type: 'key', id: 'equals' });
+    expect(formatActiveComplexDisplay(sIm2)?.partLabel).toBe('Im=');
+
+    // Polar CMPLX in RAD: (1+i)▸r∠θ -> √2 ∠ 1/4 π
+    const sPolarRad = press('shift', 'mode', '4', 'mode', '2', 'open', '1', 'add', 'eng', 'close', 'shift', '2', '3', 'equals');
+    const polarDisp = formatActiveComplexDisplay(sPolarRad);
+    expect(polarDisp?.value.type).toBe('complex-2d');
+    if (polarDisp?.value.type === 'complex-2d') {
+      expect(polarDisp.value.theta).toEqual({ type: 'symbolic-pi', sign: '', numerator: '1', denominator: '4' });
+    }
+
+    // 5) EQN quadratic X^2 - X + 1 = 0 -> 2D complex roots 1/2 ± √3/2 i AND Minimum vertex (1/2, 3/4)
+    const sEqnC = press('mode', '5', '3', '1', 'equals', 'neg', '1', 'equals', '1', 'equals');
+    expect(sEqnC.eqn?.outcome?.status).toBe('solved');
+    if (sEqnC.eqn?.outcome?.status === 'solved') {
+      const items = sEqnC.eqn.outcome.items;
+      expect(items.map((it) => it.label)).toEqual(['X₁', 'X₂', 'X-Value Minimum', 'Y-Value Minimum']);
+      const root1Disp = formatActiveEqnItemDisplay(sEqnC, items[0]);
+      expect(root1Disp.type).toBe('complex-2d');
+      expect(items[2].scalar && formatResult(items[2].scalar, 'exact')).toEqual({
+        type: 'fraction',
+        sign: '',
+        numerator: '1',
+        denominator: '2',
+      });
+      expect(items[3].scalar && formatResult(items[3].scalar, 'exact')).toEqual({
+        type: 'fraction',
+        sign: '',
+        numerator: '3',
+        denominator: '4',
+      });
+    }
+
+    // 6) Dynamic DIST List mode: insert 0, 1, 99, delete 99, append 2, advance to N=2, p=0.5 -> P=[0.25, 0.5, 0.25]
+    const sDistList = press(
+      'mode', 'down', '3', '4', // Binomial PD (Var)
+      'right', // switch to dynamic List editor
+      '0', 'equals',
+      '1', 'equals',
+      '9', '9', 'equals',
+      'up', 'del', // delete row '99'
+      '2', 'equals',
+      'ac', // advance to params (N, p)
+      '2', 'equals',
+      '0', 'dot', '5', 'equals',
+    );
+    expect(sDistList.dist?.listResults).toEqual([
+      { x: '0', p: '0.25' },
+      { x: '1', p: '0.5' },
+      { x: '2', p: '0.25' },
+    ]);
+
+    // 7) M+ on un-evaluated expression evaluates & displays result while updating M; STO shows →A
+    const sMem = press('3', 'add', '4', 'mplus');
+    expect(sMem.phase).toBe('result');
+    expect(shown(sMem)).toBe('7');
+    expect(formatDecimal(deserialize(sMem.variables.M))).toBe('7');
+
+    const sSto = press('5', 'add', '6', 'shift', 'rcl', 'neg');
+    expect(sSto.phase).toBe('result');
+    expect(sSto.expression).toBe('5+6→A');
+    expect(shown(sSto)).toBe('11');
   });
 });

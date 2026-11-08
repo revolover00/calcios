@@ -110,7 +110,12 @@ function CalcKey({
   activeBase: string;
   onPress: (id: string) => void;
 }): React.ReactElement {
-  const shiftLegend = isCmplx && spec.id === 'neg' ? '∠' : spec.shiftLabel;
+  const shiftLegend =
+    isCmplx && spec.id === 'neg'
+      ? '∠'
+      : isCmplx && spec.id === 'equals'
+        ? 'Re⇔Im'
+        : spec.shiftLabel;
   const alphaLegend = isCmplx && spec.id === 'eng' ? 'i' : spec.alphaLabel;
   const hasBoth = Boolean(shiftLegend && alphaLegend);
   const baseTagActive = isBaseN && spec.baseNLabel === activeBase;
@@ -223,6 +228,9 @@ export function CalculatorHardware({
               </button>
               <button type="button" data-testid="fn-divr" onClick={() => handlePress('divr')}>
                 ÷R
+              </button>
+              <button type="button" data-testid="fn-simp" onClick={() => handlePress('simp')}>
+                ▸Simp
               </button>
               <button type="button" data-testid="fn-recur" onClick={() => handlePress('recur')}>
                 0.x̅

@@ -70,6 +70,6 @@ export const LOWER_KEYPAD_ROWS: readonly (readonly KeySpec[])[] = [
     { id: 'dot', ariaLabel: 'علامة عشرية أو رقم عشوائي', primary: '·', shiftLabel: 'Ran#', alphaLabel: 'RanInt', variant: 'num' },
     { id: 'exp', ariaLabel: '×10^x أس عشرة أو π أو e', primary: '×10ˣ', shiftLabel: 'π', alphaLabel: 'e', variant: 'op' },
     { id: 'ans', ariaLabel: 'Ans آخر إجابة أو DRG▶ أو PreAns', primary: 'Ans', shiftLabel: 'DRG▶', variant: 'op' },
-    { id: 'equals', ariaLabel: 'يساوي =', primary: '=', variant: 'op' },
+    { id: 'equals', ariaLabel: 'يساوي = أو تقريب عشري ≈ أو Re⇔Im', primary: '=', shiftLabel: '≈', variant: 'op' },
   ],
 ];
