@@ -13,7 +13,7 @@
 
 `COMP`, `CMPLX`, `STAT`, `BASE-N`, `EQN`, `MATRIX`, `TABLE`, `VECTOR`, `INEQ`, `VERIF`, `DIST`, and `RATIO`.
 
-Recent parity workflows include multi-variable and selectable-target SOLVE, optional tolerances in derivatives and definite integrals, complex variable memory, RATIO proportions, and cubic EQN local extrema. Circular complex trigonometry respects the selected `DEG`/`RAD`/`GRA` setup.
+Recent parity workflows include multi-variable and selectable-target SOLVE, optional tolerances in derivatives and definite integrals, complex variable memory, RATIO proportions, and cubic EQN local extrema. Complex circular and inverse circular trigonometry respect the selected `DEG`/`RAD`/`GRA` setup; inverse hyperbolic functions support complex arguments.
 
 ## Verification
 

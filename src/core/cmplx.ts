@@ -230,6 +230,49 @@ export function sqrtComplex(z: Complex, angle: AngleUnit): Complex {
   return { re: makeScalar(rePart, undefined, true), im: makeScalar(imPart, undefined, true) };
 }
 
+function inverseAngleFromRadians(z: Complex, angle: AngleUnit): Complex {
+  if (angle === 'RAD') return z;
+  const factor = divide(scalarFromInteger(angle === 'DEG' ? 180 : 200), scalarPi());
+  return { re: multiply(z.re, factor), im: multiply(z.im, factor) };
+}
+
+function complexInverseFunction(name: string, z: Complex, angle: AngleUnit): Complex {
+  const zero = scalarFromInteger(0);
+  const one = realToComplex(scalarFromInteger(1));
+  const i = { re: zero, im: scalarFromInteger(1) };
+  const iz = mulComplex(i, z);
+  const z2 = mulComplex(z, z);
+  if (name === 'asin' || name === 'acos') {
+    const ln = lnComplex(addComplex(iz, sqrtComplex(subComplex(one, z2), 'RAD')));
+    const asinRad = { re: ln.im, im: negate(ln.re) };
+    if (name === 'asin') return inverseAngleFromRadians(asinRad, angle);
+    const halfTurn = angle === 'RAD' ? scalarPi() : scalarFromInteger(angle === 'DEG' ? 180 : 200);
+    return { re: subtract(divide(halfTurn, scalarFromInteger(2)), inverseAngleFromRadians(asinRad, angle).re),
+      im: negate(inverseAngleFromRadians(asinRad, angle).im) };
+  }
+  if (name === 'atan') {
+    const ratio = divComplex(addComplex(one, iz), subComplex(one, iz));
+    const ln = lnComplex(ratio);
+    const half = scalarFromInteger(2);
+    return inverseAngleFromRadians({ re: divide(ln.im, half), im: negate(divide(ln.re, half)) }, angle);
+  }
+  if (name === 'asinh') {
+    return lnComplex(addComplex(z, sqrtComplex(addComplex(z2, one), 'RAD')));
+  }
+  if (name === 'acosh') {
+    const root = mulComplex(
+      sqrtComplex(subComplex(z, one), 'RAD'),
+      sqrtComplex(addComplex(z, one), 'RAD'),
+    );
+    return lnComplex(addComplex(z, root));
+  }
+  if (name === 'atanh') {
+    const ln = lnComplex(divComplex(addComplex(one, z), subComplex(one, z)));
+    return { re: divide(ln.re, scalarFromInteger(2)), im: divide(ln.im, scalarFromInteger(2)) };
+  }
+  return mathError(`${name} requires real argument`);
+}
+
 function complexTrig(name: string, z: Complex, angle: AngleUnit): Complex {
   const rawX = z.re.decimal;
   const x = name === 'sin' || name === 'cos' || name === 'tan'
@@ -585,6 +628,9 @@ export function evaluateComplex(
               return realToComplex(applyFunction('log', [a1.re], ctx.angle));
             }
             return divComplex(lnComplex(a1), realToComplex(makeScalar(new D(10).ln(), undefined, true)));
+          }
+          if (!a1.im.decimal.isZero() && ['asin', 'acos', 'atan', 'asinh', 'acosh', 'atanh'].includes(tok.text)) {
+            return complexInverseFunction(tok.text, a1, ctx.angle);
           }
           if (['sin', 'cos', 'tan', 'sinh', 'cosh', 'tanh'].includes(tok.text) && !a1.im.decimal.isZero()) {
             return complexTrig(tok.text, a1, ctx.angle);
