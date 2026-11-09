@@ -38,6 +38,32 @@ describe('real-Casio parity extensions', () => {
     expect(out.im.decimal.toNumber()).toBeCloseTo(Math.sqrt(3) / 2 * Math.sinh(1), 12);
   });
 
+  it('evaluates inverse trigonometric functions for complex arguments', () => {
+    const radCtx = { angle: 'RAD' as const, variables: vars, cmplxAns: { re: zeroStored(), im: zeroStored() } };
+    const asinI = evaluateComplex('asin(i)', radCtx).value;
+    expect(asinI.re.decimal.toNumber()).toBeCloseTo(0, 12);
+    expect(asinI.im.decimal.toNumber()).toBeCloseTo(Math.asinh(1), 12);
+    const atanHalfI = evaluateComplex('atan(0.5i)', radCtx).value;
+    expect(atanHalfI.re.decimal.toNumber()).toBeCloseTo(0, 12);
+    expect(atanHalfI.im.decimal.toNumber()).toBeCloseTo(Math.atanh(0.5), 12);
+    const asinIDeg = evaluateComplex('asin(i)', { ...radCtx, angle: 'DEG' }).value;
+    expect(asinIDeg.im.decimal.toNumber()).toBeCloseTo(Math.asinh(1) * 180 / Math.PI, 10);
+
+    const roundTrip = (inverse: string, forward: string) => {
+      const z = evaluateComplex(inverse, radCtx).value;
+      return evaluateComplex(`${forward}(${z.re.decimal.toString()}+${z.im.decimal.toString()}i)`, radCtx).value;
+    };
+    const asinhRoundTrip = roundTrip('asinh(1+i)', 'sinh');
+    expect(asinhRoundTrip.re.decimal.toNumber()).toBeCloseTo(1, 10);
+    expect(asinhRoundTrip.im.decimal.toNumber()).toBeCloseTo(1, 10);
+    const acoshRoundTrip = roundTrip('acosh(1+i)', 'cosh');
+    expect(acoshRoundTrip.re.decimal.toNumber()).toBeCloseTo(1, 10);
+    expect(acoshRoundTrip.im.decimal.toNumber()).toBeCloseTo(1, 10);
+    const atanhRoundTrip = roundTrip('atanh(0.5i)', 'tanh');
+    expect(atanhRoundTrip.re.decimal.toNumber()).toBeCloseTo(0, 10);
+    expect(atanhRoundTrip.im.decimal.toNumber()).toBeCloseTo(0.5, 10);
+  });
+
   it('stores and recalls full complex variables including imaginary values', () => {
     let state = createInitialState();
     state = calculatorReducer(state, { type: 'select-mode', mode: 'CMPLX' });
