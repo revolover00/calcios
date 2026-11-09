@@ -463,6 +463,8 @@ describe('Second 50-Bug Senior Audit Regression Suite (#51–#100)', () => {
         }),
     );
     const { container: appDom, unmount } = render(<App />);
+    fireEvent.click(appDom.querySelector('[data-testid="scan-math-btn"]') as HTMLButtonElement);
+    fireEvent.change(appDom.querySelector('[data-testid="scanner-api-key"]') as HTMLInputElement, { target: { value: 'gsk-test' } });
     const fileInputs = appDom.querySelectorAll('input[type="file"]');
     const uploadInput = fileInputs[1] as HTMLInputElement;
     const fakeBlob = new File([new Uint8Array([1, 2, 3])], 'math.png', { type: 'image/png' });
