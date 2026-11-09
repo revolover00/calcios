@@ -1,0 +1,19 @@
+{
+  "name": "Calcios — Scientific Calculator",
+  "short_name": "Calcios",
+  "description": "Precision 2D Natural Math Scientific Calculator",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#14171b",
+  "theme_color": "#14171b",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
