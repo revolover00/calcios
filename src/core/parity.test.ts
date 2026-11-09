@@ -3,7 +3,7 @@ import { calculatorReducer, createInitialState, formatActiveComplexDisplay, hydr
 import { evaluateComplex } from './cmplx';
 import { solveEqn } from './eqn';
 import { evaluateExpression } from './expression';
-import { deserialize, scalarFromInteger, zeroStored, VARIABLES } from './value';
+import { deserialize, scalarFromInteger, serialize, zeroStored, VARIABLES } from './value';
 
 const vars = Object.fromEntries(VARIABLES.map((name) => [name, zeroStored()])) as Record<(typeof VARIABLES)[number], ReturnType<typeof zeroStored>>;
 const ctx = { angle: 'RAD' as const, variables: vars, ans: zeroStored() };
@@ -134,9 +134,38 @@ describe('real-Casio parity extensions', () => {
     expect(deserialize(second.result!).decimal.toNumber()).toBeCloseTo(12);
   });
 
+  it('clears stale imaginary memory whenever real-mode workflows write variables', () => {
+    const seedImag = (state: ReturnType<typeof createInitialState>, ...names: (typeof VARIABLES)[number][]) => ({
+      ...state,
+      cmplx: { ...state.cmplx, varsIm: { ...state.cmplx.varsIm, ...Object.fromEntries(names.map((n) => [n, serialize(scalarFromInteger(4))])) } },
+    });
+    let baseN = seedImag(createInitialState(), 'A');
+    baseN = { ...baseN, mode: 'BASE-N', expression: '7→A', cursor: 4 };
+    baseN = calculatorReducer(baseN, { type: 'key', id: 'equals' });
+    expect(deserialize(baseN.cmplx.varsIm.A).decimal.toNumber()).toBe(0);
+
+    let pol = seedImag(createInitialState(), 'X', 'Y');
+    pol = { ...pol, expression: 'Pol(3,4)', cursor: 'Pol(3,4)'.length };
+    pol = calculatorReducer(pol, { type: 'key', id: 'equals' });
+    expect(deserialize(pol.cmplx.varsIm.X).decimal.toNumber()).toBe(0);
+    expect(deserialize(pol.cmplx.varsIm.Y).decimal.toNumber()).toBe(0);
+
+    let calc = seedImag(createInitialState(), 'X');
+    calc = { ...calc, expression: 'X+1', cursor: 3 };
+    calc = calculatorReducer(calc, { type: 'key', id: 'calc' });
+    calc = calculatorReducer(calc, { type: 'key', id: '2' });
+    calc = calculatorReducer(calc, { type: 'key', id: 'equals' });
+    expect(deserialize(calc.cmplx.varsIm.X).decimal.toNumber()).toBe(0);
+  });
+
   it('prompts non-target solve variables and stores the selected root variable', () => {
     let state = createInitialState();
-    state = { ...state, expression: '2A+B=11,A', cursor: 11 };
+    state = {
+      ...state,
+      expression: '2A+B=11,A',
+      cursor: 11,
+      cmplx: { ...state.cmplx, varsIm: { ...state.cmplx.varsIm, A: serialize(scalarFromInteger(9)) } },
+    };
     state = calculatorReducer(state, { type: 'key', id: 'equals' });
     expect(state.solvePrompt?.stage).toBe('prompt-var');
     state = calculatorReducer(state, { type: 'key', id: '1' });
@@ -145,6 +174,7 @@ describe('real-Casio parity extensions', () => {
     state = calculatorReducer(state, { type: 'key', id: 'equals' });
     expect(state.solvePrompt?.stage).toBe('solved');
     expect(deserialize(state.variables.A).decimal.toNumber()).toBeCloseTo(5);
+    expect(deserialize(state.cmplx.varsIm.A).decimal.toNumber()).toBe(0);
     expect(state.pairResult && state.pairResult.type === 'pair' && state.pairResult.label1).toBe('A');
   });
 });

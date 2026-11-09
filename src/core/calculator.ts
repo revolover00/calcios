@@ -302,6 +302,16 @@ export type CalculatorAction =
   | { type: 'load-scanned-math'; expression: string; mode?: 'COMP' | 'CMPLX'; angle?: AngleUnit }
   | { type: 'clear-notice' };
 
+function clearComplexImagForRealWrites(
+  cmplx: CmplxModeState,
+  names: readonly VariableName[],
+): CmplxModeState {
+  if (names.length === 0) return cmplx;
+  let varsIm = cmplx.varsIm;
+  for (const name of names) varsIm = { ...varsIm, [name]: zeroStored() };
+  return { ...cmplx, varsIm };
+}
+
 function zeroVariables(): Record<VariableName, StoredScalar> {
   return Object.fromEntries(VARIABLES.map((v) => [v, zeroStored()])) as Record<VariableName, StoredScalar>;
 }
@@ -824,13 +834,14 @@ function evaluateSingleStatement(
   const outcome = evaluateRichExpression(exprToEval, evalContext(s, random));
   const primaryStored = serialize(outcome.primary);
   let variables = assign ? { ...s.variables, [assign.target]: primaryStored } : s.variables;
-  const cmplxAfterWrite = assign ? { ...s.cmplx, varsIm: { ...s.cmplx.varsIm, [assign.target]: zeroStored() } } : s.cmplx;
+  let writtenVariables: VariableName[] = assign ? [assign.target] : [];
   let pairResult: DisplayValue | null = null;
 
   if (outcome.pairKind && outcome.secondary) {
     const secStored = serialize(outcome.secondary);
     if (outcome.pairKind === 'divr') {
       variables = { ...s.variables, E: primaryStored, F: secStored };
+      writtenVariables = ['E', 'F'];
       pairResult = {
         type: 'pair',
         label1: 'Q',
@@ -840,6 +851,7 @@ function evaluateSingleStatement(
       };
     } else {
       variables = { ...s.variables, X: primaryStored, Y: secStored };
+      writtenVariables = ['X', 'Y'];
       pairResult = {
         type: 'pair',
         label1: outcome.pairKind === 'pol' ? 'r' : 'X',
@@ -850,6 +862,7 @@ function evaluateSingleStatement(
     }
   }
 
+  const cmplxAfterWrite = clearComplexImagForRealWrites(s.cmplx, writtenVariables);
   const autoDms = !pairResult && hasTopLevelDms(exprToEval);
   const history = [...s.history, { expression: recordExpr, result: primaryStored, mode: s.mode }].slice(-40);
   return {
@@ -891,6 +904,7 @@ function calculate(s: CalculatorState, random?: number): CalculatorState {
         phase: 'result',
         result: storedInt,
         variables,
+        cmplx: clearComplexImagForRealWrites(s.cmplx, assign ? [assign.target] : []),
         baseN: { ...s.baseN, ans: serialized, result: serialized },
         history,
         historyIndex: null,
@@ -1943,9 +1957,9 @@ function handleCalcPrompt(s: CalculatorState, id: string, random?: number): Calc
       const updatedVars = { ...s.variables, [targetVar]: nextVal };
       const nextIndex = prompt.index + 1;
       if (nextIndex < prompt.vars.length) {
-        return { ...s, variables: updatedVars, calcPrompt: { ...prompt, index: nextIndex, input: '' } };
+        return { ...s, variables: updatedVars, cmplx: clearComplexImagForRealWrites(s.cmplx, [targetVar]), calcPrompt: { ...prompt, index: nextIndex, input: '' } };
       }
-      const nextState = { ...s, variables: updatedVars, calcPrompt: null, expression: prompt.sourceExpr };
+      const nextState = { ...s, variables: updatedVars, cmplx: clearComplexImagForRealWrites(s.cmplx, [targetVar]), calcPrompt: null, expression: prompt.sourceExpr };
       return evaluateCalcStatements(nextState, prompt.sourceExpr, random);
     } catch (err) {
       return errorState(s, err);
@@ -2047,7 +2061,7 @@ function handleSolvePrompt(s: CalculatorState, id: string, random?: number): Cal
         const variables = { ...s.variables, [name]: serialize(value) };
         const nextIndex = index + 1;
         return {
-          ...s, variables,
+          ...s, variables, cmplx: clearComplexImagForRealWrites(s.cmplx, [name]),
           solvePrompt: { ...sp, stage: nextIndex < promptVars.length ? 'prompt-var' : 'prompt-x', input: '', promptIndex: nextIndex },
         };
       }
@@ -2072,6 +2086,7 @@ function handleSolvePrompt(s: CalculatorState, id: string, random?: number): Cal
         preAns: s.ans,
         ans: rootStored,
         variables: { ...s.variables, [targetVar]: rootStored },
+        cmplx: clearComplexImagForRealWrites(s.cmplx, [targetVar]),
         pairResult: {
           type: 'pair',
           label1: targetVar,

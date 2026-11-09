@@ -7,7 +7,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?logo=typescript&logoColor=white)](#tech-stack)
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=0b1016)](#tech-stack)
 [![Vite](https://img.shields.io/badge/Vite-6-646CFF?logo=vite&logoColor=white)](#quick-start)
-[![Tests](https://img.shields.io/badge/Vitest-147%20passing-22c55e?logo=vitest&logoColor=white)](#quality--verification)
+[![Tests](https://img.shields.io/badge/Vitest-148%20passing-22c55e?logo=vitest&logoColor=white)](#quality--verification)
 
 A realistic, handheld-scale calculator featuring an exact symbolic engine, custom dot-matrix LCD, an interactive natural-math renderer, and **12 operating modes**. Its established casing, key layout, and calculator workflows are retained as new math capabilities are added.
 
