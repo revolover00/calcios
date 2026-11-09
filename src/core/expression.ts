@@ -256,6 +256,20 @@ function resolveStatToken(name: string, ctx: EvaluationContext): Scalar {
   return val;
 }
 
+function validateCalculusTolerance(tol: Scalar): void {
+  const value = tol.decimal;
+  if (value.isInteger() && value.gte(1) && value.lte(14)) return;
+  if (value.gt(0) && value.lt(1)) return;
+  mathError('Argument ERROR');
+}
+
+function calculusToleranceValue(tol: Scalar): InstanceType<typeof D> {
+  const value = tol.decimal;
+  return value.isInteger() && value.gte(1) && value.lte(14)
+    ? new D(10).pow(value.neg())
+    : value;
+}
+
 class Parser {
   private pos = 0;
   private depth = 0;
@@ -542,13 +556,26 @@ class Parser {
             variables: { ...this.context.variables, X: serialize(xVal) },
           }).parse();
         if (token.text === 'deriv') {
+          let tolerance: Scalar | undefined;
+          if (this.peek().type === 'comma') {
+            this.take();
+            tolerance = this.expression(0);
+            validateCalculusTolerance(tolerance);
+          }
           this.expect('close');
-          return numericDerivative(evalWithX, arg1);
+          return numericDerivative(evalWithX, arg1, tolerance ? calculusToleranceValue(tolerance) : undefined);
         }
         this.expect('comma');
         const arg2 = this.expression(0);
+        let tolerance = new D('1e-13');
+        if (this.peek().type === 'comma') {
+          this.take();
+          const rawTol = this.expression(0);
+          validateCalculusTolerance(rawTol);
+          tolerance = calculusToleranceValue(rawTol);
+        }
         this.expect('close');
-        if (token.text === 'integ') return numericIntegral(evalWithX, arg1, arg2);
+        if (token.text === 'integ') return numericIntegral(evalWithX, arg1, arg2, tolerance);
         if (token.text === 'sigma') return numericSummation(evalWithX, arg1, arg2);
         return numericProduct(evalWithX, arg1, arg2);
       }

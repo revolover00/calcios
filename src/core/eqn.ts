@@ -427,7 +427,29 @@ export function solveEqn(type: EqnType, coeffs: Scalar[]): EqnOutcome {
     case 'lin2': return solveLinear2(coeffs);
     case 'lin3': return solveLinear3(coeffs);
     case 'quad': return solveQuadratic(coeffs);
-    case 'cubic': return solveCubic(coeffs);
+    case 'cubic': {
+      const roots = solveCubic(coeffs);
+      if (roots.status !== 'solved') return roots;
+      const [a, b, c, d] = coeffs;
+      const disc = b.decimal.pow(2).minus(a.decimal.times(c.decimal).times(3));
+      if (!disc.gt(0)) return roots;
+      const sqrtDisc = disc.sqrt();
+      const xMax = b.decimal.neg().minus(sqrtDisc).div(a.decimal.times(3));
+      const xMin = b.decimal.neg().plus(sqrtDisc).div(a.decimal.times(3));
+      const valueAt = (x: InstanceType<typeof D>) =>
+        a.decimal.times(x.pow(3)).plus(b.decimal.times(x.pow(2))).plus(c.decimal.times(x)).plus(d.decimal);
+      const maxY = valueAt(xMax);
+      const minY = valueAt(xMin);
+      return {
+        ...roots,
+        items: [...roots.items,
+          { label: 'X-Value Local Max', scalar: makeScalar(xMax, undefined, true) },
+          { label: 'Y-Value Local Max', scalar: makeScalar(maxY, undefined, true) },
+          { label: 'X-Value Local Min', scalar: makeScalar(xMin, undefined, true) },
+          { label: 'Y-Value Local Min', scalar: makeScalar(minY, undefined, true) },
+        ],
+      };
+    }
   }
 }
 

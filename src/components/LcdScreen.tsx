@@ -48,7 +48,7 @@ const DIST_TITLES: Record<DistSubMode, string> = {
 
 function LcdStatusBar({ state }: { state: CalculatorState }): React.ReactElement {
   const mScalar = deserialize(state.variables.M);
-  const hasM = !mScalar.decimal.isZero();
+  const hasM = !mScalar.decimal.isZero() || (state.mode === 'CMPLX' && !deserialize(state.cmplx.varsIm.M).decimal.isZero());
   const isMath = state.ioMode === 'Math';
   const isFix = state.numberFormat.mode === 'Fix';
   const isSci = state.numberFormat.mode === 'Sci';
@@ -185,6 +185,7 @@ function renderMenuScreen(state: CalculatorState): React.ReactElement | null {
             <span>1:INEQ</span>
             <span>2:VERIF</span>
             <span>3:DIST</span>
+            <span>4:RATIO</span>
           </div>
         )}
       </div>
@@ -612,6 +613,43 @@ function renderMenuScreen(state: CalculatorState): React.ReactElement | null {
     );
   }
 
+  if (screen === 'ratio-menu') {
+    return (
+      <div className="lcd-menu" data-testid="lcd-menu" dir="ltr">
+        <div className="lcd-prompt-title">Ratio:</div>
+        <div className="lcd-menu-list">
+          <span>1:a:b=X:d</span>
+          <span>2:a:b=c:X</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (screen === 'ratio-editor' && state.ratio.form) {
+    const names = state.ratio.form === 'a:b=X:d' ? ['a', 'b', 'd'] : ['a', 'b', 'c'];
+    const idx = state.ratio.cursorIndex;
+    return (
+      <div className="lcd-eqn-editor" data-testid="lcd-ratio-editor" dir="ltr">
+        <div className="lcd-eqn-header">Ratio — {names[idx]}?</div>
+        <div className="lcd-eqn-coeffs">
+          {names.map((name, i) => (
+            <span key={name} className={i === idx ? 'eqn-chip active' : 'eqn-chip'}>
+              {name}={formatDecimal(deserialize(state.ratio.coeffs[i]), state.numberFormat, state.decimalMark)}
+            </span>
+          ))}
+        </div>
+        <div className="lcd-expr-area">
+          <NaturalExpression
+            expression={state.ratio.input || formatDecimal(deserialize(state.ratio.coeffs[idx]), state.numberFormat, state.decimalMark)}
+            cursor={state.ratio.input ? state.ratio.input.length : null}
+            overwrite={!state.insertMode}
+            lineMode={state.ioMode === 'Line'}
+          />
+        </div>
+      </div>
+    );
+  }
+
   if (screen === 'ineq-deg-menu') {
     return (
       <div className="lcd-menu" data-testid="lcd-menu" dir="ltr">
@@ -685,12 +723,15 @@ function renderNormalInteractiveBody(state: CalculatorState): React.ReactElement
 
   // SOLVE prompt & 3-line Calcios SOLVE result
   if (state.solvePrompt) {
-    if (state.solvePrompt.stage === 'prompt-x') {
-      const xCurrent = formatDecimal(deserialize(state.variables.X), state.numberFormat, state.decimalMark);
+    if (state.solvePrompt.stage === 'prompt-x' || state.solvePrompt.stage === 'prompt-var') {
+      const promptName = state.solvePrompt.stage === 'prompt-var'
+        ? state.solvePrompt.promptVars?.[state.solvePrompt.promptIndex ?? 0] ?? 'A'
+        : state.solvePrompt.targetVar ?? 'X';
+      const xCurrent = formatDecimal(deserialize(state.variables[promptName]), state.numberFormat, state.decimalMark);
       return (
         <div className="lcd-home" dir="ltr">
           <div className="lcd-expr-area">
-            <span className="lcd-prompt-prefix">Solve for X:</span>
+            <span className="lcd-prompt-prefix">{state.solvePrompt.stage === 'prompt-var' ? `${promptName}?` : `Solve for ${promptName}:`}</span>
             <NaturalExpression
               expression={state.solvePrompt.input || xCurrent}
               cursor={state.solvePrompt.input ? state.solvePrompt.input.length : null}
@@ -713,7 +754,7 @@ function renderNormalInteractiveBody(state: CalculatorState): React.ReactElement
           </div>
           <div className="lcd-result-area" data-testid="lcd-result">
             <NaturalResult
-              display={{ type: 'pair', label1: 'X', value1: xVal, label2: 'L−R', value2: lrVal }}
+              display={{ type: 'pair', label1: state.solvePrompt.targetVar ?? 'X', value1: xVal, label2: 'L−R', value2: lrVal }}
               lineMode={lineMode}
             />
           </div>
