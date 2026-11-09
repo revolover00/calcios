@@ -1,8 +1,8 @@
 import { evaluateBaseN, formatBaseN, scalarToBaseNInt32, type BaseMode } from './basen';
 import { solveRoot } from './calculus';
 import {
-  argComplex, absComplex, deserializeComplex, evaluateComplex, formatComplex2D, formatComplexDisplay,
-  serializeComplex, zeroStoredComplex,
+  addComplex, argComplex, absComplex, deserializeComplex, evaluateComplex, formatComplex2D, formatComplexDisplay,
+  serializeComplex, subComplex, zeroStoredComplex,
   type ComplexFormat, type StoredComplex,
 } from './cmplx';
 import { CONSTANT_BY_CODE, CONVERSION_BY_CODE, SCIENTIFIC_CONSTANTS, UNIT_CONVERSIONS } from './constants';
@@ -45,6 +45,7 @@ import {
   type StoredVector, type VectorName,
 } from './vector';
 import { evaluateVerification } from './verif';
+import { solveRatio, type RatioForm } from './ratio';
 
 export type Phase = 'editing' | 'result' | 'error';
 export type ActiveMode =
@@ -58,7 +59,8 @@ export type ActiveMode =
   | 'VECTOR'
   | 'INEQ'
   | 'VERIF'
-  | 'DIST';
+  | 'DIST'
+  | 'RATIO';
 
 export type IoMode = 'Math' | 'Line';
 export type MathOutputMode = 'MathO' | 'LineO';
@@ -102,6 +104,8 @@ export type ScreenView =
   | 'clear'
   | 'clear-confirm'
   | 'eqn-menu'
+  | 'ratio-menu'
+  | 'ratio-editor'
   | 'off';
 
 export interface HistoryEntry {
@@ -119,8 +123,12 @@ export interface CalcPromptState {
 
 export interface SolvePromptState {
   sourceExpr: string;
-  stage: 'prompt-x' | 'solved';
+  stage: 'prompt-x' | 'prompt-var' | 'solved';
   input: string;
+  targetVar?: VariableName;
+  targetExplicit?: boolean;
+  promptVars?: VariableName[];
+  promptIndex?: number;
   root?: StoredScalar;
   residual?: StoredScalar;
 }
@@ -166,10 +174,20 @@ export interface BaseNState {
 
 export interface CmplxModeState {
   ans: StoredComplex;
+  varsIm: Record<VariableName, StoredScalar>;
   preAns: StoredComplex;
   result: StoredComplex | null;
   format: ComplexFormat;
   partView: 'both' | 'first' | 'second';
+}
+
+export interface RatioModeState {
+  form: RatioForm | null;
+  coeffs: StoredScalar[];
+  cursorIndex: number;
+  input: string;
+  editingCell: boolean;
+  solved: boolean;
 }
 
 export interface StatModeState {
@@ -272,6 +290,7 @@ export interface CalculatorState {
   matrix: MatrixModeState;
   vector: VectorModeState;
   dist: DistModeState | null;
+  ratio: RatioModeState;
   notice: string | null;
 }
 
@@ -292,7 +311,11 @@ function createDefaultBaseN(): BaseNState {
 }
 
 function createDefaultCmplx(format: ComplexFormat = 'rect'): CmplxModeState {
-  return { ans: zeroStoredComplex(), preAns: zeroStoredComplex(), result: null, format, partView: 'both' };
+  return { varsIm: zeroVariables(), ans: zeroStoredComplex(), preAns: zeroStoredComplex(), result: null, format, partView: 'both' };
+}
+
+function createDefaultRatio(form: RatioForm | null = null): RatioModeState {
+  return { form, coeffs: Array.from({ length: 3 }, () => zeroStored()), cursorIndex: 0, input: '', editingCell: false, solved: false };
 }
 
 function createDefaultStat(subMode: StatSubMode = '1-VAR', useFreq = false): StatModeState {
@@ -455,6 +478,7 @@ export function createInitialState(): CalculatorState {
     matrix: createDefaultMatrix(),
     vector: createDefaultVector(),
     dist: null,
+    ratio: createDefaultRatio(),
     notice: null,
   };
 }
@@ -467,7 +491,7 @@ const BASEN_HEX_KEYS: Record<string, string> = {
 };
 
 const modeNames: ActiveMode[] = ['COMP', 'CMPLX', 'STAT', 'BASE-N', 'EQN', 'MATRIX', 'TABLE', 'VECTOR'];
-const extraModes: ActiveMode[] = ['INEQ', 'VERIF', 'DIST'];
+const extraModes: ActiveMode[] = ['INEQ', 'VERIF', 'DIST', 'RATIO'];
 
 const ONE_DIM_ATOMIC_TOKENS = [
   ...Object.keys(STAT_TOKEN_LABELS),
@@ -800,6 +824,7 @@ function evaluateSingleStatement(
   const outcome = evaluateRichExpression(exprToEval, evalContext(s, random));
   const primaryStored = serialize(outcome.primary);
   let variables = assign ? { ...s.variables, [assign.target]: primaryStored } : s.variables;
+  const cmplxAfterWrite = assign ? { ...s.cmplx, varsIm: { ...s.cmplx.varsIm, [assign.target]: zeroStored() } } : s.cmplx;
   let pairResult: DisplayValue | null = null;
 
   if (outcome.pairKind && outcome.secondary) {
@@ -836,6 +861,7 @@ function evaluateSingleStatement(
     preAns: s.ans,
     ans: primaryStored,
     variables,
+    cmplx: cmplxAfterWrite,
     resultFormat: effectiveResultFormat(s, defaultResultFormat(outcome.primary)),
     fractionStyle: s.defaultFractionStyle,
     error: null,
@@ -883,6 +909,7 @@ function calculate(s: CalculatorState, random?: number): CalculatorState {
       const out = evaluateComplex(exprToEval, {
         angle: s.angle,
         variables: s.variables,
+        varsIm: s.cmplx.varsIm,
         cmplxAns: s.cmplx.ans,
         cmplxPreAns: s.cmplx.preAns,
         preAns: s.preAns,
@@ -891,10 +918,8 @@ function calculate(s: CalculatorState, random?: number): CalculatorState {
         numberFormat: s.numberFormat,
       });
       const storedZ = serializeComplex(out.value);
-      const variables =
-        assign && out.value.im.decimal.isZero()
-          ? { ...s.variables, [assign.target]: storedZ.re }
-          : s.variables;
+      const variables = assign ? { ...s.variables, [assign.target]: storedZ.re } : s.variables;
+      const varsIm = assign ? { ...s.cmplx.varsIm, [assign.target]: storedZ.im } : s.cmplx.varsIm;
       const history = [...s.history, { expression: s.expression, result: storedZ.re, mode: s.mode }].slice(-40);
       return {
         ...resetResultModifiers(s),
@@ -905,6 +930,7 @@ function calculate(s: CalculatorState, random?: number): CalculatorState {
         variables,
         resultFormat: effectiveResultFormat(s, 'exact'),
         cmplx: {
+          ...s.cmplx, varsIm,
           ans: storedZ,
           preAns: s.cmplx.ans,
           result: storedZ,
@@ -1094,6 +1120,7 @@ function currentValue(s: CalculatorState): StoredScalar {
     const out = evaluateComplex(s.expression, {
       angle: s.angle,
       variables: s.variables,
+      varsIm: s.cmplx.varsIm,
       cmplxAns: s.cmplx.ans,
       preAns: s.preAns,
       numberFormat: s.numberFormat,
@@ -1128,7 +1155,46 @@ function currentValue(s: CalculatorState): StoredScalar {
   return serialize(evaluateExpression(s.expression, evalContext(s)));
 }
 
+function currentComplexValue(s: CalculatorState, random?: number): ReturnType<typeof deserializeComplex> {
+  if (s.phase === 'result' && s.cmplx.result) return deserializeComplex(s.cmplx.result);
+  if (!s.expression.trim()) return deserializeComplex(s.cmplx.ans);
+  return evaluateComplex(s.expression, {
+    angle: s.angle, variables: s.variables, varsIm: s.cmplx.varsIm,
+    cmplxAns: s.cmplx.ans, cmplxPreAns: s.cmplx.preAns, preAns: s.preAns,
+    random, numberFormat: s.numberFormat,
+  }).value;
+}
+
 function updateMemory(s: CalculatorState, direction: 1 | -1): CalculatorState {
+  if (s.mode === 'CMPLX') {
+    try {
+      const current = currentComplexValue(s);
+      const memory = { re: deserialize(s.variables.M), im: deserialize(s.cmplx.varsIm.M) };
+      const updated = direction === 1 ? addComplex(memory, current) : subComplex(memory, current);
+      const storedZ = serializeComplex(updated);
+      const wasEditing = s.phase === 'editing' && s.expression.trim().length > 0;
+      const history = wasEditing
+        ? [...s.history, { expression: s.expression, result: serialize(current.re), mode: s.mode }].slice(-40)
+        : s.history;
+      return {
+        ...resetResultModifiers(s),
+        phase: wasEditing ? 'result' : s.phase,
+        result: wasEditing ? serialize(current.re) : s.result,
+        preAns: wasEditing ? s.ans : s.preAns,
+        ans: wasEditing ? serialize(current.re) : s.ans,
+        variables: { ...s.variables, M: storedZ.re },
+        cmplx: {
+          ...s.cmplx, varsIm: { ...s.cmplx.varsIm, M: storedZ.im },
+          preAns: wasEditing ? s.cmplx.ans : s.cmplx.preAns,
+          ans: wasEditing ? serializeComplex(current) : s.cmplx.ans,
+          result: wasEditing ? serializeComplex(current) : s.cmplx.result,
+        },
+        history, historyIndex: null, pending: null, shift: false, alpha: false, hyp: false,
+      };
+    } catch (error) {
+      return errorState(s, error);
+    }
+  }
   try {
     const storedCurrent = currentValue(s);
     const current = deserialize(storedCurrent);
@@ -1147,19 +1213,11 @@ function updateMemory(s: CalculatorState, direction: 1 | -1): CalculatorState {
         wasEditing && s.mode === 'BASE-N'
           ? { ...s.baseN, ans: current.decimal.toFixed(0), result: current.decimal.toFixed(0) }
           : baseState.baseN,
-      cmplx:
-        wasEditing && s.mode === 'CMPLX'
-          ? {
-              ...s.cmplx,
-              ans: { re: storedCurrent, im: zeroStored() },
-              result: { re: storedCurrent, im: zeroStored() },
-              partView: 'both',
-            }
-          : baseState.cmplx,
       resultFormat: wasEditing ? effectiveResultFormat(s, defaultResultFormat(current)) : s.resultFormat,
       preAns: wasEditing ? s.ans : s.preAns,
       ans: wasEditing ? storedCurrent : s.ans,
       variables: { ...s.variables, M: serialize(updated) },
+      cmplx: { ...s.cmplx, varsIm: { ...s.cmplx.varsIm, M: zeroStored() } },
       history,
       historyIndex: null,
       pending: null,
@@ -1244,7 +1302,7 @@ export function activateModeByName(s: CalculatorState, label: string): Calculato
     case 'COMP':
       return { ...baseReset, mode: 'COMP' };
     case 'CMPLX':
-      return { ...baseReset, mode: 'CMPLX', cmplx: createDefaultCmplx(s.defaultCmplxFormat) };
+      return { ...baseReset, mode: 'CMPLX', cmplx: { ...createDefaultCmplx(s.defaultCmplxFormat), varsIm: s.cmplx.varsIm } };
     case 'STAT':
       return { ...baseReset, mode: 'STAT', screen: 'stat-type-menu' };
     case 'BASE-N':
@@ -1273,6 +1331,8 @@ export function activateModeByName(s: CalculatorState, label: string): Calculato
       return { ...baseReset, mode: 'VERIF' };
     case 'DIST':
       return { ...baseReset, mode: 'DIST', screen: 'dist-menu' };
+    case 'RATIO':
+      return { ...baseReset, mode: 'RATIO', screen: 'ratio-menu', ratio: createDefaultRatio() };
     default:
       return baseReset;
   }
@@ -1319,6 +1379,14 @@ function handleMenu(s: CalculatorState, id: string): CalculatorState {
       const label = s.menuPage === 0 ? modeNames[Number(id) - 1] : extraModes[Number(id) - 1];
       if (!label) return s;
       return activateModeByName(s, label);
+    }
+    return s;
+  }
+
+  if (s.screen === 'ratio-menu') {
+    if (id === '1' || id === '2') {
+      const form: RatioForm = id === '1' ? 'a:b=X:d' : 'a:b=c:X';
+      return { ...s, mode: 'RATIO', screen: 'ratio-editor', ratio: createDefaultRatio(form) };
     }
     return s;
   }
@@ -1891,11 +1959,41 @@ function handleCalcPrompt(s: CalculatorState, id: string, random?: number): Calc
   return s;
 }
 
+function splitSolveTarget(source: string): { expression: string; target: VariableName; explicit: boolean } {
+  let depth = 0;
+  let comma = -1;
+  for (let i = 0; i < source.length; i++) {
+    if (source[i] === '(') depth++;
+    else if (source[i] === ')' && depth > 0) depth--;
+    else if (source[i] === ',' && depth === 0) comma = i;
+  }
+  if (comma < 0) return { expression: source.trim(), target: 'X', explicit: false };
+  const suffix = source.slice(comma + 1).trim().toUpperCase();
+  if (!VARIABLES.includes(suffix as VariableName)) return { expression: source.trim(), target: 'X', explicit: false };
+  const expression = source.slice(0, comma).trim();
+  if (!expression) throw new CalculatorError('Syntax ERROR', 'Missing expression');
+  return { expression, target: suffix as VariableName, explicit: true };
+}
+
 function startSolveWorkflow(s: CalculatorState): CalculatorState {
   if (!s.expression.trim()) return s;
   try {
-    splitEquation(s.expression);
-    return { ...closeLatches(s), solvePrompt: { sourceExpr: s.expression, stage: 'prompt-x', input: '' } };
+    const parsed = splitSolveTarget(s.expression);
+    splitEquation(parsed.expression);
+    const expressionVars = extractVariables(parsed.expression);
+    const target = !parsed.explicit && !expressionVars.includes('X') && expressionVars.length === 1
+      ? expressionVars[0]
+      : parsed.target;
+    const vars = expressionVars.filter((v) => v !== target);
+    const first = vars[0];
+    return {
+      ...closeLatches(s),
+      solvePrompt: {
+        sourceExpr: parsed.expression,
+        stage: first ? 'prompt-var' : 'prompt-x',
+        input: '', targetVar: target, targetExplicit: parsed.explicit, promptVars: vars, promptIndex: 0,
+      },
+    };
   } catch (err) {
     return errorState(s, err);
   }
@@ -1903,6 +2001,7 @@ function startSolveWorkflow(s: CalculatorState): CalculatorState {
 
 function handleSolvePrompt(s: CalculatorState, id: string, random?: number): CalculatorState {
   const sp = s.solvePrompt!;
+  const editableSource = sp.targetExplicit ? `${sp.sourceExpr},${sp.targetVar ?? 'X'}` : sp.sourceExpr;
   if (sp.stage === 'solved') {
     if (id === 'ac') {
       return {
@@ -1922,30 +2021,44 @@ function handleSolvePrompt(s: CalculatorState, id: string, random?: number): Cal
         ...resetResultModifiers(s),
         solvePrompt: null,
         phase: 'editing',
-        expression: sp.sourceExpr,
-        cursor: id === 'left' ? sp.sourceExpr.length : 0,
+        expression: editableSource,
+        cursor: id === 'left' ? editableSource.length : 0,
         result: null,
         error: null,
       };
     }
     if (id === 'equals') {
-      return { ...s, solvePrompt: { sourceExpr: sp.sourceExpr, stage: 'prompt-x', input: '' } };
+      return { ...s, solvePrompt: { ...sp, stage: 'prompt-x', input: '' } };
     }
     return calculatorReducer({ ...s, solvePrompt: null }, { type: 'key', id, random });
   }
   if (id === 'ac') {
-    return { ...s, solvePrompt: null, phase: 'editing', expression: sp.sourceExpr, cursor: sp.sourceExpr.length, shift: false, alpha: false, hyp: false };
+    return { ...s, solvePrompt: null, phase: 'editing', expression: editableSource, cursor: editableSource.length, shift: false, alpha: false, hyp: false };
   }
   if (id === 'del') return { ...s, solvePrompt: { ...sp, input: deleteSimpleInput(sp.input) } };
   if (id === 'equals') {
     try {
+      if (sp.stage === 'prompt-var') {
+        const promptVars = sp.promptVars ?? [];
+        const index = sp.promptIndex ?? 0;
+        const name = promptVars[index];
+        if (!name) return { ...s, solvePrompt: { ...sp, stage: 'prompt-x', input: '' } };
+        const value = sp.input.trim() ? evaluateExpression(sp.input, evalContext(s, random)) : deserialize(s.variables[name]);
+        const variables = { ...s.variables, [name]: serialize(value) };
+        const nextIndex = index + 1;
+        return {
+          ...s, variables,
+          solvePrompt: { ...sp, stage: nextIndex < promptVars.length ? 'prompt-var' : 'prompt-x', input: '', promptIndex: nextIndex },
+        };
+      }
+      const targetVar = sp.targetVar ?? 'X';
       const guessScalar = sp.input.trim()
         ? evaluateExpression(sp.input, evalContext(s, random))
-        : deserialize(s.variables.X);
+        : deserialize(s.variables[targetVar]);
       const { left, right } = splitEquation(sp.sourceExpr);
       const outcome = solveRoot(
         (xVal) => {
-          const ctx = { ...evalContext(s, random), variables: { ...s.variables, X: serialize(xVal) } };
+          const ctx = { ...evalContext(s, random), variables: { ...s.variables, [targetVar]: serialize(xVal) } };
           return subtract(evaluateExpression(left, ctx), evaluateExpression(right, ctx));
         },
         guessScalar,
@@ -1958,15 +2071,15 @@ function handleSolvePrompt(s: CalculatorState, id: string, random?: number): Cal
         result: rootStored,
         preAns: s.ans,
         ans: rootStored,
-        variables: { ...s.variables, X: rootStored },
+        variables: { ...s.variables, [targetVar]: rootStored },
         pairResult: {
           type: 'pair',
-          label1: 'X',
+          label1: targetVar,
           value1: formatDecimal(outcome.root, s.numberFormat, s.decimalMark),
           label2: 'L−R',
           value2: formatDecimal(outcome.residual, s.numberFormat, s.decimalMark),
         },
-        solvePrompt: { sourceExpr: sp.sourceExpr, stage: 'solved', input: '', root: rootStored, residual: resStored },
+        solvePrompt: { ...sp, stage: 'solved', input: '', root: rootStored, residual: resStored },
       };
     } catch (err) {
       return errorState(s, err);
@@ -1977,6 +2090,40 @@ function handleSolvePrompt(s: CalculatorState, id: string, random?: number): Cal
   if (id === 'shift') return { ...s, shift: !s.shift, alpha: false };
   if (id === 'alpha') return { ...s, alpha: !s.alpha, shift: false };
   if (id === 'hyp') return { ...s, hyp: !s.hyp };
+  return s;
+}
+
+function handleRatioEditor(s: CalculatorState, id: string): CalculatorState {
+  const ratio = s.ratio;
+  if (id === 'mode') return { ...closeLatches(s), screen: s.shift ? 'setup' : 'mode', menuPage: 0 };
+  if (id === 'shift') return { ...s, shift: !s.shift, alpha: false };
+  if (id === 'alpha') return { ...s, alpha: !s.alpha, shift: false };
+  if (id === 'ac') return { ...s, ratio: createDefaultRatio(ratio.form), screen: 'ratio-editor', phase: 'editing' };
+  if (id === 'left' || id === 'up') return { ...s, ratio: { ...ratio, cursorIndex: Math.max(0, ratio.cursorIndex - 1), input: '', editingCell: false } };
+  if (id === 'right' || id === 'down') return { ...s, ratio: { ...ratio, cursorIndex: Math.min(2, ratio.cursorIndex + 1), input: '', editingCell: false } };
+  if (id === 'del') return { ...s, ratio: { ...ratio, input: deleteSimpleInput(ratio.input), editingCell: true } };
+  if (id === 'equals') {
+    try {
+      const coeffs = [...ratio.coeffs];
+      if (ratio.input.trim()) coeffs[ratio.cursorIndex] = serialize(evaluateExpression(ratio.input, evalContext(s)));
+      const nextRatio = { ...ratio, coeffs, input: '', editingCell: false };
+      if (ratio.cursorIndex < 2) return { ...s, ratio: { ...nextRatio, cursorIndex: ratio.cursorIndex + 1 } };
+      const [a, b, known] = coeffs.map(deserialize);
+      const value = solveRatio(ratio.form!, a, b, known);
+      const stored = serialize(value);
+      const expression = ratio.form === 'a:b=X:d' ? 'a:b = X:d' : 'a:b = c:X';
+      return {
+        ...resetResultModifiers(s), screen: 'normal', expression, cursor: expression.length,
+        phase: 'result', result: stored, preAns: s.ans, ans: stored,
+        resultFormat: effectiveResultFormat(s, defaultResultFormat(value)),
+        ratio: { ...nextRatio, solved: true }, pending: null, error: null,
+      };
+    } catch (error) {
+      return errorState(s, error);
+    }
+  }
+  const ch = simpleInputChar(id, s.shift, s.alpha, s.hyp);
+  if (ch !== null) return { ...s, shift: false, alpha: false, hyp: false, ratio: { ...ratio, input: ratio.input + ch, editingCell: true } };
   return s;
 }
 
@@ -1998,6 +2145,7 @@ function handleEqnMode(s: CalculatorState, id: string, random?: number): Calcula
           shift: false,
           alpha: false,
           variables: { ...s.variables, [name]: s.result },
+          cmplx: { ...s.cmplx, varsIm: { ...s.cmplx.varsIm, [name]: zeroStored() } },
         };
       }
       return s;
@@ -2412,6 +2560,7 @@ function handleDistMode(s: CalculatorState, id: string, random?: number): Calcul
           shift: false,
           alpha: false,
           variables: { ...s.variables, [name]: ds.result },
+          cmplx: { ...s.cmplx, varsIm: { ...s.cmplx.varsIm, [name]: zeroStored() } },
         };
       }
       return s;
@@ -2736,6 +2885,7 @@ export function calculatorReducer(state: CalculatorState, action: CalculatorActi
       notice: null,
     };
   }
+  if (state.mode === 'RATIO' && state.screen === 'ratio-editor') return handleRatioEditor(state, id);
   if (state.screen !== 'normal') return handleMenu(state, id);
 
   // Global error screen recovery ([AC] :Cancel / [◀][▶]:Goto) across ALL 11 modes!
@@ -2790,6 +2940,7 @@ export function calculatorReducer(state: CalculatorState, action: CalculatorActi
   if (state.mode === 'EQN' && state.eqn) return handleEqnMode(state, id, action.random);
   if (state.mode === 'INEQ' && state.ineq) return handleIneqMode(state, id, action.random);
   if (state.mode === 'DIST' && state.dist) return handleDistMode(state, id, action.random);
+  if (state.mode === 'RATIO' && state.ratio.solved && id === 'ac') return { ...resetResultModifiers(state), screen: 'ratio-menu', ratio: createDefaultRatio(), phase: 'editing', expression: '', cursor: 0, result: null };
   if (state.mode === 'STAT' && state.stat.editingTable) return handleStatTableEditor(state, id, action.random);
   if (state.mode === 'MATRIX' && state.matrix.editingTarget) return handleMatrixCellEditor(state, id, action.random);
   if (state.mode === 'VECTOR' && state.vector.editingTarget) return handleVectorCellEditor(state, id, action.random);
@@ -2842,6 +2993,18 @@ export function calculatorReducer(state: CalculatorState, action: CalculatorActi
       return state;
     }
     if (state.pending === 'recall') {
+      if (state.mode === 'CMPLX') {
+        const value = { re: state.variables[name], im: state.cmplx.varsIm[name] };
+        const storedZ = { re: value.re, im: value.im };
+        const reScalar = deserialize(value.re);
+        return {
+          ...resetResultModifiers(state), expression: name, cursor: name.length, phase: 'result',
+          result: value.re, preAns: state.ans, ans: value.re,
+          resultFormat: effectiveResultFormat(state, defaultResultFormat(reScalar)),
+          cmplx: { ...state.cmplx, preAns: state.cmplx.ans, ans: storedZ, result: storedZ, partView: 'both' },
+          pending: null, shift: false, alpha: false,
+        };
+      }
       if (state.mode === 'BASE-N') {
         const recalledVal = state.variables[name];
         const recalledScalar = deserialize(recalledVal);
@@ -2878,7 +3041,7 @@ export function calculatorReducer(state: CalculatorState, action: CalculatorActi
       }
       if (
         (state.phase === 'result' || state.expression.trim() === '') &&
-        (state.mode === 'COMP' || state.mode === 'STAT' || state.mode === 'CMPLX' || state.mode === 'MATRIX' || state.mode === 'VECTOR')
+        (state.mode === 'COMP' || state.mode === 'STAT' || state.mode === 'MATRIX' || state.mode === 'VECTOR' || state.mode === 'RATIO')
       ) {
         const recalledVal = state.variables[name];
         const recalledScalar = deserialize(recalledVal);
@@ -2891,16 +3054,6 @@ export function calculatorReducer(state: CalculatorState, action: CalculatorActi
           resultFormat: effectiveResultFormat(state, defaultResultFormat(recalledScalar)),
           preAns: state.ans,
           ans: recalledVal,
-          cmplx:
-            state.mode === 'CMPLX'
-              ? {
-                  ...state.cmplx,
-                  preAns: state.cmplx.ans,
-                  ans: { re: recalledVal, im: zeroStored() },
-                  result: { re: recalledVal, im: zeroStored() },
-                  partView: 'both',
-                }
-              : state.cmplx,
           matrix: { ...state.matrix, showingMatrixResult: false },
           vector: { ...state.vector, showingVectorResult: false },
           pending: null,
@@ -2909,6 +3062,26 @@ export function calculatorReducer(state: CalculatorState, action: CalculatorActi
         };
       }
       return insert({ ...state, pending: null }, name);
+    }
+    if (state.mode === 'CMPLX') {
+      try {
+        const value = currentComplexValue(state, action.random);
+        const storedZ = serializeComplex(value);
+        const baseExpr = state.expression.trim() || 'Ans';
+        const stoExpr = baseExpr.endsWith(`→${name}`) ? baseExpr : `${baseExpr}→${name}`;
+        const history = [...state.history, { expression: stoExpr, result: storedZ.re, mode: state.mode }].slice(-40);
+        return {
+          ...resetResultModifiers(state), expression: stoExpr, cursor: stoExpr.length, phase: 'result',
+          result: storedZ.re, preAns: state.ans, ans: storedZ.re,
+          variables: { ...state.variables, [name]: storedZ.re },
+          cmplx: { ...state.cmplx, varsIm: { ...state.cmplx.varsIm, [name]: storedZ.im },
+            preAns: state.cmplx.ans, ans: storedZ, result: storedZ, partView: 'both' },
+          resultFormat: effectiveResultFormat(state, defaultResultFormat(value.re)),
+          history, historyIndex: null, pending: null, shift: false, alpha: false, hyp: false,
+        };
+      } catch (error) {
+        return errorState(state, error);
+      }
     }
     try {
       const storedVal = currentValue(state);
@@ -2926,16 +3099,6 @@ export function calculatorReducer(state: CalculatorState, action: CalculatorActi
           state.mode === 'BASE-N'
             ? { ...state.baseN, ans: valScalar.decimal.toFixed(0), result: valScalar.decimal.toFixed(0) }
             : state.baseN,
-        cmplx:
-          state.mode === 'CMPLX'
-            ? {
-                ...state.cmplx,
-                preAns: state.cmplx.ans,
-                ans: { re: storedVal, im: zeroStored() },
-                result: { re: storedVal, im: zeroStored() },
-                partView: 'both',
-              }
-            : state.cmplx,
         resultFormat: effectiveResultFormat(state, defaultResultFormat(valScalar)),
         preAns: state.ans,
         ans: storedVal,
@@ -2945,6 +3108,7 @@ export function calculatorReducer(state: CalculatorState, action: CalculatorActi
         shift: false,
         alpha: false,
         variables: { ...state.variables, [name]: storedVal },
+        cmplx: { ...state.cmplx, varsIm: { ...state.cmplx.varsIm, [name]: zeroStored() } },
       };
     } catch (error) {
       return errorState(state, error);
@@ -3336,7 +3500,7 @@ export function calculatorReducer(state: CalculatorState, action: CalculatorActi
 const MAX_PERSISTED_HISTORY = 50;
 
 const VALID_ACTIVE_MODES: ReadonlySet<ActiveMode> = new Set([
-  'COMP', 'CMPLX', 'STAT', 'BASE-N', 'EQN', 'MATRIX', 'TABLE', 'VECTOR', 'INEQ', 'VERIF', 'DIST',
+  'COMP', 'CMPLX', 'STAT', 'BASE-N', 'EQN', 'MATRIX', 'TABLE', 'VECTOR', 'INEQ', 'VERIF', 'DIST', 'RATIO',
 ]);
 
 const VALID_SCREEN_VIEWS: ReadonlySet<ScreenView> = new Set([
@@ -3346,7 +3510,7 @@ const VALID_SCREEN_VIEWS: ReadonlySet<ScreenView> = new Set([
   'stat-sub-sum', 'stat-sub-var', 'stat-sub-reg', 'stat-sub-distr', 'stat-sub-minmax',
   'matrix-target-menu', 'matrix-dim-menu', 'matrix-menu', 'vector-target-menu', 'vector-dim-menu',
   'vector-menu', 'ineq-deg-menu', 'ineq-rel-menu', 'verif-menu', 'dist-menu', 'clear',
-  'clear-confirm', 'eqn-menu', 'off',
+  'clear-confirm', 'eqn-menu', 'ratio-menu', 'ratio-editor', 'off',
 ]);
 
 export interface PersistentEqnState {
@@ -3398,6 +3562,7 @@ export interface PersistentCalculatorSession {
   matrix: MatrixModeState;
   vector: VectorModeState;
   dist: DistModeState | null;
+  ratio: RatioModeState;
 }
 
 export interface PersistentCalculator {
@@ -3488,6 +3653,7 @@ export function saveableState(state: CalculatorState): PersistentCalculator {
       matrix: state.matrix,
       vector: state.vector,
       dist: state.dist,
+      ratio: state.ratio,
     },
   };
 }
@@ -3574,7 +3740,12 @@ function hydrateSession(
         deserializeComplex(rawSession.cmplx.ans);
         deserializeComplex(rawSession.cmplx.preAns);
         if (rawSession.cmplx.result !== null) deserializeComplex(rawSession.cmplx.result);
+        const varsIm = zeroVariables();
+        if (rawSession.cmplx.varsIm && typeof rawSession.cmplx.varsIm === 'object') {
+          for (const name of VARIABLES) varsIm[name] = sanitizeStoredScalar(rawSession.cmplx.varsIm[name], zeroStored());
+        }
         cmplx = {
+          varsIm,
           ans: rawSession.cmplx.ans,
           preAns: rawSession.cmplx.preAns,
           result: rawSession.cmplx.result,
@@ -3672,6 +3843,14 @@ function hydrateSession(
     } else {
       dist = null;
     }
+    let ratio = base.ratio;
+    const rawRatio = rawSession.ratio as RatioModeState | undefined;
+    if (rawRatio && (rawRatio.form === null || rawRatio.form === 'a:b=X:d' || rawRatio.form === 'a:b=c:X') && Array.isArray(rawRatio.coeffs) && rawRatio.coeffs.length === 3) {
+      try {
+        rawRatio.coeffs.forEach(deserialize);
+        ratio = { ...createDefaultRatio(rawRatio.form), ...rawRatio, coeffs: rawRatio.coeffs };
+      } catch { ratio = base.ratio; }
+    }
 
     return {
       ...base,
@@ -3735,6 +3914,7 @@ function hydrateSession(
       matrix,
       vector,
       dist,
+      ratio,
     };
   } catch {
     return base;
