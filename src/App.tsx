@@ -1,6 +1,6 @@
 import React, { useEffect, useReducer, useRef, useState } from 'react';
 import { CalculatorHardware } from './components/CalculatorHardware';
-import { calculatorReducer, hydrateState, saveableState } from './core/calculator';
+import { calculatorReducer, hydrateState, saveableState, type CalculatorState } from './core/calculator';
 
 const STORAGE_KEY = 'calcios-state-v1';
 const PHYSICAL_WIDTH = 356;
@@ -16,23 +16,69 @@ function computeDeviceScale(): number {
   return Math.min(1, availW / PHYSICAL_WIDTH, availH / PHYSICAL_HEIGHT);
 }
 
-function mapKeyboardEvent(e: KeyboardEvent, isHexBaseN: boolean, isCmplx: boolean): string | null {
+function isInsideUnclosedParen(expr: string, cursor: number): boolean {
+  let depth = 0;
+  const end = Math.min(cursor, expr.length);
+  for (let i = 0; i < end; i++) {
+    if (expr[i] === '(') depth++;
+    else if (expr[i] === ')' && depth > 0) depth--;
+  }
+  return depth > 0;
+}
+
+export function mapKeyboardEvent(e: KeyboardEvent, cur: CalculatorState): string | null {
   if (e.ctrlKey || e.metaKey || e.altKey) return null;
   const k = e.key;
   if (/^[0-9]$/.test(k)) return k;
+
+  // Inside menus / pickers: only map digits, D-pad, Enter/=, Backspace, and Escape/Delete
+  if (cur.screen !== 'normal') {
+    switch (k) {
+      case 'Enter':
+      case '=': return 'equals';
+      case 'Backspace': return 'del';
+      case 'Delete':
+      case 'Escape': return 'ac';
+      case 'ArrowLeft': return 'left';
+      case 'ArrowRight': return 'right';
+      case 'ArrowUp': return 'up';
+      case 'ArrowDown': return 'down';
+      default: return null;
+    }
+  }
+
+  const before = cur.phase === 'editing' ? cur.expression.slice(0, cur.cursor) : '';
+  const prefMatch = cur.mode === 'BASE-N' ? before.match(/(?:^|[^a-zA-Z])([dhbo])[0-9A-F]*$/) : null;
+  const isHexBaseN = cur.mode === 'BASE-N' && (prefMatch ? prefMatch[1] === 'h' : cur.baseN.base === 'HEX');
+  const isCmplx = cur.mode === 'CMPLX';
+
   if (isHexBaseN && /^[a-fA-F]$/.test(k)) {
     const map: Record<string, string> = { A: 'neg', B: 'dms', C: 'hyp', D: 'sin', E: 'cos', F: 'tan' };
     return map[k.toUpperCase()] ?? null;
   }
+
+  // In BASE-N mode, never map scientific function letters (s, c, t, l, n, r, p, d, e)
+  if (cur.mode === 'BASE-N' && /^[a-zA-Z]$/.test(k)) {
+    return null;
+  }
+
   switch (k) {
     case '.': return 'dot';
+    case ',': {
+      if (
+        cur.decimalMark === 'Comma' &&
+        (cur.phase !== 'editing' || !isInsideUnclosedParen(cur.expression, cur.cursor))
+      ) {
+        return 'dot';
+      }
+      return 'comma';
+    }
     case '+': return 'add';
     case '-': return 'subtract';
     case '*': return 'multiply';
     case '/': return 'divide';
     case '(': return 'open';
     case ')': return 'close';
-    case ',': return 'comma';
     case ':': return 'colon';
     case '^': return 'power';
     case '!': return 'factorial';
@@ -93,6 +139,7 @@ export function App(): React.ReactElement {
     state.numberFormat,
     state.defaultFractionStyle,
     state.tableUseG,
+    state.stat.useFreq,
     state.variables,
   ]);
 
@@ -119,11 +166,7 @@ export function App(): React.ReactElement {
         return;
       }
       const cur = stateRef.current;
-      const before = cur.phase === 'editing' ? cur.expression.slice(0, cur.cursor) : '';
-      const prefMatch = cur.mode === 'BASE-N' ? before.match(/(?:^|[^a-zA-Z])([dhbo])[0-9A-F]*$/) : null;
-      const isHex = cur.mode === 'BASE-N' && (prefMatch ? prefMatch[1] === 'h' : cur.baseN.base === 'HEX');
-      const isCmplx = cur.mode === 'CMPLX';
-      const mapped = mapKeyboardEvent(e, isHex, isCmplx);
+      const mapped = mapKeyboardEvent(e, cur);
       if (mapped) {
         e.preventDefault();
         dispatch({ type: 'key', id: mapped });

@@ -519,9 +519,15 @@ export function smartDeleteBeforeCursor(
       .sort((a, b) => (b.nodeEnd - b.nodeStart) - (a.nodeEnd - a.nodeStart))[0];
     if (endingHere) {
       if (isTemplateEmpty(endingHere)) {
+        let delFrom = endingHere.nodeStart;
+        if (endingHere.kind === 'recur') {
+          const pre = source.slice(0, endingHere.nodeStart);
+          if (/(?:^|[+\-−×÷*/^(,])0\.$/.test(pre)) delFrom -= 2;
+          else if (/(?:^|[+\-−×÷*/^(,])\.$/.test(pre)) delFrom -= 1;
+        }
         return {
-          expression: source.slice(0, endingHere.nodeStart) + source.slice(endingHere.nodeEnd),
-          cursor: endingHere.nodeStart,
+          expression: source.slice(0, delFrom) + source.slice(endingHere.nodeEnd),
+          cursor: delFrom,
         };
       }
       // Non-empty template: step cursor INSIDE the end of the visually rightmost slot (like Calcios hardware!)
@@ -542,9 +548,15 @@ export function smartDeleteBeforeCursor(
       if (cursor === node.slots[slotIndex].start) {
         // 2a) Entire template is empty -> delete the whole template cleanly!
         if (isTemplateEmpty(node)) {
+          let delFrom = node.nodeStart;
+          if (node.kind === 'recur') {
+            const pre = source.slice(0, node.nodeStart);
+            if (/(?:^|[+\-−×÷*/^(,])0\.$/.test(pre)) delFrom -= 2;
+            else if (/(?:^|[+\-−×÷*/^(,])\.$/.test(pre)) delFrom -= 1;
+          }
           return {
-            expression: source.slice(0, node.nodeStart) + source.slice(node.nodeEnd),
-            cursor: node.nodeStart,
+            expression: source.slice(0, delFrom) + source.slice(node.nodeEnd),
+            cursor: delFrom,
           };
         }
 
@@ -679,8 +691,8 @@ export function extractTrailingOperandSpan(
     return { start: tplEnding.nodeStart, text: source.slice(tplEnding.nodeStart, cursor) };
   }
 
-  // 2) Suffix ^2, ^3, ^(-1) attached to an operand
-  for (const suf of ['^(-1)', '^2', '^3']) {
+  // 2) Suffix ^2, ^3, ^(-1), !, %, °, ᵈ, ʳ, ᵍ attached to an operand
+  for (const suf of ['^(-1)', '^2', '^3', '!', '%', '°', 'ᵈ', 'ʳ', 'ᵍ']) {
     if (before.endsWith(suf)) {
       const basePos = cursor - suf.length;
       const baseSpan = extractTrailingOperandSpan(source, basePos);
@@ -707,9 +719,9 @@ export function extractTrailingOperandSpan(
     return null;
   }
 
-  // 4) Scientific notation, numeric literal, constant, Ans/PreAns, Mat/Vct, or single variable
+  // 4) Scientific notation, numeric literal, constant, Ans/PreAns, Ran#, Mat/Vct, or single variable
   const tailMatch = before.match(
-    /(?:const(?:0[1-9]|[1-3]\d|40)|MatAns|Mat[ABC]|VctAns|Vct[ABC]|PreAns|Ans|\d+(?:\.\d*)?|\.\d+|[A-FXYMπei])$/,
+    /(?:const(?:0[1-9]|[1-3]\d|40)|MatAns|Mat[ABC]|VctAns|Vct[ABC]|PreAns|Ans|Ran#|(?:\d+(?:\.\d*)?|\.\d+)?⏨[+-]?(?:\d+(?:\.\d*)?|\.\d+)|\d+(?:\.\d*)?|\.\d+|[A-FXYMπei])$/,
   );
   if (tailMatch) {
     const start = cursor - tailMatch[0].length;

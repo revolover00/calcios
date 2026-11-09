@@ -8,7 +8,8 @@ import {
 import {
   D, VARIABLES, add, applyFunction, applyUnitConversion, combinatoric, convertAngleToActive,
   deserialize, divide, dmsToScalar, factorial, fromRadians, makeScalar,
-  multiply, negate, power, scalarFromInteger, scalarFromLiteral, scalarFromRecurring,
+  multiply, negate, polarFromRect, power, randomInteger, rectFromPolar,
+  scalarFromInteger, scalarFromLiteral, scalarFromRecurring,
   scalarPi, serialize, subtract, zeroStored,
   type AngleUnit, type Scalar, type StoredScalar, type VariableName,
 } from './value';
@@ -65,6 +66,29 @@ export function mulComplex(a: Complex, b: Complex): Complex {
 }
 
 export function divComplex(a: Complex, b: Complex): Complex {
+  const maxDen = D.max(b.re.decimal.abs(), b.im.decimal.abs());
+  if (maxDen.isZero()) mathError('Division by zero');
+  if (maxDen.gte('1e45')) {
+    // Smith's algorithm avoids intermediate c² + d² overflow for large magnitudes
+    const ar = a.re.decimal;
+    const ai = a.im.decimal;
+    const br = b.re.decimal;
+    const bi = b.im.decimal;
+    if (br.abs().gte(bi.abs())) {
+      const r = bi.div(br);
+      const den = br.plus(bi.times(r));
+      return {
+        re: makeScalar(ar.plus(ai.times(r)).div(den), undefined, true),
+        im: makeScalar(ai.minus(ar.times(r)).div(den), undefined, true),
+      };
+    }
+    const r = br.div(bi);
+    const den = bi.plus(br.times(r));
+    return {
+      re: makeScalar(ar.times(r).plus(ai).div(den), undefined, true),
+      im: makeScalar(ai.times(r).minus(ar).div(den), undefined, true),
+    };
+  }
   const denom = add(multiply(b.re, b.re), multiply(b.im, b.im));
   if (denom.decimal.isZero()) mathError('Division by zero');
   const numRe = add(multiply(a.re, b.re), multiply(a.im, b.im));
@@ -73,6 +97,14 @@ export function divComplex(a: Complex, b: Complex): Complex {
 }
 
 export function absComplex(a: Complex, angle: AngleUnit): Complex {
+  const maxAbs = D.max(a.re.decimal.abs(), a.im.decimal.abs());
+  if (maxAbs.isZero()) return realToComplex(scalarFromInteger(0));
+  if (maxAbs.gte('1e45')) {
+    const hypot = maxAbs.times(
+      a.re.decimal.div(maxAbs).pow(2).plus(a.im.decimal.div(maxAbs).pow(2)).sqrt(),
+    );
+    return realToComplex(makeScalar(hypot, undefined, true));
+  }
   const normSq = add(multiply(a.re, a.re), multiply(a.im, a.im));
   return realToComplex(applyFunction('sqrt', [normSq], angle));
 }
@@ -248,6 +280,7 @@ const CMPLX_FUNCS = [
   'Conjg', 'mfrac', 'cbrt', 'root', 'logb', 'arg', 'abs', 'sqrt', 'frac',
   'asinh', 'acosh', 'atanh', 'sinh', 'cosh', 'tanh',
   'asin', 'acos', 'atan', 'sin', 'cos', 'tan', 'ln', 'log',
+  'RanInt#', 'RanInt', 'Pol', 'Rec',
   'Intg', 'GCD', 'LCM', 'Int', 'Rnd',
 ];
 const VAR_SET = new Set<string>(VARIABLES);
@@ -255,7 +288,7 @@ const VAR_SET = new Set<string>(VARIABLES);
 function tokenizeCmplx(source: string): CmplxToken[] {
   const tokens: CmplxToken[] = [];
   let i = 0;
-  const kwSorted = [...CMPLX_FUNCS, 'PreAns', 'Ans', 'nCr', 'nPr'].sort((a, b) => b.length - a.length);
+  const kwSorted = [...CMPLX_FUNCS, 'Ran#', 'PreAns', 'Ans', 'nCr', 'nPr'].sort((a, b) => b.length - a.length);
   while (i < source.length) {
     const ch = source[i];
     if (/\s/.test(ch)) { i++; continue; }
@@ -334,7 +367,10 @@ export interface CmplxEvalContext {
   angle: AngleUnit;
   variables: Record<VariableName, StoredScalar>;
   cmplxAns: StoredComplex;
+  cmplxPreAns?: StoredComplex;
   preAns?: StoredScalar;
+  random?: number;
+  rng?: () => number;
   numberFormat?: NumberFormatSetting;
 }
 
@@ -345,6 +381,7 @@ export function evaluateComplex(
   try {
     const tokens = tokenizeCmplx(completeParentheses(source));
     let pos = 0;
+    let parenDepth = 0;
     let preferredFormat: ComplexFormat | undefined;
     const peek = () => tokens[pos];
     const take = () => tokens[pos++];
@@ -358,15 +395,27 @@ export function evaluateComplex(
           take();
           if (!left.im.decimal.isZero()) mathError('DMS requires real value');
           const parts: Scalar[] = [left.re];
-          while (parts.length < 3 && peek().type === 'number' && tokens[pos + 1]?.type === 'dms') {
-            parts.push(scalarFromLiteral((take() as Extract<CmplxToken, { type: 'number' }>).text));
-            take();
+          while (parts.length < 3 && tokens[pos + 1]?.type === 'dms') {
+            const cur = peek();
+            if (cur.type === 'number') {
+              parts.push(scalarFromLiteral((take() as Extract<CmplxToken, { type: 'number' }>).text));
+              take();
+            } else if (cur.type === 'id' && VAR_SET.has(cur.text)) {
+              take();
+              take();
+              parts.push(deserialize(ctx.variables[cur.text as VariableName]));
+            } else {
+              break;
+            }
           }
           left = realToComplex(dmsToScalar(parts));
           continue;
         }
         if (next.type === 'postfix') {
           if (next.text === '▸polar' || next.text === '▸rect') {
+            if (minPrec > 0 || parenDepth > 0 || tokens[pos + 1]?.type !== 'end') {
+              syntax('Display conversion allowed only at end of expression', next.offset);
+            }
             take();
             preferredFormat = next.text === '▸polar' ? 'polar' : 'rect';
             continue;
@@ -454,20 +503,24 @@ export function evaluateComplex(
       if (tok.type === 'recur') return realToComplex(scalarFromRecurring(tok.parts[0], tok.parts[1], tok.parts[2]));
       if (tok.type === 'i') return { re: scalarFromInteger(0), im: scalarFromInteger(1) };
       if (tok.type === 'open') {
+        parenDepth++;
         const v = parseExpr(0);
         if (peek().type !== 'close') syntax('Expected )', peek().offset);
         take();
+        parenDepth--;
         return v;
       }
       if (tok.type === 'id') {
         if (CMPLX_FUNCS.includes(tok.text)) {
           if (peek().type !== 'open') syntax('Expected (', peek().offset);
           take();
+          parenDepth++;
           const a1 = parseExpr(0);
           const args = [a1];
           while (peek().type === 'comma') { take(); args.push(parseExpr(0)); }
           if (peek().type !== 'close') syntax('Expected )', peek().offset);
           take();
+          parenDepth--;
           if (tok.text === 'frac') {
             if (args.length !== 2) syntax('frac expects 2 args', tok.offset);
             return divComplex(args[0], args[1]);
@@ -476,6 +529,32 @@ export function evaluateComplex(
             if (args.length !== 3) syntax('mfrac expects 3 args', tok.offset);
             if (args.some((a) => !a.im.decimal.isZero())) mathError('mfrac requires real arguments');
             return realToComplex(applyFunction('mfrac', [args[0].re, args[1].re, args[2].re], ctx.angle));
+          }
+          if (tok.text === 'RanInt' || tok.text === 'RanInt#') {
+            if (args.length !== 2) syntax(`${tok.text} expects 2 args`, tok.offset);
+            if (!args[0].im.decimal.isZero() || !args[1].im.decimal.isZero()) {
+              mathError(`${tok.text} requires real arguments`);
+            }
+            const sample = ctx.rng ? ctx.rng() : ctx.random;
+            return realToComplex(randomInteger(args[0].re, args[1].re, sample));
+          }
+          if (tok.text === 'Pol') {
+            if (args.length !== 2) syntax('Pol expects 2 args', tok.offset);
+            if (!args[0].im.decimal.isZero() || !args[1].im.decimal.isZero()) {
+              mathError('Pol requires real arguments');
+            }
+            polarFromRect(args[0].re, args[1].re, ctx.angle);
+            if (parenDepth === 0) preferredFormat = 'polar';
+            return { re: args[0].re, im: args[1].re };
+          }
+          if (tok.text === 'Rec') {
+            if (args.length !== 2) syntax('Rec expects 2 args', tok.offset);
+            if (!args[0].im.decimal.isZero() || !args[1].im.decimal.isZero()) {
+              mathError('Rec requires real arguments');
+            }
+            const rect = rectFromPolar(args[0].re, args[1].re, ctx.angle);
+            if (parenDepth === 0) preferredFormat = 'rect';
+            return { re: rect.x, im: rect.y };
           }
           if (tok.text === 'root' || tok.text === 'logb' || tok.text === 'GCD' || tok.text === 'LCM') {
             if (args.length !== 2) syntax(`${tok.text} expects 2 args`, tok.offset);
@@ -505,14 +584,26 @@ export function evaluateComplex(
             return complexTrig(tok.text, a1);
           }
           if (!a1.im.decimal.isZero()) mathError(`${tok.text} requires real argument`);
-          return realToComplex(applyFunction(tok.text, [a1.re], ctx.angle, { numberFormat: ctx.numberFormat }));
+          return realToComplex(applyFunction(tok.text, [a1.re], ctx.angle, {
+            random: ctx.random,
+            rng: ctx.rng,
+            numberFormat: ctx.numberFormat,
+          }));
+        }
+        if (tok.text === 'Ran#') {
+          const sample = ctx.rng ? ctx.rng() : (ctx.random ?? Math.random());
+          const safe = Math.max(0, Math.min(0.999, Math.floor(sample * 1000) / 1000));
+          return realToComplex(scalarFromLiteral(safe.toFixed(3)));
         }
         const constant = CONSTANT_BY_TOKEN.get(tok.text);
         if (constant) return realToComplex({ ...scalarFromLiteral(constant.value), preferDecimal: true });
         if (tok.text === 'π') return realToComplex(scalarPi());
         if (tok.text === 'e') return realToComplex(makeScalar(new D(1).exp(), undefined, false));
         if (tok.text === 'Ans') return deserializeComplex(ctx.cmplxAns);
-        if (tok.text === 'PreAns') return ctx.preAns ? realToComplex(deserialize(ctx.preAns)) : deserializeComplex(ctx.cmplxAns);
+        if (tok.text === 'PreAns') {
+          if (ctx.cmplxPreAns) return deserializeComplex(ctx.cmplxPreAns);
+          return ctx.preAns ? realToComplex(deserialize(ctx.preAns)) : deserializeComplex(ctx.cmplxAns);
+        }
         if (VAR_SET.has(tok.text)) return realToComplex(deserialize(ctx.variables[tok.text as VariableName]));
       }
       return syntax('Expected complex value', tok.offset);
@@ -529,6 +620,15 @@ export function evaluateComplex(
   }
 }
 
+function isFormattedZeroText(text: string): boolean {
+  const normalized = text.replace(/,/g, '.').replace(/^[−-]/, '');
+  return /^0(?:\.0+)?(?:×10\^0)?$/.test(normalized);
+}
+
+function isDisplayZero(d: DisplayValue): boolean {
+  return d.type === 'text' && isFormattedZeroText(d.text);
+}
+
 export function formatComplexDisplay(
   z: Complex,
   format: ComplexFormat,
@@ -537,26 +637,33 @@ export function formatComplexDisplay(
   numFmt?: NumberFormatSetting,
   decimalMark: DecimalMark = 'Dot',
 ): string {
-  const reZero = z.re.decimal.abs().lt('1e-24');
-  const imZero = z.im.decimal.abs().lt('1e-24');
+  const rawReZero = z.re.decimal.abs().lt('1e-24');
+  const rawImZero = z.im.decimal.abs().lt('1e-24');
 
   if (format === 'polar') {
     const r = absComplex(z, angle).re;
-    const theta = reZero && imZero ? scalarFromInteger(0) : argComplex(z, angle).re;
+    const theta = rawReZero && rawImZero ? scalarFromInteger(0) : argComplex(z, angle).re;
     const rStr = (preferExact && formatSymbolicLinear(r)) || formatDecimal(r, numFmt, decimalMark);
     const thStr = (preferExact && formatSymbolicLinear(theta)) || formatDecimal(theta, numFmt, decimalMark);
     return `${rStr}∠${thStr}`;
   }
 
   const fmtPart = (s: Scalar) => (preferExact && formatSymbolicLinear(s)) || formatDecimal(s, numFmt, decimalMark);
-  if (imZero) return reZero ? '0' : fmtPart(z.re);
+  const reStr = rawReZero ? '0' : fmtPart(z.re);
+  const reZero = rawReZero || isFormattedZeroText(reStr);
 
   const imNeg = z.im.decimal.isNegative();
   const absIm = imNeg ? negate(z.im) : z.im;
-  const imOne = absIm.decimal.minus(1).abs().lt('1e-24');
+  const rawImStr = rawImZero ? '0' : fmtPart(absIm);
+  const imZero = rawImZero || isFormattedZeroText(rawImStr);
+
+  if (imZero) {
+    return reZero ? formatDecimal(scalarFromInteger(0), numFmt, decimalMark) : reStr;
+  }
+
+  const imOne = rawImStr === '1';
   let imBody = 'i';
   if (!imOne) {
-    const rawImStr = fmtPart(absIm);
     const hasInnerSum =
       !rawImStr.startsWith('(') &&
       (rawImStr.includes('+') || rawImStr.slice(1).includes('−'));
@@ -566,7 +673,6 @@ export function formatComplexDisplay(
   if (reZero) {
     return `${imNeg ? '−' : ''}${imBody}`;
   }
-  const reStr = fmtPart(z.re);
   return `${reStr}${imNeg ? '−' : '+'}${imBody}`;
 }
 
@@ -578,13 +684,13 @@ export function formatComplex2D(
   numFmt?: NumberFormatSetting,
   decimalMark: DecimalMark = 'Dot',
 ): DisplayValue {
-  const reZero = z.re.decimal.abs().lt('1e-24');
-  const imZero = z.im.decimal.abs().lt('1e-24');
+  const rawReZero = z.re.decimal.abs().lt('1e-24');
+  const rawImZero = z.im.decimal.abs().lt('1e-24');
   const fmt = preferExact ? 'exact' : 'decimal';
 
   if (format === 'polar') {
     const r = absComplex(z, angle).re;
-    const theta = reZero && imZero ? scalarFromInteger(0) : argComplex(z, angle).re;
+    const theta = rawReZero && rawImZero ? scalarFromInteger(0) : argComplex(z, angle).re;
     return {
       type: 'complex-2d',
       form: 'polar',
@@ -593,15 +699,23 @@ export function formatComplex2D(
     };
   }
 
-  if (imZero) {
-    return reZero
-      ? { type: 'text', text: '0' }
-      : formatResult(z.re, fmt, { numberFormat: numFmt, decimalMark });
-  }
+  const reDisp = rawReZero
+    ? { type: 'text' as const, text: '0' }
+    : formatResult(z.re, fmt, { numberFormat: numFmt, decimalMark });
+  const reZero = rawReZero || isDisplayZero(reDisp);
 
   const imNeg = z.im.decimal.isNegative();
   const absIm = imNeg ? negate(z.im) : z.im;
-  const imDisp = formatResult(absIm, fmt, { numberFormat: numFmt, decimalMark });
+  const imDisp = rawImZero
+    ? { type: 'text' as const, text: '0' }
+    : formatResult(absIm, fmt, { numberFormat: numFmt, decimalMark });
+  const imZero = rawImZero || isDisplayZero(imDisp);
+
+  if (imZero) {
+    return reZero
+      ? { type: 'text', text: formatDecimal(scalarFromInteger(0), numFmt, decimalMark) }
+      : reDisp;
+  }
 
   if (reZero) {
     return {
@@ -615,7 +729,7 @@ export function formatComplex2D(
   return {
     type: 'complex-2d',
     form: 'rect',
-    re: formatResult(z.re, fmt, { numberFormat: numFmt, decimalMark }),
+    re: reDisp,
     imSign: imNeg ? '−' : '+',
     im: imDisp,
   };
