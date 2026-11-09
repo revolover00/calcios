@@ -2,96 +2,120 @@
 
 # CALCIOS
 
-**Precision 2D Natural Math Scientific Calculator**
+**A precise, handheld-style scientific calculator with 2D Natural Math**
 
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6?logo=typescript&logoColor=white)](#tech-stack)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?logo=typescript&logoColor=white)](#tech-stack)
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=0b1016)](#tech-stack)
 [![Vite](https://img.shields.io/badge/Vite-6-646CFF?logo=vite&logoColor=white)](#quick-start)
-[![Tests](https://img.shields.io/badge/Vitest-112%20Passing-22c55e?logo=vitest&logoColor=white)](#quality--verification)
+[![Tests](https://img.shields.io/badge/Vitest-145%20passing-22c55e?logo=vitest&logoColor=white)](#quality--verification)
 
-A realistic, handheld-scale 3D scientific calculator built entirely in code — featuring custom `5×9` and `5×6` TrueType dot-matrix LCD fonts, exact 2D symbolic rendering, 11 mathematical operating modes, and three unified anodized hardware editions (**Onyx Black**, **Dusty Rose Pink**, and **Ice Steel Blue**).
+A realistic, handheld-scale calculator featuring an exact symbolic engine, custom dot-matrix LCD, an interactive natural-math renderer, and **12 operating modes**. Its established casing, key layout, and calculator workflows are retained as new math capabilities are added.
+
+[Open the live calculator](https://revolover00.github.io/calcios/)
 
 <br />
 
-<img src="docs/screenshots/calcios-editions.png" alt="Calcios Scientific Calculator in Onyx Black, Dusty Rose Pink, and Ice Steel Blue" width="100%" />
+<img src="docs/screenshots/calcios-editions.png" alt="Calcios in Onyx Black, Dusty Rose Pink, and Ice Steel Blue editions" width="100%" />
 
 </div>
 
 ---
 
-## Mathematical Calculations Showcase
+## Screenshots: New Features
 
-Calcios combines an exact symbolic algebra kernel (`BigInt` rationals, canonical surds, $\pi$ multiples, and polar complex phasors) with high-precision numerical solvers — rendered directly onto an FSTN dot-matrix display (`#cfe3e6` glass with `#020405` crisp pixel ink).
+These captures show the new calculator screens in the existing hardware and LCD design.
 
 <p align="center">
-  <img src="docs/screenshots/calcios-calculations.png" alt="Calculus, Symbolic Radicals, Complex Phasors, and Matrix Algebra on Calcios" width="100%" />
+  <img src="docs/screenshots/calcios-complex-memory.png" alt="Complex M memory recalled as 2 plus 3i, with the M annunciator" width="32%" />
+  <img src="docs/screenshots/calcios-solve-variable-prompt.png" alt="SOLVE prompting for the non-target variable B" width="32%" />
+  <img src="docs/screenshots/calcios-solve-variable-result.png" alt="SOLVE finding A equals 5 with a zero L minus R residual" width="32%" />
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/calcios-modes.png" alt="Discrete Summation, Prime Factorization, Equation Solver, and Programmer Base-N on Calcios" width="100%" />
+  <img src="docs/screenshots/calcios-ratio.png" alt="RATIO mode solving a:b equals X:d, with exact result 16 over 3" width="32%" />
+  <img src="docs/screenshots/calcios-tolerance.png" alt="Derivative d over dx with an optional tolerance argument" width="32%" />
+  <img src="docs/screenshots/calcios-cubic-extrema.png" alt="EQN cubic solver showing the local maximum value" width="32%" />
+</p>
+
+---
+
+## Mathematical Calculations Showcase
+
+Calcios combines exact symbolic arithmetic (`BigInt` rationals, surds, and $\pi$ multiples) with high-precision numerical solvers. Results appear on a crisp FSTN-style LCD with `MathIO` and `LineIO` input/output modes.
+
+<p align="center">
+  <img src="docs/screenshots/calcios-calculations.png" alt="Calculus, symbolic radicals, complex phasors, and matrix calculations" width="100%" />
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/calcios-modes.png" alt="Summation, prime factorization, equation solving, and Base-N calculations" width="100%" />
 </p>
 
 ---
 
 ## Highlights
 
-- **Authentic Dot-Matrix 2D Display (`MathIO` & `LineIO`)**
-  - Custom-compiled TrueType pixel fonts (`CalciosLCDLarge` `5×9` and `CalciosLCDSmall` `5×6`) paired with dedicated smooth top-row annunciators (`SHIFT`, `ALPHA`, `M`, `STO`, `RCL`, `STAT`, `CMPLX`, `MAT`, `VCT`, `[D]/[R]/[G]`, `FIX`, `SCI`, `Math`, `Re⇔Im`).
-  - Multi-story 2D textbook fractions, nested radicals, superscripts, logarithms with arbitrary bases, definite integrals $\int_a^b f(X)\,dX$, derivatives $\frac{d}{dX}\big|_{X=a}$, summations $\sum$, and products $\prod$ with full 4-way structural cursor navigation (`◀` `▶` `▲` `▼`) and blinking `■` / `□` template placeholders.
-- **Exact Symbolic Engine + Instant `S⇔D` Toggle**
-  - Exact `BigInt` rational & mixed-fraction arithmetic, multi-term surd simplification (including nested square roots such as $\sqrt{3 + 2\sqrt{2}} = 1 + \sqrt{2}$ and exact trigonometric values every $15^\circ$ such as $\sin 75^\circ = \frac{\sqrt{6}+\sqrt{2}}{4}$), exact $\pi$ multiples, recurring decimals ($0.\overline{x}$), prime factorization (`FACT`), quotient-with-remainder (`÷R`), and fraction reduction (`▸Simp`).
-- **Unified 3-Color Handheld Hardware**
-  - True physical handheld footprint (`356 × 708` logical px) proportionally scaled to remain framed and centered on desktop, tablet, and mobile viewports without stretching edge-to-edge.
-  - Instant one-tap switching between **Onyx Black**, **Dusty Rose Pink**, and **Ice Steel Blue** via the three color dots on the top-right bezel (persisted in `localStorage`).
-- **Built-In Scientific Reference Library**
-  - **40 CODATA physical constants** (`SHIFT` + `7` `CONST`) and **40 bidirectional unit conversions** (`SHIFT` + `8` `CONV`).
-- **Instant Photo / Camera Math Scanner (`qwen/qwen3.8-27b`)**
-  - Click the micro camera lens next to the color-edition dots (or press `Ctrl+V` / `Cmd+V` with a screenshot in your clipboard) to capture or upload any handwritten or printed math problem directly into 2D Natural Math on the LCD and evaluate/solve it automatically.
+- **Natural Math LCD** — multi-level fractions, radicals, powers, logarithms, integrals, derivatives, summations, and products, with structural cursor navigation.
+- **Exact symbolic engine** — rational and mixed fractions, surds (including nested roots), exact trigonometric values, $\pi$ multiples, recurring decimals, and decimal/exact conversion.
+- **Complex variable memory** — `A`–`F`, `M`, `X`, and `Y` retain both real and imaginary components in `CMPLX`; `STO`, `RCL`, `M+`, and `M−` operate on complex values. A real-mode write replaces a variable with a real value.
+- **Expanded SOLVE workflow** — solve for a chosen variable with the optional trailing target form `equation, A`. Other variables in the equation are requested before solving; a lone non-`X` variable can be inferred as the target.
+- **Calculus tolerances** — `d/dx(f(X), a, tol)` and `∫(f(X), a, b, tol)` accept an optional tolerance. Integer `tol` values from `1` through `14` mean `10⁻ᵗᵒˡ`; an explicit tolerance may be any value strictly between `0` and `1`.
+- **Installable offline PWA** — calculator state and preferences persist between visits, and the app shell can be used offline after it has been cached.
+- **Three hardware editions** — switch between **Onyx Black**, **Dusty Rose Pink**, and **Ice Steel Blue** from the color dots on the bezel.
+- **Built-in reference tools** — 40 CODATA physical constants and 40 unit conversions.
+- **Camera/image math scanner** — use the camera control or paste an image to scan a math problem into the calculator.
 
 ---
 
-## 11 Operating Modes
+## 12 Operating Modes
 
-Press **`MODE`** (and **`▼`** for page 2) to switch across all 11 specialized modes:
+Press **MODE** to open the first page; press **▼** to reach the second page.
 
-| Key | Mode | Capabilities |
+| Menu | Mode | Capabilities |
 | :-: | :--- | :--- |
-| `1` | **`COMP`** | General 2D symbolic & numerical computation, `CALC` variable substitution, Newton–Raphson `SOLVE`, definite integration, differentiation, $\sum$, $\prod$, `FACT`, `GCD`, `LCM`, `Pol`, `Rec`, DMS (`° ’ ”`), and 9 memories (`A`–`F`, `X`, `Y`, `M`, `Ans`, `PreAns`). |
-| `2` | **`CMPLX`** | Rectangular ($a + bi$) and polar ($r\angle\theta$) complex arithmetic, powers, conjugates (`Conj`), arguments (`Arg`), absolute values (`Abs`), and `Re⇔Im` toggling. |
-| `3` | **`STAT`** | 1-variable and 2-variable statistical editor plus 8 regression models (`1-VAR`, `A+BX`, `_+CX²`, `ln X`, `e^X`, `A·B^X`, `A·X^B`, `1/X`). |
-| `4` | **`BASE-N`** | 32-bit signed two's-complement programmer arithmetic across `DEC`, `HEX`, `BIN`, and `OCT` with bitwise `and`, `or`, `xor`, `xnor`, `not`, and `neg`. |
-| `5` | **`EQN`** | Linear systems ($2\times2$ and $3\times3$) plus exact symbolic & complex roots for quadratic ($aX^2+bX+c=0$) and cubic ($aX^3+bX^2+cX+d=0$) equations. |
-| `6` | **`MATRIX`** | Interactive matrix editor (`MatA`, `MatB`, `MatC`, `MatAns` up to $3\times3$) supporting addition, multiplication, determinants (`det`), transposes (`Trn`), and inverses ($A^{-1}$). |
-| `7` | **`TABLE`** | Dual-function evaluation table for $f(X)$ and optional $g(X)$ over user-defined `Start`, `End`, and `Step` ranges. |
-| `8` | **`VECTOR`** | 2D and 3D vector algebra (`VctA`, `VctB`, `VctC`, `VctAns`) with vector addition, scalar scaling, dot products (`Dot`), and cross products (`×`). |
-| `▼` → `1` | **`INEQ`** | Symbolic quadratic and cubic inequality solver across `<`, `>`, `≤`, and `≥` with exact interval notation. |
-| `▼` → `2` | **`VERIF`** | Mathematical equality and inequality verification (`TRUE` / `FALSE`). |
-| `▼` → `3` | **`DIST`** | Normal (`P(t)`, `Q(t)`, `R(t)`, `InvN`), Binomial (`PD` / `CD`), and Poisson (`PD` / `CD`) probability distributions. |
+| `1` | **COMP** | General calculations, variable substitution, `CALC`/`SOLVE`, calculus, summations/products, factorization, `Pol`, `Rec`, DMS, and real-valued operations. |
+| `2` | **CMPLX** | Rectangular and polar complex arithmetic, complex variable memory, `STO`/`RCL`, and complex `M+`/`M−`. |
+| `3` | **STAT** | One- and two-variable data editors, summary statistics, and regression models. |
+| `4` | **BASE-N** | Signed 32-bit `DEC`, `HEX`, `BIN`, and `OCT` arithmetic with bitwise operations. |
+| `5` | **EQN** | Two- and three-variable linear systems, quadratic and cubic roots; cubic equations also show local extrema when present. |
+| `6` | **MATRIX** | Matrix editor and matrix arithmetic, determinant, transpose, and inverse. |
+| `7` | **TABLE** | Function tables for $f(X)$ and optional $g(X)$ over a chosen range. |
+| `8` | **VECTOR** | 2D and 3D vector arithmetic, dot products, and cross products. |
+| `▼` → `1` | **INEQ** | Quadratic and cubic inequalities using `<`, `>`, `≤`, and `≥`. |
+| `▼` → `2` | **VERIF** | Mathematical equality and inequality checks. |
+| `▼` → `3` | **DIST** | Normal, binomial, and Poisson probability distributions. |
+| `▼` → `4` | **RATIO** | Solve either `a:b = X:d` or `a:b = c:X`, with exact/decimal display and variable storage. |
+
+### SOLVE and Calculus Examples
+
+- For an equation such as `2A+B=11,A`, SOLVE asks for `B`, then finds `A` and reports the `L−R` residual.
+- With no explicit target, a single-variable equation such as `2Y+3=11` solves for `Y`.
+- Optional tolerance syntax: `deriv(X^2,3,8)` and `integ(X,0,1,8)`.
 
 ---
 
 ## Keyboard Shortcuts
 
-Every hardware key can be clicked directly or driven from a physical keyboard:
+Hardware keys can be clicked or used from a physical keyboard.
 
-| Physical Key | Calculator Action |
+| Keyboard | Action |
 | :--- | :--- |
-| `0` – `9`, `.` | Digits & decimal point |
-| `+`, `-`, `*`, `/` | Addition, subtraction, multiplication, division |
-| `(`, `)`, `,` | Parentheses & argument separator |
-| `^` | Exponent template ($x^{\blacksquare}$) |
-| `Enter` / `=` | Evaluate (`=`) |
-| `Backspace` | Delete (`DEL`) |
-| `Escape` | All Clear (`AC`) |
-| `ArrowUp` / `Down` / `Left` / `Right` | 4-way D-Pad cursor & replay history navigation |
-| `s` / `a` / `m` | Toggle `SHIFT` / `ALPHA` / `MODE` |
-| `d` | Toggle exact / decimal format (`S⇔D`) |
-| `x` | Insert variable `X` |
+| `0`–`9`, `.` | Digits and decimal point |
+| `+`, `-`, `*`, `/` | Arithmetic operations |
+| `(`, `)`, `,` | Parentheses and argument separator |
+| `^` | Power template |
+| `Enter` / `=` | Evaluate |
+| `Backspace` | Delete |
+| `Escape` | All Clear |
+| Arrow keys | D-pad navigation, cursor movement, and history navigation |
+| `s` / `a` / `m` | `SHIFT` / `ALPHA` / `MODE` |
+| `d` | Exact/decimal toggle (`S⇔D`) |
+| `x` / `y` | Insert variable `X` / `Y` |
 | `p` | Insert $\pi$ |
-| `r` | Insert square root ($\sqrt{\blacksquare}$) |
-| `f` | Insert 2D fraction ($\frac{\blacksquare}{\square}$) |
-| `i` | Insert imaginary unit $i$ (in `CMPLX`) or `sin(` |
-| `c` / `t` / `l` / `n` | Insert `cos(` / `tan(` / `log(` / `ln(` |
+| `r` | Insert square root |
+| `f` | Insert a 2D fraction |
+| `i` | Insert the imaginary unit in `CMPLX` |
+| `c` / `t` / `l` / `n` | Insert cosine / tangent / logarithm / natural logarithm |
 
 ---
 
@@ -99,46 +123,36 @@ Every hardware key can be clicked directly or driven from a physical keyboard:
 
 ```bash
 # Install dependencies
-npm install
+npm ci
 
-# Start the development server
+# Start the Vite development server
 npm run dev
 
-# Build production bundle
+# Build the production app
 npm run build
 ```
 
 ## Quality & Verification
 
 ```bash
-# Strict TypeScript check
+# TypeScript project check
 npm run typecheck
 
-# Run the full 112-test Vitest suite (engine, parser, 2D cursor torture tests, UI & themes)
+# Full Vitest suite
 npm test
-
-# Rebuild the custom 5×9 and 5×6 TrueType dot-matrix LCD fonts (optional)
-node scripts/build-calcios-fonts.mjs
 ```
+
+The suite covers the calculator engine, parser, LCD interactions, mode workflows, persistence, and regression tests.
 
 ---
 
 ## Deploying to GitHub Pages
 
-This repository includes an automated GitHub Pages workflow (`.github/workflows/deploy.yml`) configured with `base: './'` so all assets and custom LCD `.ttf` fonts resolve cleanly on any GitHub Pages URL.
+The repository includes a GitHub Actions Pages workflow (`.github/workflows/deploy.yml`) configured with a relative Vite base path.
 
-1. In your repository, open **Settings → Pages** and set **Build and deployment → Source** to **GitHub Actions**.
-2. Open **Settings → Environments → `github-pages`** (create the `github-pages` environment if it does not exist yet) and configure:
-   - **Environment variables**:
-     - `VITE_GROQ_API_URL` = `https://api.groq.com/openai/v1/chat/completions` *(or your custom proxy URL)*
-     - `VITE_GROQ_MODEL` = `qwen/qwen3.8-27b`
-   - **Environment secrets** (automatic 5-key failover pool — rotates seamlessly whenever a key reaches its rate limit):
-     - `GROQ_API_KEY_1`
-     - `GROQ_API_KEY_2`
-     - `GROQ_API_KEY_3`
-     - `GROQ_API_KEY_4`
-     - `GROQ_API_KEY_5`
-3. Push to `main` (or trigger **Deploy Calcios to GitHub Pages** manually from the **Actions** tab).
+1. In **Settings → Pages**, set the source to **GitHub Actions**.
+2. Configure the `github-pages` environment and any optional scanner API settings/secrets described in the workflow.
+3. Push to `main` or trigger the Pages deployment workflow from **Actions**.
 
 ---
 
@@ -147,28 +161,28 @@ This repository includes an automated GitHub Pages workflow (`.github/workflows/
 ```text
 calcios/
 ├── docs/
-│   ├── screenshots/              # High-resolution PNG showcases of calculations & editions
-│   └── HANDOFF.md                # Architecture & engineering notes
-├── scripts/
-│   └── build-calcios-fonts.mjs   # Binary TrueType (.ttf) compiler for 5×9 & 5×6 LCD pixel fonts
+│   ├── HANDOFF.md
+│   └── screenshots/               # Existing showcase images and new feature captures
+├── public/                        # PWA manifest, icons, and service worker assets
+├── scripts/                       # LCD font-generation script
 ├── src/
-│   ├── assets/                   # Generated calcios-lcd-large.ttf & calcios-lcd-small.ttf
+│   ├── assets/                    # Custom dot-matrix LCD fonts
 │   ├── components/
-│   │   ├── CalculatorHardware.tsx # 3D anodized chassis, color-edition switcher, D-pad & keypad
-│   │   ├── LcdScreen.tsx          # FSTN dot-matrix display, annunciators, wizards & editors
-│   │   └── NaturalMath.tsx        # 2D textbook AST & interactive token renderer
+│   │   ├── CalculatorHardware.tsx # Chassis, key layout, themes, and camera control
+│   │   ├── LcdScreen.tsx          # LCD, menus, editors, and prompts
+│   │   └── NaturalMath.tsx        # 2D math renderer
 │   ├── core/
-│   │   ├── bigintFrac.ts          # Exact arbitrary-precision BigInt rational arithmetic
-│   │   ├── symbolic.ts            # Canonical surds, nested root simplification & π multiples
-│   │   ├── complex.ts             # Rectangular & polar complex math
-│   │   ├── parser.ts              # Recursive-descent tokenizer & evaluator
-│   │   ├── solvers.ts             # Adaptive Gauss-Legendre integration, SOLVE, EQN, INEQ, STAT, DIST
-│   │   ├── matrixVector.ts        # 3×3 matrix & 2D/3D vector linear algebra
-│   │   ├── constants.ts           # 40 CODATA scientific constants & 40 unit conversions
-│   │   └── calculator.ts          # Pure immutable reducer driving all 11 modes
-│   ├── data/
-│   │   └── keyLayout.ts           # Hardware key definitions, legends & English accessibility labels
-│   └── styles/
-│       └── calculator.css         # Onyx Black, Dusty Rose Pink & Ice Steel Blue 3D hardware themes
+│   │   ├── calculator.ts         # Reducer, modes, and session persistence
+│   │   ├── expression.ts         # Tokenizer, parser, and evaluator
+│   │   ├── value.ts              # Decimal, exact rational, and stored scalar values
+│   │   ├── calculus.ts            # Derivative, integration, and numerical solvers
+│   │   ├── cmplx.ts               # Complex arithmetic and evaluation
+│   │   ├── eqn.ts / ineq.ts       # Equation and inequality solvers
+│   │   ├── ratio.ts               # Proportion solver
+│   │   ├── matrix.ts / vector.ts  # Linear algebra engines
+│   │   ├── stat.ts / dist.ts      # Statistics and distributions
+│   │   └── constants.ts           # Scientific constants and unit conversions
+│   ├── data/keyLayout.ts          # Key definitions and legends
+│   └── styles/calculator.css      # Existing hardware and LCD styles
 └── package.json
 ```
