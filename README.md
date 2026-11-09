@@ -7,7 +7,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?logo=typescript&logoColor=white)](#tech-stack)
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=0b1016)](#tech-stack)
 [![Vite](https://img.shields.io/badge/Vite-6-646CFF?logo=vite&logoColor=white)](#quick-start)
-[![Tests](https://img.shields.io/badge/Vitest-145%20passing-22c55e?logo=vitest&logoColor=white)](#quality--verification)
+[![Tests](https://img.shields.io/badge/Vitest-146%20passing-22c55e?logo=vitest&logoColor=white)](#quality--verification)
 
 A realistic, handheld-scale calculator featuring an exact symbolic engine, custom dot-matrix LCD, an interactive natural-math renderer, and **12 operating modes**. Its established casing, key layout, and calculator workflows are retained as new math capabilities are added.
 
@@ -57,7 +57,7 @@ Calcios combines exact symbolic arithmetic (`BigInt` rationals, surds, and $\pi$
 
 - **Natural Math LCD** — multi-level fractions, radicals, powers, logarithms, integrals, derivatives, summations, and products, with structural cursor navigation.
 - **Exact symbolic engine** — rational and mixed fractions, surds (including nested roots), exact trigonometric values, $\pi$ multiples, recurring decimals, and decimal/exact conversion.
-- **Complex variable memory** — `A`–`F`, `M`, `X`, and `Y` retain both real and imaginary components in `CMPLX`; `STO`, `RCL`, `M+`, and `M−` operate on complex values. A real-mode write replaces a variable with a real value.
+- **Complex variable memory and trigonometry** — `A`–`F`, `M`, `X`, and `Y` retain both real and imaginary components in `CMPLX`; `STO`, `RCL`, `M+`, and `M−` operate on complex values. Complex circular trigonometry follows the selected `DEG`/`RAD`/`GRA` setting. A real-mode write replaces a variable with a real value.
 - **Expanded SOLVE workflow** — solve for a chosen variable with the optional trailing target form `equation, A`. Other variables in the equation are requested before solving; a lone non-`X` variable can be inferred as the target.
 - **Calculus tolerances** — `d/dx(f(X), a, tol)` and `∫(f(X), a, b, tol)` accept an optional tolerance. Integer `tol` values from `1` through `14` mean `10⁻ᵗᵒˡ`; an explicit tolerance may be any value strictly between `0` and `1`.
 - **Installable offline PWA** — calculator state and preferences persist between visits, and the app shell can be used offline after it has been cached.
