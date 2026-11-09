@@ -16,3 +16,9 @@ createRoot(rootEl).render(
     <App />
   </StrictMode>,
 );
+
+if (import.meta.env.PROD && typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js', { scope: './' }).catch(() => {
+    // Ignore Service Worker registration restrictions in private/embedded contexts
+  });
+}
