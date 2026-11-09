@@ -36,7 +36,7 @@ export interface TemplateNode {
 export function parseCallSpans(
   source: string,
   openParenIndex: number,
-  expectedArgs: number,
+  expectedArgs: number | number[],
 ): { args: SlotSpan[]; afterIndex: number } | null {
   if (source[openParenIndex] !== '(') return null;
   const args: SlotSpan[] = [];
@@ -48,7 +48,7 @@ export function parseCallSpans(
     else if (ch === ')') {
       if (depth === 0) {
         args.push({ start: segStart, end: i });
-        if (args.length === expectedArgs) {
+        if (Array.isArray(expectedArgs) ? expectedArgs.includes(args.length) : args.length === expectedArgs) {
           return { args, afterIndex: i + 1 };
         }
         return null;
@@ -62,11 +62,11 @@ export function parseCallSpans(
   return null;
 }
 
-const TEMPLATE_SPECS: ReadonlyArray<{ prefix: string; kind: TemplateKind; arity: number }> = [
+const TEMPLATE_SPECS: ReadonlyArray<{ prefix: string; kind: TemplateKind; arity: number; maxArity?: number }> = [
   { prefix: 'mfrac(', kind: 'mfrac', arity: 3 },
-  { prefix: 'integ(', kind: 'integ', arity: 3 },
+  { prefix: 'integ(', kind: 'integ', arity: 3, maxArity: 4 },
   { prefix: 'sigma(', kind: 'sigma', arity: 3 },
-  { prefix: 'deriv(', kind: 'deriv', arity: 2 },
+  { prefix: 'deriv(', kind: 'deriv', arity: 2, maxArity: 3 },
   { prefix: 'prod(', kind: 'prod', arity: 3 },
   { prefix: 'frac(', kind: 'frac', arity: 2 },
   { prefix: 'sqrt(', kind: 'sqrt', arity: 1 },
@@ -101,7 +101,7 @@ export function parseTemplatesInRange(source: string, start: number, end: number
           continue;
         }
         const openIdx = pos + spec.prefix.length - 1;
-        const parsed = parseCallSpans(source, openIdx, spec.arity);
+        const parsed = parseCallSpans(source, openIdx, spec.maxArity ? [spec.arity, spec.maxArity] : spec.arity);
         if (parsed && parsed.afterIndex <= end) {
           const children: TemplateNode[] = [];
           for (const slot of parsed.args) {

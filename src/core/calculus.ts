@@ -5,7 +5,7 @@ import { D, add, makeScalar, multiply, scalarFromInteger, type Scalar } from './
  * Numerical derivative d/dx f(x) at x0 using 34-digit central differences
  * with two-level Richardson extrapolation and automatic boundary-safe step adaptation.
  */
-export function numericDerivative(fn: (x: Scalar) => Scalar, x0: Scalar): Scalar {
+export function numericDerivative(fn: (x: Scalar) => Scalar, x0: Scalar, tolerance?: InstanceType<typeof D>): Scalar {
   const center = x0.decimal;
   const safeEval = (val: InstanceType<typeof D>): InstanceType<typeof D> | null => {
     try {
@@ -18,7 +18,8 @@ export function numericDerivative(fn: (x: Scalar) => Scalar, x0: Scalar): Scalar
   };
 
   const baseScale = center.isZero() ? new D(1) : D.max(new D('1e-24'), center.abs());
-  let h1 = baseScale.times('1e-6');
+  const relativeStep = tolerance ? D.max(new D('1e-8'), D.min(new D('1e-2'), tolerance.sqrt())) : new D('1e-6');
+  let h1 = baseScale.times(relativeStep);
 
   // Shrink h1 if center ± h1 crosses a nearby domain boundary (e.g. ln(X - 1) at X = 1.0000001)
   for (let shrink = 0; shrink < 24; shrink++) {
@@ -43,7 +44,7 @@ export function numericDerivative(fn: (x: Scalar) => Scalar, x0: Scalar): Scalar
   // One-sided Richardson extrapolation if x0 sits right on a domain boundary (and f(x0) is finite)
   const f0 = safeEval(center);
   if (f0 !== null) {
-    const h = baseScale.times('1e-6');
+    const h = baseScale.times(relativeStep);
     const fp1 = safeEval(center.plus(h));
     const fp2 = safeEval(center.plus(h.times(2)));
     const fpHalf = safeEval(center.plus(h.div(2)));
@@ -98,7 +99,7 @@ const GL8_WEIGHTS = [
  * Adaptive 8-point Gauss-Legendre definite integral ∫_a^b f(x) dx
  * with recursive subdivision for endpoint singularities and oscillatory integrands.
  */
-export function numericIntegral(fn: (x: Scalar) => Scalar, lower: Scalar, upper: Scalar): Scalar {
+export function numericIntegral(fn: (x: Scalar) => Scalar, lower: Scalar, upper: Scalar, tolerance = new D('1e-13')): Scalar {
   const a = lower.decimal;
   const b = upper.decimal;
   if (a.eq(b)) return scalarFromInteger(0);
@@ -153,7 +154,7 @@ export function numericIntegral(fn: (x: Scalar) => Scalar, lower: Scalar, upper:
     const sRight = i === initialSlices - 1 ? end : start.plus(sliceWidth.times(i + 1));
     const coarse = gl8Panel(sLeft, sRight);
     evalPanels++;
-    total = total.plus(adaptive(sLeft, sRight, coarse, new D('1e-13'), 0));
+    total = total.plus(adaptive(sLeft, sRight, coarse, tolerance, 0));
   }
 
   if (sign === -1) total = total.neg();

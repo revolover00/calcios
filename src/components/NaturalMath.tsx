@@ -385,9 +385,9 @@ function MathRange({
       }
 
       if (rest.startsWith('deriv(')) {
-        const parsed = parseCallSpans(source, pos + 5, 2);
+        const parsed = parseCallSpans(source, pos + 5, [2, 3]);
         if (parsed && parsed.afterIndex <= end) {
-          const [body, x0] = parsed.args;
+          const [body, x0, tol] = parsed.args;
           nodes.push(
             <span key={`k-${keyCounter++}`} className="math-deriv">
               <span className="math-frac math-frac-mini">
@@ -401,6 +401,7 @@ function MathRange({
               <sub className="math-sub">
                 x=<MathRange source={source} start={x0.start} end={x0.end} cursor={cursor} overwrite={overwrite} lineMode={false} showEmptyPlaceholder />
               </sub>
+              {tol && <><span>,</span><MathRange source={source} start={tol.start} end={tol.end} cursor={cursor} overwrite={overwrite} lineMode={false} showEmptyPlaceholder /></>}
             </span>,
           );
           pos = parsed.afterIndex;
@@ -409,9 +410,9 @@ function MathRange({
       }
 
       if (rest.startsWith('integ(')) {
-        const parsed = parseCallSpans(source, pos + 5, 3);
+        const parsed = parseCallSpans(source, pos + 5, [3, 4]);
         if (parsed && parsed.afterIndex <= end) {
-          const [body, lower, upper] = parsed.args;
+          const [body, lower, upper, tol] = parsed.args;
           nodes.push(
             <span key={`k-${keyCounter++}`} className="math-integ">
               <span className="math-integ-op">
@@ -443,6 +444,7 @@ function MathRange({
               <span className="math-integ-body">
                 <MathRange source={source} start={body.start} end={body.end} cursor={cursor} overwrite={overwrite} lineMode={false} showEmptyPlaceholder />
                 <span className="math-integ-dx">dx</span>
+                {tol && <><span>,</span><MathRange source={source} start={tol.start} end={tol.end} cursor={cursor} overwrite={overwrite} lineMode={false} showEmptyPlaceholder /></>}
               </span>
             </span>,
           );
