@@ -251,10 +251,15 @@ function replaceLatexConstructs(input: string): string {
           const high = readSubOrSupBound(s, j + 1);
           if (high) {
             const tail = s.slice(high.nextIdx);
-            const dxMatch = tail.match(/^(.+?)\s*(?:\\,)?\s*d[xX]\b/);
+            const dxMatch = tail.match(/^(.+?)\s*(?:\\,)?\s*d([a-zA-Z])\b/);
             if (dxMatch) {
               const afterDx = high.nextIdx + dxMatch[0].length;
-              s = `${s.slice(0, intMatch.index)}integ(${dxMatch[1].trim()},${low.content.trim()},${high.content.trim()})${s.slice(afterDx)}`;
+              const dummyVar = dxMatch[2];
+              let integrand = dxMatch[1].trim();
+              if (dummyVar.toUpperCase() !== 'X') {
+                integrand = integrand.replace(new RegExp(`(?<!\\\\)\\b${dummyVar}\\b`, 'g'), 'X');
+              }
+              s = `${s.slice(0, intMatch.index)}integ(${integrand},${low.content.trim()},${high.content.trim()})${s.slice(afterDx)}`;
               changed = true;
               continue;
             }
@@ -275,6 +280,8 @@ function replaceLatexConstructs(input: string): string {
         if (s[j] === '^') {
           const high = readSubOrSupBound(s, j + 1);
           if (high) {
+            const varMatch = lowRaw.content.trim().match(/^([a-zA-Z])\s*=\s*/);
+            const dummyVar = varMatch ? varMatch[1] : null;
             const lowClean = lowRaw.content.replace(/^[a-zA-Z]\s*=\s*/, '').trim();
             let k = high.nextIdx;
             while (k < s.length && /\s/.test(s[k])) k++;
@@ -306,6 +313,9 @@ function replaceLatexConstructs(input: string): string {
               restIdx = idx;
             }
             if (body) {
+              if (dummyVar && dummyVar.toUpperCase() !== 'X') {
+                body = body.replace(new RegExp(`(?<!\\\\)\\b${dummyVar}\\b`, 'g'), 'X');
+              }
               s = `${s.slice(0, sumProdMatch.index)}${fnName}(${body},${lowClean},${high.content.trim()})${s.slice(restIdx)}`;
               changed = true;
               continue;
@@ -328,6 +338,24 @@ function replaceLatexConstructs(input: string): string {
           const nPart = /^[0-9a-zA-Z]+$/.test(g1.content.trim()) ? g1.content.trim() : `(${g1.content.trim()})`;
           const rPart = /^[0-9a-zA-Z]+$/.test(g2.content.trim()) ? g2.content.trim() : `(${g2.content.trim()})`;
           s = `${s.slice(0, binomMatch.index)}${nPart}nCr${rPart}${s.slice(g2.nextIdx)}`;
+          changed = true;
+          continue;
+        }
+      }
+    }
+
+    // Mixed fraction: 2\frac{3}{4} or 12 \frac{1}{2} -> mfrac(2,3,4)
+    const mfracMatch = s.match(/(?<![0-9a-zA-Z.\\])(\d+)\s*\\[dt]?frac\s*\{/);
+    if (mfracMatch && mfracMatch.index !== undefined) {
+      const whole = mfracMatch[1];
+      const brace1Idx = s.indexOf('{', mfracMatch.index + whole.length);
+      const g1 = extractBraceGroup(s, brace1Idx);
+      if (g1) {
+        let j = g1.nextIdx;
+        while (j < s.length && /\s/.test(s[j])) j++;
+        const g2 = extractBraceGroup(s, j);
+        if (g2) {
+          s = `${s.slice(0, mfracMatch.index)}mfrac(${whole},${g1.content},${g2.content})${s.slice(g2.nextIdx)}`;
           changed = true;
           continue;
         }
