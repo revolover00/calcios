@@ -41,6 +41,7 @@ export interface EvaluationContext {
   ans: StoredScalar;
   preAns?: StoredScalar;
   random?: number;
+  rng?: () => number;
   numberFormat?: NumberFormatSetting;
   statContext?: { subMode: StatSubMode; summary: StatSummary };
 }
@@ -396,14 +397,28 @@ class Parser {
         if (45 < minBindingPower) break;
         this.take();
         const parts: Scalar[] = [left];
-        while (
-          parts.length < 3 &&
-          this.peek().type === 'number' &&
-          this.tokens[this.pos + 1]?.type === 'dms'
-        ) {
-          const partNum = scalarFromLiteral(this.take().text);
-          this.take();
-          parts.push(partNum);
+        while (parts.length < 3 && this.tokens[this.pos + 1]?.type === 'dms') {
+          const curTok = this.peek();
+          if (curTok.type === 'number') {
+            const partNum = scalarFromLiteral(this.take().text);
+            this.take();
+            parts.push(partNum);
+          } else if (
+            curTok.type === 'identifier' &&
+            (VARIABLE_SET.has(curTok.text) || curTok.text === 'Ans' || curTok.text === 'PreAns')
+          ) {
+            this.take();
+            this.take();
+            const partVal =
+              curTok.text === 'Ans'
+                ? deserialize(this.context.ans)
+                : curTok.text === 'PreAns'
+                  ? deserialize(this.context.preAns ?? this.context.ans)
+                  : deserialize(this.context.variables[curTok.text as VariableName]);
+            parts.push(partVal);
+          } else {
+            break;
+          }
         }
         left = dmsToScalar(parts);
         continue;
@@ -557,6 +572,7 @@ class Parser {
         this.expect('close');
         return applyFunction(token.text, args, this.context.angle, {
           random: this.context.random,
+          rng: this.context.rng,
           numberFormat: this.context.numberFormat,
         });
       }
@@ -567,7 +583,7 @@ class Parser {
       }
 
       if (token.text === 'Ran#') {
-        const sample = this.context.random ?? Math.random();
+        const sample = this.context.rng ? this.context.rng() : (this.context.random ?? Math.random());
         const safe = Math.max(0, Math.min(0.999, Math.floor(sample * 1000) / 1000));
         return scalarFromLiteral(safe.toFixed(3));
       }
@@ -615,6 +631,13 @@ export function evaluateRichExpression(source: string, context: EvaluationContex
 }
 
 export function parseAssignmentStatement(source: string): { target: VariableName; rhs: string } | null {
+  const stoMatch = source.match(/^([\s\S]+?)\s*→\s*([A-FXYM])\s*$/);
+  if (stoMatch && !stoMatch[1].includes('→') && !stoMatch[1].includes('=')) {
+    const rhs = stoMatch[1].trim();
+    if (rhs.length > 0) {
+      return { target: stoMatch[2] as VariableName, rhs };
+    }
+  }
   const eqIndex = source.indexOf('=');
   if (eqIndex === -1) return null;
   if (source.indexOf('=', eqIndex + 1) !== -1) return null;
@@ -635,6 +658,9 @@ export function extractVariables(source: string): VariableName[] {
     const stmt = rawStmt.trim();
     if (!stmt) continue;
     const assign = parseAssignmentStatement(stmt);
+    if (!assign && statements.length > 1 && stmt.includes('=')) {
+      syntax('Equation = is not allowed inside multi-statement CALC');
+    }
     const exprToScan = assign
       ? assign.rhs
       : stmt.includes('=')

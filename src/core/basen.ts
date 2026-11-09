@@ -1,10 +1,12 @@
 import { mathError, syntax } from './errors';
 import { completeParentheses } from './expression';
+import { VARIABLES, deserialize, type Scalar, type StoredScalar, type VariableName } from './value';
 
 export type BaseMode = 'DEC' | 'HEX' | 'BIN' | 'OCT';
 
 type BaseToken =
   | { type: 'literal'; text: string; raw: bigint; litBase: BaseMode; offset: number }
+  | { type: 'var'; name: VariableName; offset: number }
   | { type: 'ans'; offset: number }
   | { type: 'unary'; op: 'Not' | 'Neg'; offset: number }
   | { type: 'binary'; op: '+' | '-' | '×' | '÷' | 'and' | 'or' | 'xor' | 'xnor'; offset: number }
@@ -14,9 +16,18 @@ type BaseToken =
 
 const INT32_MIN = -2147483648n;
 const INT32_MAX = 2147483647n;
+const BASE_VAR_SET = new Set<string>(VARIABLES);
 
 export function toInt32(n: bigint): bigint {
   return BigInt.asIntN(32, n);
+}
+
+export function scalarToBaseNInt32(s: Scalar): bigint {
+  const trunc = s.decimal.trunc();
+  if (!trunc.isFinite() || trunc.lt(INT32_MIN.toString()) || trunc.gt(INT32_MAX.toString())) {
+    mathError('Variable out of 32-bit BASE-N range');
+  }
+  return BigInt(trunc.toFixed(0));
 }
 
 function parseRawBaseLiteral(text: string, base: BaseMode, offset = 0): bigint {
@@ -89,7 +100,7 @@ function tokenizeBaseN(source: string, base: BaseMode): BaseToken[] {
     if (rest.startsWith('Neg(')) { tokens.push({ type: 'unary', op: 'Neg', offset: i }); tokens.push({ type: 'open', offset: i + 3 }); i += 4; continue; }
 
     // Explicit base prefixes (SHIFT+3 Page 2: d, h, b, o)
-    const prefMatch = rest.match(/^([dhbo])((?:(?!xnor|xor|and|or|Ans|Not\(|Neg\()[0-9A-Za-z])*)/);
+    const prefMatch = rest.match(/^([dhbo])((?:(?!xnor|xor|and|or|Ans|Not\(|Neg\(|[XYM])[0-9A-Za-z])*)/);
     if (prefMatch) {
       const p = prefMatch[1];
       const body = prefMatch[2].toUpperCase();
@@ -115,6 +126,12 @@ function tokenizeBaseN(source: string, base: BaseMode): BaseToken[] {
       continue;
     }
 
+    if (BASE_VAR_SET.has(ch) && (base !== 'HEX' || ch === 'X' || ch === 'Y' || ch === 'M')) {
+      tokens.push({ type: 'var', name: ch as VariableName, offset: i });
+      i++;
+      continue;
+    }
+
     if (ch === '+' || ch === '-' || ch === '−' || ch === '×' || ch === '*' || ch === '÷' || ch === '/') {
       const norm = ch === '−' ? '-' : ch === '*' ? '×' : ch === '/' ? '÷' : ch;
       tokens.push({ type: 'binary', op: norm, offset: i });
@@ -129,7 +146,12 @@ function tokenizeBaseN(source: string, base: BaseMode): BaseToken[] {
   return tokens;
 }
 
-export function evaluateBaseN(source: string, base: BaseMode, ans: bigint): bigint {
+export function evaluateBaseN(
+  source: string,
+  base: BaseMode,
+  ans: bigint,
+  variables?: Record<VariableName, StoredScalar>,
+): bigint {
   const tokens = tokenizeBaseN(completeParentheses(source), base);
   let pos = 0;
   const peek = () => tokens[pos];
@@ -159,6 +181,7 @@ export function evaluateBaseN(source: string, base: BaseMode, ans: bigint): bigi
       } else if (
         next.type === 'open' ||
         next.type === 'ans' ||
+        next.type === 'var' ||
         next.type === 'unary' ||
         next.type === 'literal'
       ) {
@@ -246,6 +269,10 @@ export function evaluateBaseN(source: string, base: BaseMode, ans: bigint): bigi
     }
     if (tok.type === 'literal') {
       return materializeLiteral(tok.raw, tok.litBase);
+    }
+    if (tok.type === 'var') {
+      if (!variables) return 0n;
+      return scalarToBaseNInt32(deserialize(variables[tok.name]));
     }
     if (tok.type === 'ans') return toInt32(ans);
     return syntax('Expected value in BASE-N', tok.offset);

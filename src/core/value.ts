@@ -71,6 +71,9 @@ export function makeScalar(
 ): Scalar {
   const number = new D(value);
   if (!number.isFinite() || number.abs().gte(LIMIT)) mathError('Result outside the supported range');
+  if (!number.isZero() && number.abs().lt('1e-99')) {
+    return { decimal: new D(0), exact: { n: ZERO, d: ONE }, preferDecimal };
+  }
   return { decimal: number, exact, symbolic: exact ? undefined : symbolic, preferDecimal };
 }
 
@@ -406,23 +409,26 @@ export function factorial(a: Scalar): Scalar {
 }
 
 export function combinatoric(a: Scalar, b: Scalar, permutation: boolean): Scalar {
-  if (!a.decimal.isInteger() || !b.decimal.isInteger() || a.decimal.isNegative() || b.decimal.isNegative() || b.decimal.gt(a.decimal) || a.decimal.gt('1e10')) mathError('Invalid combination');
+  if (!a.decimal.isInteger() || !b.decimal.isInteger() || a.decimal.isNegative() || b.decimal.isNegative() || b.decimal.gt(a.decimal) || a.decimal.gte('1e10')) mathError('Invalid combination');
   const n = BigInt(a.decimal.toFixed(0));
   let k = BigInt(b.decimal.toFixed(0));
   if (!permutation && k > n - k) k = n - k;
-  if (k > 1000n) mathError('Combination is too large');
+  const maxResult = 10n ** 100n;
   let result = ONE;
   for (let i = ONE; i <= k; i++) {
     result *= n - i + ONE;
     if (!permutation) result /= i;
-    if (result.toString().length > 101) mathError('Result outside the supported range');
+    if (result >= maxResult) mathError('Result outside the supported range');
   }
   return makeScalar(result.toString(), rational(result));
 }
 
 export function mixedFraction(whole: Scalar, num: Scalar, den: Scalar): Scalar {
   if (den.decimal.isZero()) mathError('Division by zero');
-  if (num.decimal.isNegative() || den.decimal.isNegative()) mathError('Invalid mixed fraction');
+  if (!whole.decimal.isInteger() || !num.decimal.isInteger() || !den.decimal.isInteger()) {
+    mathError('Mixed fraction parts must be integers');
+  }
+  if (num.decimal.isNegative() || den.decimal.lte(0)) mathError('Invalid mixed fraction');
   const fracPart = divide(num, den);
   if (whole.decimal.isNegative()) {
     const absWhole = negate(whole);
@@ -512,8 +518,19 @@ export function convertAngleToActive(value: Scalar, sourceUnit: AngleUnit, activ
 }
 
 export function polarFromRect(x: Scalar, y: Scalar, angle: AngleUnit): { r: Scalar; theta: Scalar } {
-  const sumSq = add(multiply(x, x), multiply(y, y));
-  const r = applyFunction('sqrt', [sumSq], angle);
+  const maxAbs = D.max(x.decimal.abs(), y.decimal.abs());
+  let r: Scalar;
+  if (maxAbs.isZero()) {
+    r = scalarFromInteger(0);
+  } else if (maxAbs.gte('1e45')) {
+    const scaledHypot = maxAbs.times(
+      x.decimal.div(maxAbs).pow(2).plus(y.decimal.div(maxAbs).pow(2)).sqrt(),
+    );
+    r = makeScalar(scaledHypot, undefined, true);
+  } else {
+    const sumSq = add(multiply(x, x), multiply(y, y));
+    r = applyFunction('sqrt', [sumSq], angle);
+  }
   const rawTheta = x.decimal.isZero() && y.decimal.isZero()
     ? new D(0)
     : fromRadians(D.atan2(y.decimal, x.decimal), angle);
@@ -546,13 +563,18 @@ export function randomInteger(a: Scalar, b: Scalar, random = Math.random()): Sca
 export function roundScalar(a: Scalar, setting: NumberFormatSetting = DEFAULT_NUMBER_FORMAT): Scalar {
   const d = a.decimal;
   if (d.isZero()) return scalarFromInteger(0);
-  if (setting.mode === 'Fix') {
+  if (setting.mode === 'Fix' && d.abs().lt('1e10')) {
     const rounded = d.toDecimalPlaces(setting.digits);
-    return scalarFromLiteral(rounded.toFixed(setting.digits));
+    if (rounded.isZero()) return scalarFromInteger(0);
+    if (rounded.abs().lt('1e10')) {
+      return { ...scalarFromLiteral(rounded.toFixed(setting.digits)), preferDecimal: a.preferDecimal };
+    }
   }
   const sig = setting.mode === 'Sci' ? (setting.digits === 0 ? 10 : setting.digits) : 10;
   const rounded = d.toSignificantDigits(sig);
-  return makeScalar(rounded, undefined, true);
+  if (rounded.isZero()) return scalarFromInteger(0);
+  const lit = scalarFromLiteral(rounded.toExponential(Math.max(0, sig - 1)));
+  return { ...lit, preferDecimal: a.preferDecimal || !lit.exact };
 }
 
 export function applyUnitConversion(value: Scalar, token: string): Scalar {
@@ -671,7 +693,7 @@ export function applyFunction(
     case 'Rec': return rectFromPolar(a, args[1], angle).x;
     case 'RanInt':
     case 'RanInt#':
-      return randomInteger(a, args[1], options?.random ?? (options?.rng ? options.rng() : undefined));
+      return randomInteger(a, args[1], options?.rng ? options.rng() : options?.random);
     case 'Rnd': return roundScalar(a, options?.numberFormat);
     case 'abs': return x.isNegative() ? negate(a) : a;
     case 'sqrt': {
@@ -781,6 +803,9 @@ export function applyFunction(
         }
       }
       const rad = toRadians(x, angle);
+      if (name === 'tan' && rad.cos().abs().lt('1e-30')) {
+        mathError('Undefined tangent');
+      }
       const raw = name === 'sin' ? rad.sin() : name === 'cos' ? rad.cos() : rad.tan();
       if (exactDeg) {
         const trigSym = exactTrigDegrees(name, exactDeg.n, exactDeg.d);
