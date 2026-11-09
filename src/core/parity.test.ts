@@ -30,6 +30,14 @@ describe('real-Casio parity extensions', () => {
     }
   });
 
+  it('uses the selected angle unit for complex circular trigonometry', () => {
+    const out = evaluateComplex('sin(30+i)', {
+      angle: 'DEG', variables: vars, cmplxAns: { re: zeroStored(), im: zeroStored() },
+    }).value;
+    expect(out.re.decimal.toNumber()).toBeCloseTo(0.5 * Math.cosh(1), 12);
+    expect(out.im.decimal.toNumber()).toBeCloseTo(Math.sqrt(3) / 2 * Math.sinh(1), 12);
+  });
+
   it('stores and recalls full complex variables including imaginary values', () => {
     let state = createInitialState();
     state = calculatorReducer(state, { type: 'select-mode', mode: 'CMPLX' });

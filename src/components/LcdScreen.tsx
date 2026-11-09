@@ -48,7 +48,7 @@ const DIST_TITLES: Record<DistSubMode, string> = {
 
 function LcdStatusBar({ state }: { state: CalculatorState }): React.ReactElement {
   const mScalar = deserialize(state.variables.M);
-  const hasM = !mScalar.decimal.isZero() || (state.mode === 'CMPLX' && !deserialize(state.cmplx.varsIm.M).decimal.isZero());
+  const hasM = !mScalar.decimal.isZero() || !deserialize(state.cmplx.varsIm.M).decimal.isZero();
   const isMath = state.ioMode === 'Math';
   const isFix = state.numberFormat.mode === 'Fix';
   const isSci = state.numberFormat.mode === 'Sci';
