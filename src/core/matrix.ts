@@ -39,9 +39,14 @@ export function deserializeMatrix(m: StoredMatrix): MatrixValue {
   return { rows: m.rows, cols: m.cols, cells: m.cells.map((row) => row.map(deserialize)) };
 }
 
-function isTiny(s: Scalar): boolean {
+function matrixPivotTol(m: MatrixValue): InstanceType<typeof D> {
+  const maxEntry = m.cells.flat().reduce((mx, c) => D.max(mx, c.decimal.abs()), new D(0));
+  return maxEntry.isZero() ? new D(0) : maxEntry.times('1e-28');
+}
+
+function isBelowTol(s: Scalar, tol: InstanceType<typeof D>): boolean {
   if (s.exact) return s.exact.n === 0n;
-  return s.decimal.abs().lt('1e-26');
+  return s.decimal.abs().lte(tol);
 }
 
 export function addMatrix(a: MatrixValue, b: MatrixValue, sub = false): MatrixValue {
@@ -107,6 +112,8 @@ export function determinantMatrix(m: MatrixValue): Scalar {
 export function invertMatrix(m: MatrixValue): MatrixValue {
   if (m.rows !== m.cols) throw new CalculatorError('Argument ERROR', 'Inverse requires square matrix');
   const n = m.rows;
+  const tol = matrixPivotTol(m);
+  if (tol.isZero()) mathError('Singular matrix');
   const aug: Scalar[][] = m.cells.map((row, r) => [
     ...row,
     ...Array.from({ length: n }, (_, c) => scalarFromInteger(r === c ? 1 : 0)),
@@ -117,12 +124,12 @@ export function invertMatrix(m: MatrixValue): MatrixValue {
     for (let r = col + 1; r < n; r++) {
       if (aug[r][col].decimal.abs().gt(aug[best][col].decimal.abs())) best = r;
     }
-    if (isTiny(aug[best][col])) mathError('Singular matrix');
+    if (isBelowTol(aug[best][col], tol)) mathError('Singular matrix');
     [aug[col], aug[best]] = [aug[best], aug[col]];
     const piv = aug[col][col];
     for (let c = 0; c < 2 * n; c++) aug[col][c] = divide(aug[col][c], piv);
     for (let r = 0; r < n; r++) {
-      if (r === col || isTiny(aug[r][col])) continue;
+      if (r === col || isBelowTol(aug[r][col], tol)) continue;
       const fac = aug[r][col];
       for (let c = 0; c < 2 * n; c++) {
         aug[r][c] = subtract(aug[r][c], multiply(fac, aug[col][c]));
@@ -139,6 +146,8 @@ export function invertMatrix(m: MatrixValue): MatrixValue {
 
 /** Row Echelon Form (Ref) with leading 1s and partial pivoting. */
 export function refMatrix(m: MatrixValue): MatrixValue {
+  const tol = matrixPivotTol(m);
+  if (tol.isZero()) return { rows: m.rows, cols: m.cols, cells: m.cells.map((r) => [...r]) };
   const grid = m.cells.map((row) => [...row]);
   let leadRow = 0;
   for (let col = 0; col < m.cols && leadRow < m.rows; col++) {
@@ -146,12 +155,12 @@ export function refMatrix(m: MatrixValue): MatrixValue {
     for (let r = leadRow + 1; r < m.rows; r++) {
       if (grid[r][col].decimal.abs().gt(grid[best][col].decimal.abs())) best = r;
     }
-    if (isTiny(grid[best][col])) continue;
+    if (isBelowTol(grid[best][col], tol)) continue;
     if (best !== leadRow) [grid[leadRow], grid[best]] = [grid[best], grid[leadRow]];
     const piv = grid[leadRow][col];
     for (let c = col; c < m.cols; c++) grid[leadRow][c] = divide(grid[leadRow][c], piv);
     for (let r = leadRow + 1; r < m.rows; r++) {
-      if (isTiny(grid[r][col])) continue;
+      if (isBelowTol(grid[r][col], tol)) continue;
       const fac = grid[r][col];
       for (let c = col; c < m.cols; c++) {
         grid[r][c] = subtract(grid[r][c], multiply(fac, grid[leadRow][c]));
@@ -165,6 +174,8 @@ export function refMatrix(m: MatrixValue): MatrixValue {
 
 /** Reduced Row Echelon Form (Rref) via exact Gauss-Jordan elimination. */
 export function rrefMatrix(m: MatrixValue): MatrixValue {
+  const tol = matrixPivotTol(m);
+  if (tol.isZero()) return { rows: m.rows, cols: m.cols, cells: m.cells.map((r) => [...r]) };
   const grid = m.cells.map((row) => [...row]);
   let leadRow = 0;
   for (let col = 0; col < m.cols && leadRow < m.rows; col++) {
@@ -172,12 +183,12 @@ export function rrefMatrix(m: MatrixValue): MatrixValue {
     for (let r = leadRow + 1; r < m.rows; r++) {
       if (grid[r][col].decimal.abs().gt(grid[best][col].decimal.abs())) best = r;
     }
-    if (isTiny(grid[best][col])) continue;
+    if (isBelowTol(grid[best][col], tol)) continue;
     if (best !== leadRow) [grid[leadRow], grid[best]] = [grid[best], grid[leadRow]];
     const piv = grid[leadRow][col];
     for (let c = col; c < m.cols; c++) grid[leadRow][c] = divide(grid[leadRow][c], piv);
     for (let r = 0; r < m.rows; r++) {
-      if (r === leadRow || isTiny(grid[r][col])) continue;
+      if (r === leadRow || isBelowTol(grid[r][col], tol)) continue;
       const fac = grid[r][col];
       for (let c = col; c < m.cols; c++) {
         grid[r][c] = subtract(grid[r][c], multiply(fac, grid[leadRow][c]));

@@ -68,7 +68,7 @@ function parseStatCellDecimal(raw: string | undefined, fallback: string): Instan
   }
 }
 
-export function computeStatSummary(subMode: StatSubMode, rows: StatRow[]): StatSummary {
+export function computeStatSummary(subMode: StatSubMode, rows: StatRow[], useFreq = true): StatSummary {
   if (rows.length === 0) mathError('No statistical data');
   const is1Var = subMode === '1-VAR';
 
@@ -94,7 +94,7 @@ export function computeStatSummary(subMode: StatSubMode, rows: StatRow[]): StatS
   for (const row of rows) {
     const x = parseStatCellDecimal(row.x, '0');
     const y = parseStatCellDecimal(row.y, '0');
-    const f = parseStatCellDecimal(row.freq, '1');
+    const f = useFreq ? parseStatCellDecimal(row.freq, '1') : new D(1);
     if (f.lt(0) || !f.isInteger() || f.gte('1e15')) mathError('Invalid frequency');
     if (f.isZero()) continue;
 
