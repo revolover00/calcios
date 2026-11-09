@@ -3333,6 +3333,73 @@ export function calculatorReducer(state: CalculatorState, action: CalculatorActi
   }
 }
 
+const MAX_PERSISTED_HISTORY = 50;
+
+const VALID_ACTIVE_MODES: ReadonlySet<ActiveMode> = new Set([
+  'COMP', 'CMPLX', 'STAT', 'BASE-N', 'EQN', 'MATRIX', 'TABLE', 'VECTOR', 'INEQ', 'VERIF', 'DIST',
+]);
+
+const VALID_SCREEN_VIEWS: ReadonlySet<ScreenView> = new Set([
+  'normal', 'mode', 'setup', 'setup-matho', 'setup-fix', 'setup-sci', 'setup-norm',
+  'setup-cmplx', 'setup-disp', 'setup-table', 'setup-stat-freq', 'setup-recur', 'setup-contrast',
+  'drg', 'const-picker', 'conv-picker', 'cmplx-menu', 'basen-menu', 'stat-type-menu', 'stat-menu',
+  'stat-sub-sum', 'stat-sub-var', 'stat-sub-reg', 'stat-sub-distr', 'stat-sub-minmax',
+  'matrix-target-menu', 'matrix-dim-menu', 'matrix-menu', 'vector-target-menu', 'vector-dim-menu',
+  'vector-menu', 'ineq-deg-menu', 'ineq-rel-menu', 'verif-menu', 'dist-menu', 'clear',
+  'clear-confirm', 'eqn-menu', 'off',
+]);
+
+export interface PersistentEqnState {
+  type: EqnType;
+  coeffs: StoredScalar[];
+  cursorIndex: number;
+  input: string;
+  editingCell: boolean;
+  solved: boolean;
+  solutionIndex: number;
+  partView?: 'both' | 're' | 'im';
+}
+
+export interface PersistentCalculatorSession {
+  mode: ActiveMode;
+  screen: ScreenView;
+  menuPage: 0 | 1;
+  codeDigits: string;
+  pickerIndex: number;
+  clearTarget: 'setup' | 'memory' | 'all' | null;
+  insertMode: boolean;
+  hyp: boolean;
+  expression: string;
+  cursor: number;
+  phase: Phase;
+  result: StoredScalar | null;
+  pairResult: DisplayValue | null;
+  verifResult: boolean | null;
+  resultFormat: ResultFormat;
+  fractionStyle: FractionStyle;
+  displayOverride: DisplayOverride;
+  engExponent: number | null;
+  factoredText: string | null;
+  error: CalculatorError['kind'] | null;
+  errorCursor: number | null;
+  ans: StoredScalar;
+  preAns: StoredScalar;
+  history: HistoryEntry[];
+  historyIndex: number | null;
+  statementRun: { statements: string[]; index: number } | null;
+  calcPrompt: CalcPromptState | null;
+  solvePrompt: SolvePromptState | null;
+  eqn: PersistentEqnState | null;
+  ineq: IneqState | null;
+  table: TableModeState | null;
+  baseN: BaseNState;
+  cmplx: CmplxModeState;
+  stat: StatModeState;
+  matrix: MatrixModeState;
+  vector: VectorModeState;
+  dist: DistModeState | null;
+}
+
 export interface PersistentCalculator {
   version: 1;
   angle: AngleUnit;
@@ -3347,9 +3414,17 @@ export interface PersistentCalculator {
   tableUseG?: boolean;
   statUseFreq?: boolean;
   variables: Record<VariableName, StoredScalar>;
+  session?: PersistentCalculatorSession;
 }
 
 export function saveableState(state: CalculatorState): PersistentCalculator {
+  const droppedHistory = Math.max(0, state.history.length - MAX_PERSISTED_HISTORY);
+  const history = droppedHistory > 0 ? state.history.slice(-MAX_PERSISTED_HISTORY) : state.history;
+  const historyIndex =
+    state.historyIndex === null
+      ? null
+      : Math.max(0, Math.min(history.length - 1, state.historyIndex - droppedHistory));
+
   return {
     version: 1,
     angle: state.angle,
@@ -3364,6 +3439,56 @@ export function saveableState(state: CalculatorState): PersistentCalculator {
     tableUseG: state.tableUseG,
     statUseFreq: state.stat.useFreq,
     variables: state.variables,
+    session: {
+      mode: state.mode,
+      screen: state.screen === 'off' ? 'normal' : state.screen,
+      menuPage: state.menuPage,
+      codeDigits: state.codeDigits,
+      pickerIndex: state.pickerIndex,
+      clearTarget: state.clearTarget,
+      insertMode: state.insertMode,
+      hyp: state.hyp,
+      expression: state.expression,
+      cursor: state.cursor,
+      phase: state.phase,
+      result: state.result,
+      pairResult: state.pairResult,
+      verifResult: state.verifResult,
+      resultFormat: state.resultFormat,
+      fractionStyle: state.fractionStyle,
+      displayOverride: state.displayOverride,
+      engExponent: state.engExponent,
+      factoredText: state.factoredText,
+      error: state.error,
+      errorCursor: state.errorCursor,
+      ans: state.ans,
+      preAns: state.preAns,
+      history,
+      historyIndex: history.length > 0 ? historyIndex : null,
+      statementRun: state.statementRun,
+      calcPrompt: state.calcPrompt,
+      solvePrompt: state.solvePrompt,
+      eqn: state.eqn
+        ? {
+            type: state.eqn.type,
+            coeffs: state.eqn.coeffs,
+            cursorIndex: state.eqn.cursorIndex,
+            input: state.eqn.input,
+            editingCell: state.eqn.editingCell,
+            solved: state.eqn.outcome !== null,
+            solutionIndex: state.eqn.solutionIndex,
+            partView: state.eqn.partView,
+          }
+        : null,
+      ineq: state.ineq,
+      table: state.table,
+      baseN: state.baseN,
+      cmplx: state.cmplx,
+      stat: state.stat,
+      matrix: state.matrix,
+      vector: state.vector,
+      dist: state.dist,
+    },
   };
 }
 
@@ -3382,6 +3507,240 @@ function sanitizeNumberFormat(raw: unknown): NumberFormatSetting {
   return DEFAULT_NUMBER_FORMAT;
 }
 
+function sanitizeStoredScalar(raw: unknown, fallback: StoredScalar): StoredScalar {
+  if (!raw || typeof raw !== 'object') return fallback;
+  try {
+    deserialize(raw as StoredScalar);
+    return raw as StoredScalar;
+  } catch {
+    return fallback;
+  }
+}
+
+function sanitizeNullableScalar(raw: unknown): StoredScalar | null {
+  if (raw === null || raw === undefined) return null;
+  if (typeof raw !== 'object') return null;
+  try {
+    deserialize(raw as StoredScalar);
+    return raw as StoredScalar;
+  } catch {
+    return null;
+  }
+}
+
+function hydrateSession(
+  base: CalculatorState,
+  rawSession: Partial<PersistentCalculatorSession> | undefined,
+): CalculatorState {
+  if (!rawSession || typeof rawSession !== 'object') return base;
+  try {
+    const mode = VALID_ACTIVE_MODES.has(rawSession.mode as ActiveMode)
+      ? (rawSession.mode as ActiveMode)
+      : base.mode;
+    const rawScreen = VALID_SCREEN_VIEWS.has(rawSession.screen as ScreenView)
+      ? (rawSession.screen as ScreenView)
+      : 'normal';
+    // Never restore powered-off state on reload so a resumed background tab never looks dead
+    const screen: ScreenView = rawScreen === 'off' ? 'normal' : rawScreen;
+    const expression = typeof rawSession.expression === 'string' ? rawSession.expression : '';
+    const cursor = typeof rawSession.cursor === 'number' && Number.isInteger(rawSession.cursor)
+      ? Math.max(0, Math.min(expression.length, rawSession.cursor))
+      : expression.length;
+    const phase: Phase =
+      rawSession.phase === 'result' || rawSession.phase === 'error' ? rawSession.phase : 'editing';
+
+    const history: HistoryEntry[] = Array.isArray(rawSession.history)
+      ? rawSession.history
+          .slice(-MAX_PERSISTED_HISTORY)
+          .filter(
+            (entry): entry is HistoryEntry =>
+              Boolean(entry) &&
+              typeof entry.expression === 'string' &&
+              sanitizeNullableScalar(entry.result) !== null,
+          )
+      : [];
+
+    const historyIndex =
+      typeof rawSession.historyIndex === 'number' &&
+      Number.isInteger(rawSession.historyIndex) &&
+      rawSession.historyIndex >= 0 &&
+      rawSession.historyIndex < history.length
+        ? rawSession.historyIndex
+        : null;
+
+    let cmplx = base.cmplx;
+    if (rawSession.cmplx && typeof rawSession.cmplx === 'object') {
+      try {
+        deserializeComplex(rawSession.cmplx.ans);
+        deserializeComplex(rawSession.cmplx.preAns);
+        if (rawSession.cmplx.result !== null) deserializeComplex(rawSession.cmplx.result);
+        cmplx = {
+          ans: rawSession.cmplx.ans,
+          preAns: rawSession.cmplx.preAns,
+          result: rawSession.cmplx.result,
+          format: rawSession.cmplx.format === 'polar' ? 'polar' : 'rect',
+          partView:
+            rawSession.cmplx.partView === 'first' || rawSession.cmplx.partView === 'second'
+              ? rawSession.cmplx.partView
+              : 'both',
+        };
+      } catch {
+        cmplx = base.cmplx;
+      }
+    }
+
+    let stat = base.stat;
+    if (rawSession.stat && typeof rawSession.stat === 'object' && Array.isArray(rawSession.stat.rows)) {
+      stat = {
+        ...base.stat,
+        ...rawSession.stat,
+        useFreq: base.stat.useFreq,
+        rows: rawSession.stat.rows.filter(
+          (r): r is StatRow => Boolean(r) && typeof r.x === 'string',
+        ),
+      };
+    }
+
+    let matrix = base.matrix;
+    if (rawSession.matrix && typeof rawSession.matrix === 'object' && rawSession.matrix.matrices) {
+      let validMatrices = true;
+      for (const mName of ['MatA', 'MatB', 'MatC', 'MatAns'] as MatrixName[]) {
+        const m = rawSession.matrix.matrices[mName];
+        if (m !== null && m !== undefined) {
+          if (!Array.isArray(m.cells)) {
+            validMatrices = false;
+          } else {
+            for (const row of m.cells) {
+              if (!Array.isArray(row)) {
+                validMatrices = false;
+                break;
+              }
+              for (const cell of row) deserialize(cell);
+            }
+          }
+        }
+      }
+      if (validMatrices) {
+        matrix = { ...base.matrix, ...rawSession.matrix };
+      }
+    }
+
+    let vector = base.vector;
+    if (rawSession.vector && typeof rawSession.vector === 'object' && rawSession.vector.vectors) {
+      let validVectors = true;
+      for (const vName of ['VctA', 'VctB', 'VctC', 'VctAns'] as VectorName[]) {
+        const v = rawSession.vector.vectors[vName];
+        if (v !== null && v !== undefined) {
+          if (!Array.isArray(v.coords)) {
+            validVectors = false;
+          } else {
+            for (const coord of v.coords) deserialize(coord);
+          }
+        }
+      }
+      if (validVectors) {
+        vector = { ...base.vector, ...rawSession.vector };
+      }
+    }
+
+    let eqn: EqnState | null = null;
+    if (rawSession.eqn && Array.isArray(rawSession.eqn.coeffs)) {
+      const scalars = rawSession.eqn.coeffs.map(deserialize);
+      const outcome = rawSession.eqn.solved ? solveEqn(rawSession.eqn.type, scalars) : null;
+      eqn = {
+        type: rawSession.eqn.type,
+        coeffs: rawSession.eqn.coeffs,
+        cursorIndex: typeof rawSession.eqn.cursorIndex === 'number' ? rawSession.eqn.cursorIndex : 0,
+        input: typeof rawSession.eqn.input === 'string' ? rawSession.eqn.input : '',
+        editingCell: rawSession.eqn.editingCell === true,
+        outcome,
+        solutionIndex: typeof rawSession.eqn.solutionIndex === 'number' ? rawSession.eqn.solutionIndex : 0,
+        partView: rawSession.eqn.partView,
+      };
+    }
+
+    let ineq = rawSession.ineq ?? null;
+    if (ineq && Array.isArray(ineq.coeffs)) {
+      for (const c of ineq.coeffs) deserialize(c);
+    } else {
+      ineq = null;
+    }
+
+    let dist = rawSession.dist ?? null;
+    if (dist && typeof dist === 'object') {
+      dist = { ...dist, result: sanitizeNullableScalar(dist.result) };
+    } else {
+      dist = null;
+    }
+
+    return {
+      ...base,
+      mode,
+      screen,
+      menuPage: rawSession.menuPage === 1 ? 1 : 0,
+      codeDigits: typeof rawSession.codeDigits === 'string' ? rawSession.codeDigits : '',
+      pickerIndex:
+        typeof rawSession.pickerIndex === 'number' && Number.isInteger(rawSession.pickerIndex) && rawSession.pickerIndex >= 0
+          ? rawSession.pickerIndex
+          : 0,
+      clearTarget:
+        rawSession.clearTarget === 'setup' || rawSession.clearTarget === 'memory' || rawSession.clearTarget === 'all'
+          ? rawSession.clearTarget
+          : null,
+      insertMode: rawSession.insertMode === true,
+      hyp: rawSession.hyp === true,
+      expression,
+      cursor,
+      phase,
+      result: sanitizeNullableScalar(rawSession.result),
+      pairResult: rawSession.pairResult ?? null,
+      verifResult: typeof rawSession.verifResult === 'boolean' ? rawSession.verifResult : null,
+      resultFormat: rawSession.resultFormat === 'decimal' ? 'decimal' : 'exact',
+      fractionStyle: rawSession.fractionStyle === 'mixed' ? 'mixed' : base.defaultFractionStyle,
+      displayOverride: rawSession.displayOverride ?? base.displayOverride,
+      engExponent: typeof rawSession.engExponent === 'number' && Number.isFinite(rawSession.engExponent)
+        ? rawSession.engExponent
+        : null,
+      factoredText: typeof rawSession.factoredText === 'string' ? rawSession.factoredText : null,
+      error: rawSession.error ?? null,
+      errorCursor: typeof rawSession.errorCursor === 'number' ? rawSession.errorCursor : null,
+      ans: sanitizeStoredScalar(rawSession.ans, base.ans),
+      preAns: sanitizeStoredScalar(rawSession.preAns, base.preAns),
+      history,
+      historyIndex,
+      statementRun: rawSession.statementRun ?? null,
+      calcPrompt: rawSession.calcPrompt ?? null,
+      solvePrompt: rawSession.solvePrompt
+        ? {
+            ...rawSession.solvePrompt,
+            root: sanitizeNullableScalar(rawSession.solvePrompt.root) ?? undefined,
+            residual: sanitizeNullableScalar(rawSession.solvePrompt.residual) ?? undefined,
+          }
+        : null,
+      eqn,
+      ineq,
+      table: rawSession.table && typeof rawSession.table === 'object' ? rawSession.table : null,
+      baseN:
+        rawSession.baseN && typeof rawSession.baseN === 'object'
+          ? {
+              base: ['DEC', 'HEX', 'BIN', 'OCT'].includes(rawSession.baseN.base)
+                ? rawSession.baseN.base
+                : 'DEC',
+              ans: typeof rawSession.baseN.ans === 'string' ? rawSession.baseN.ans : '0',
+              result: typeof rawSession.baseN.result === 'string' ? rawSession.baseN.result : null,
+            }
+          : base.baseN,
+      cmplx,
+      stat,
+      matrix,
+      vector,
+      dist,
+    };
+  } catch {
+    return base;
+  }
+}
+
 export function hydrateState(raw: string | null): CalculatorState {
   const state = createInitialState();
   if (!raw) return state;
@@ -3389,24 +3748,28 @@ export function hydrateState(raw: string | null): CalculatorState {
     const data = JSON.parse(raw) as Partial<PersistentCalculator>;
     if (data.version !== 1 || !data.variables || !['DEG', 'RAD', 'GRA'].includes(data.angle ?? '')) return state;
     for (const name of VARIABLES) deserialize(data.variables[name]);
-    return {
+    const defaultCmplxFormat: ComplexFormat = data.defaultCmplxFormat === 'polar' ? 'polar' : 'rect';
+    const defaultFractionStyle: FractionStyle = data.defaultFractionStyle === 'mixed' ? 'mixed' : 'improper';
+    const baseHydrated: CalculatorState = {
       ...state,
       angle: data.angle as AngleUnit,
       ioMode: data.ioMode === 'Line' ? 'Line' : 'Math',
       mathOutputMode: data.mathOutputMode === 'LineO' ? 'LineO' : 'MathO',
       decimalMark: data.decimalMark === 'Comma' ? 'Comma' : 'Dot',
-      defaultCmplxFormat: data.defaultCmplxFormat === 'polar' ? 'polar' : 'rect',
+      defaultCmplxFormat,
+      cmplx: { ...state.cmplx, format: defaultCmplxFormat },
       recurEnabled: data.recurEnabled !== false,
       contrast: typeof data.contrast === 'number' && Number.isFinite(data.contrast)
         ? Math.max(1, Math.min(10, Math.round(data.contrast)))
         : 5,
       numberFormat: sanitizeNumberFormat(data.numberFormat),
-      defaultFractionStyle: data.defaultFractionStyle === 'mixed' ? 'mixed' : 'improper',
-      fractionStyle: data.defaultFractionStyle === 'mixed' ? 'mixed' : 'improper',
+      defaultFractionStyle,
+      fractionStyle: defaultFractionStyle,
       tableUseG: data.tableUseG !== false,
       stat: { ...state.stat, useFreq: data.statUseFreq === true },
       variables: data.variables,
     };
+    return hydrateSession(baseHydrated, data.session);
   } catch {
     return state;
   }
