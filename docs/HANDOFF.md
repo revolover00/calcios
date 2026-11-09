@@ -1,15 +1,21 @@
 # Calcios — Engineering Handoff
 
-## 1. Architecture Overview
+## Architecture
 
-- **Pure State Machine (`src/core/calculator.ts`)**: Deterministic reducer managing all 11 calculator modes (`COMP`, `CMPLX`, `STAT`, `BASE-N`, `EQN`, `MATRIX`, `TABLE`, `VECTOR`, `INEQ`, `VERIF`, `DIST`), setup flags (`MathIO`/`LineIO`, `Deg`/`Rad`/`Gra`, `Norm`/`Fix`/`Sci`, `a b/c`/`d/c`, `CMPLX` rectangular/polar), replay history, and variable registers (`A`–`F`, `X`, `Y`, `M`, `Ans`, `PreAns`).
-- **2D Natural Math Tree (`src/core/exprTree.ts` + `src/components/NaturalMath.tsx`)**: Hierarchical token-list editor supporting stacked fractions, mixed fractions, arbitrary roots, superscripts, base-$a$ logarithms, definite integrals, derivatives, summations, and products with deterministic 4-way cursor traversal.
-- **Symbolic & Numerical Engine (`src/core/bigintFrac.ts`, `symbolic.ts`, `parser.ts`, `solvers.ts`)**: Exact `BigInt` rational reduction, multi-radical canonical forms, nested square-root denesting, exact $\pi$-angle trigonometry, Cardano/quadratic root solvers, adaptive Gauss–Legendre quadrature, and Newton–Raphson `SOLVE`.
-- **Dot-Matrix Display & Unified 3D Hardware (`scripts/build-calcios-fonts.mjs`, `src/components/CalculatorHardware.tsx`, `src/styles/calculator.css`)**:
-  - Custom `CalciosLCDLarge` (`5×9`) and `CalciosLCDSmall` (`5×6`) TrueType pixel fonts rendered onto `#cfe3e6` FSTN glass with `#020405` pixel ink.
-  - Unified physical handheld shell (`356 × 708` logical px) across **Onyx Black**, **Dusty Rose Pink**, and **Ice Steel Blue**, scaled cleanly via `--calc-scale` so the calculator always retains its authentic handheld proportions on desktop and mobile screens.
+- **Calculator state machine (`src/core/calculator.ts`)** — immutable reducer for the 12 available modes, setup and clear menus, editing prompts, result navigation, and save/hydrate persistence. The main keypad and display layouts remain in the established hardware design.
+- **Expression engine (`src/core/expression.ts`, `src/core/value.ts`)** — tokenizer and Pratt parser backed by Decimal.js precision plus exact rational/symbolic values. It handles assignments, `CALC`/`SOLVE`, angle conversion, unit conversions, statistics, and numeric functions.
+- **Complex math (`src/core/cmplx.ts`)** — rectangular/polar values, branch-aware arithmetic, trigonometric and hyperbolic functions, complex variable memory `A`–`F`, `M`, `X`, and `Y`, and complex `STO`/`RCL` and memory accumulation.
+- **Math-mode engines** — `calculus.ts`, `eqn.ts`, `ineq.ts`, `ratio.ts`, `stat.ts`, `dist.ts`, `matrix.ts`, `vector.ts`, and `table.ts` implement mode-specific solvers and data structures.
+- **LCD and hardware (`src/components/LcdScreen.tsx`, `NaturalMath.tsx`, `CalculatorHardware.tsx`, `src/styles/calculator.css`)** — custom dot-matrix fonts, 2D math renderer, menus/editors/prompts, physical key layout, and existing color themes.
+- **Scanner (`src/core/visionScan.ts`) and PWA** — image math scanning with optional configured API, install/offline support, and session persistence.
 
-## 2. Verification Commands
+## Current Operating Modes
+
+`COMP`, `CMPLX`, `STAT`, `BASE-N`, `EQN`, `MATRIX`, `TABLE`, `VECTOR`, `INEQ`, `VERIF`, `DIST`, and `RATIO`.
+
+Recent parity workflows include multi-variable and selectable-target SOLVE, optional tolerances in derivatives and definite integrals, complex variable memory, RATIO proportions, and cubic EQN local extrema. Complex circular and inverse circular trigonometry respect the selected `DEG`/`RAD`/`GRA` setup; inverse hyperbolic functions support complex arguments.
+
+## Verification
 
 ```bash
 npm run typecheck

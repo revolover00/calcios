@@ -3,7 +3,7 @@ import { calculatorReducer, createInitialState, formatActiveComplexDisplay, hydr
 import { evaluateComplex } from './cmplx';
 import { solveEqn } from './eqn';
 import { evaluateExpression } from './expression';
-import { deserialize, scalarFromInteger, zeroStored, VARIABLES } from './value';
+import { deserialize, scalarFromInteger, serialize, zeroStored, VARIABLES } from './value';
 
 const vars = Object.fromEntries(VARIABLES.map((name) => [name, zeroStored()])) as Record<(typeof VARIABLES)[number], ReturnType<typeof zeroStored>>;
 const ctx = { angle: 'RAD' as const, variables: vars, ans: zeroStored() };
@@ -28,6 +28,40 @@ describe('real-Casio parity extensions', () => {
       expect(out.items.find((item) => item.label === 'X-Value Local Max')?.scalar?.decimal.toNumber()).toBeCloseTo(-1);
       expect(out.items.find((item) => item.label === 'Y-Value Local Max')?.scalar?.decimal.toNumber()).toBeCloseTo(2);
     }
+  });
+
+  it('uses the selected angle unit for complex circular trigonometry', () => {
+    const out = evaluateComplex('sin(30+i)', {
+      angle: 'DEG', variables: vars, cmplxAns: { re: zeroStored(), im: zeroStored() },
+    }).value;
+    expect(out.re.decimal.toNumber()).toBeCloseTo(0.5 * Math.cosh(1), 12);
+    expect(out.im.decimal.toNumber()).toBeCloseTo(Math.sqrt(3) / 2 * Math.sinh(1), 12);
+  });
+
+  it('evaluates inverse trigonometric functions for complex arguments', () => {
+    const radCtx = { angle: 'RAD' as const, variables: vars, cmplxAns: { re: zeroStored(), im: zeroStored() } };
+    const asinI = evaluateComplex('asin(i)', radCtx).value;
+    expect(asinI.re.decimal.toNumber()).toBeCloseTo(0, 12);
+    expect(asinI.im.decimal.toNumber()).toBeCloseTo(Math.asinh(1), 12);
+    const atanHalfI = evaluateComplex('atan(0.5i)', radCtx).value;
+    expect(atanHalfI.re.decimal.toNumber()).toBeCloseTo(0, 12);
+    expect(atanHalfI.im.decimal.toNumber()).toBeCloseTo(Math.atanh(0.5), 12);
+    const asinIDeg = evaluateComplex('asin(i)', { ...radCtx, angle: 'DEG' }).value;
+    expect(asinIDeg.im.decimal.toNumber()).toBeCloseTo(Math.asinh(1) * 180 / Math.PI, 10);
+
+    const roundTrip = (inverse: string, forward: string) => {
+      const z = evaluateComplex(inverse, radCtx).value;
+      return evaluateComplex(`${forward}(${z.re.decimal.toString()}+${z.im.decimal.toString()}i)`, radCtx).value;
+    };
+    const asinhRoundTrip = roundTrip('asinh(1+i)', 'sinh');
+    expect(asinhRoundTrip.re.decimal.toNumber()).toBeCloseTo(1, 10);
+    expect(asinhRoundTrip.im.decimal.toNumber()).toBeCloseTo(1, 10);
+    const acoshRoundTrip = roundTrip('acosh(1+i)', 'cosh');
+    expect(acoshRoundTrip.re.decimal.toNumber()).toBeCloseTo(1, 10);
+    expect(acoshRoundTrip.im.decimal.toNumber()).toBeCloseTo(1, 10);
+    const atanhRoundTrip = roundTrip('atanh(0.5i)', 'tanh');
+    expect(atanhRoundTrip.re.decimal.toNumber()).toBeCloseTo(0, 10);
+    expect(atanhRoundTrip.im.decimal.toNumber()).toBeCloseTo(0.5, 10);
   });
 
   it('stores and recalls full complex variables including imaginary values', () => {
@@ -100,9 +134,38 @@ describe('real-Casio parity extensions', () => {
     expect(deserialize(second.result!).decimal.toNumber()).toBeCloseTo(12);
   });
 
+  it('clears stale imaginary memory whenever real-mode workflows write variables', () => {
+    const seedImag = (state: ReturnType<typeof createInitialState>, ...names: (typeof VARIABLES)[number][]) => ({
+      ...state,
+      cmplx: { ...state.cmplx, varsIm: { ...state.cmplx.varsIm, ...Object.fromEntries(names.map((n) => [n, serialize(scalarFromInteger(4))])) } },
+    });
+    let baseN = seedImag(createInitialState(), 'A');
+    baseN = { ...baseN, mode: 'BASE-N', expression: '7→A', cursor: 4 };
+    baseN = calculatorReducer(baseN, { type: 'key', id: 'equals' });
+    expect(deserialize(baseN.cmplx.varsIm.A).decimal.toNumber()).toBe(0);
+
+    let pol = seedImag(createInitialState(), 'X', 'Y');
+    pol = { ...pol, expression: 'Pol(3,4)', cursor: 'Pol(3,4)'.length };
+    pol = calculatorReducer(pol, { type: 'key', id: 'equals' });
+    expect(deserialize(pol.cmplx.varsIm.X).decimal.toNumber()).toBe(0);
+    expect(deserialize(pol.cmplx.varsIm.Y).decimal.toNumber()).toBe(0);
+
+    let calc = seedImag(createInitialState(), 'X');
+    calc = { ...calc, expression: 'X+1', cursor: 3 };
+    calc = calculatorReducer(calc, { type: 'key', id: 'calc' });
+    calc = calculatorReducer(calc, { type: 'key', id: '2' });
+    calc = calculatorReducer(calc, { type: 'key', id: 'equals' });
+    expect(deserialize(calc.cmplx.varsIm.X).decimal.toNumber()).toBe(0);
+  });
+
   it('prompts non-target solve variables and stores the selected root variable', () => {
     let state = createInitialState();
-    state = { ...state, expression: '2A+B=11,A', cursor: 11 };
+    state = {
+      ...state,
+      expression: '2A+B=11,A',
+      cursor: 11,
+      cmplx: { ...state.cmplx, varsIm: { ...state.cmplx.varsIm, A: serialize(scalarFromInteger(9)) } },
+    };
     state = calculatorReducer(state, { type: 'key', id: 'equals' });
     expect(state.solvePrompt?.stage).toBe('prompt-var');
     state = calculatorReducer(state, { type: 'key', id: '1' });
@@ -111,6 +174,7 @@ describe('real-Casio parity extensions', () => {
     state = calculatorReducer(state, { type: 'key', id: 'equals' });
     expect(state.solvePrompt?.stage).toBe('solved');
     expect(deserialize(state.variables.A).decimal.toNumber()).toBeCloseTo(5);
+    expect(deserialize(state.cmplx.varsIm.A).decimal.toNumber()).toBe(0);
     expect(state.pairResult && state.pairResult.type === 'pair' && state.pairResult.label1).toBe('A');
   });
 });
