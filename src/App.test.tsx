@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { App } from './App';
+import { SCANNER_RATE_LIMIT, SCANNER_RATE_STORAGE_KEY } from './core/scannerRateLimit';
 
 function clickHardwareKey(container: HTMLElement, keyId: string) {
   const btn = container.querySelector<HTMLButtonElement>(`[data-key-id="${keyId}"]`);
@@ -61,6 +62,20 @@ describe('Calcios Handheld Viewport & Scientific Engine Integration', () => {
     expect(screen.getByTestId('lcd-result').textContent).toContain('1');
     expect(screen.getByTestId('lcd-result').textContent).toContain('6');
     expect(screen.getByTestId('lcd-result').textContent).toContain('π');
+  });
+
+  it('blocks image scans after the per-hour quota is used', () => {
+    window.localStorage.setItem(
+      SCANNER_RATE_STORAGE_KEY,
+      JSON.stringify(Array.from({ length: SCANNER_RATE_LIMIT }, () => Date.now())),
+    );
+    render(<App />);
+    fireEvent.click(screen.getByTestId('scan-math-btn'));
+    const upload = screen.getByTestId('scan-upload-input');
+    fireEvent.change(upload, { target: { files: [new File(['image'], 'math.png', { type: 'image/png' })] } });
+
+    expect(screen.getByTestId('scan-lcd-error').textContent).toContain('Hourly scan limit reached');
+    expect(screen.getByText(/0 remaining/)).toBeInTheDocument();
   });
 
   it('supports physical keyboard input when no text input is focused', () => {
