@@ -407,6 +407,27 @@ function tokenizeCmplx(source: string): CmplxToken[] {
   return tokens;
 }
 
+export function validateScannedComplexExpression(
+  source: string,
+  options: { maxTokens: number; allowedFunctions: ReadonlySet<string> },
+): void {
+  const tokens = tokenizeCmplx(source);
+  if (tokens.length > options.maxTokens) syntax('Scanned expression has too many parts');
+  let depth = 0;
+  for (const token of tokens) {
+    if (token.type === 'end' || token.type === 'number' || token.type === 'recur' || token.type === 'i' || token.type === 'open' || token.type === 'close' || token.type === 'comma' || token.type === 'dms') {
+      if (token.type === 'open' && ++depth > 32) syntax('Scanned expression is too deeply nested', token.offset);
+      if (token.type === 'close' && --depth < 0) syntax('Unbalanced scanned expression', token.offset);
+      continue;
+    }
+    if (token.type === 'id' && (VARIABLES.includes(token.text as VariableName) || token.text === 'π' || token.text === 'e' || token.text === 'Ans' || token.text === 'PreAns' || options.allowedFunctions.has(token.text))) continue;
+    if (token.type === 'op' && ['+', '-', '×', '÷', '*', '/', '^', '∠', '!', '%', 'nCr', 'nPr', '⏨'].includes(token.text)) continue;
+    if (token.type === 'postfix' && ['ᵈ', 'ʳ', 'ᵍ', '!', '%'].includes(token.text)) continue;
+    syntax('Unsupported token in scanned complex expression', token.offset);
+  }
+  if (depth !== 0) syntax('Unbalanced scanned expression');
+}
+
 function charIsPiOrE(ch: string): boolean {
   return ch === 'π' || ch === 'e';
 }
