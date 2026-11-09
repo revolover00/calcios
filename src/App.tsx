@@ -113,6 +113,44 @@ export function mapKeyboardEvent(e: KeyboardEvent, cur: CalculatorState): string
   }
 }
 
+function persistCalculatorState(state: CalculatorState): void {
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(saveableState(state)));
+  } catch {
+    // Ignore storage quota or privacy-mode restrictions
+  }
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+}
+
+class CalciosErrorBoundary extends React.Component<
+  { onRecover: () => void; children: React.ReactNode },
+  ErrorBoundaryState
+> {
+  state: ErrorBoundaryState = { hasError: false };
+
+  static getDerivedStateFromError(): ErrorBoundaryState {
+    return { hasError: true };
+  }
+
+  componentDidCatch(): void {
+    try {
+      window.localStorage.removeItem(STORAGE_KEY);
+    } catch {
+      // Ignore storage restrictions
+    }
+    this.props.onRecover();
+    this.setState({ hasError: false });
+  }
+
+  render(): React.ReactNode {
+    if (this.state.hasError) return null;
+    return this.props.children;
+  }
+}
+
 export function App(): React.ReactElement {
   const [state, dispatch] = useReducer(calculatorReducer, null, () => {
     try {
@@ -122,42 +160,71 @@ export function App(): React.ReactElement {
     }
   });
 
+  const stateRef = useRef(state);
+  stateRef.current = state;
+
   useEffect(() => {
-    try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(saveableState(state)));
-    } catch {
-      // Ignore storage quota or privacy-mode restrictions
-    }
-  }, [
-    state.angle,
-    state.ioMode,
-    state.mathOutputMode,
-    state.decimalMark,
-    state.defaultCmplxFormat,
-    state.recurEnabled,
-    state.contrast,
-    state.numberFormat,
-    state.defaultFractionStyle,
-    state.tableUseG,
-    state.stat.useFreq,
-    state.variables,
-  ]);
+    persistCalculatorState(state);
+  }, [state]);
 
   const [deviceScale, setDeviceScale] = useState<number>(computeDeviceScale);
 
   useEffect(() => {
-    const updateScale = () => setDeviceScale(computeDeviceScale());
+    let rafId: number | null = null;
+    const updateScale = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+        return;
+      }
+      const next = computeDeviceScale();
+      if (Number.isFinite(next) && next > 0) {
+        setDeviceScale(next);
+      }
+    };
+    const scheduleScaleRefresh = () => {
+      updateScale();
+      if (typeof window.requestAnimationFrame === 'function') {
+        if (rafId !== null) window.cancelAnimationFrame(rafId);
+        rafId = window.requestAnimationFrame(() => {
+          rafId = null;
+          updateScale();
+        });
+      }
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        persistCalculatorState(stateRef.current);
+      } else {
+        scheduleScaleRefresh();
+      }
+    };
+    const onPageHideOrFreeze = () => {
+      persistCalculatorState(stateRef.current);
+    };
+    const onPageShow = () => {
+      scheduleScaleRefresh();
+    };
+
     updateScale();
     window.addEventListener('resize', updateScale);
+    window.addEventListener('orientationchange', scheduleScaleRefresh);
+    window.addEventListener('pageshow', onPageShow);
+    window.addEventListener('pagehide', onPageHideOrFreeze);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    document.addEventListener('freeze', onPageHideOrFreeze);
     window.visualViewport?.addEventListener('resize', updateScale);
     return () => {
+      if (rafId !== null && typeof window.cancelAnimationFrame === 'function') {
+        window.cancelAnimationFrame(rafId);
+      }
       window.removeEventListener('resize', updateScale);
+      window.removeEventListener('orientationchange', scheduleScaleRefresh);
+      window.removeEventListener('pageshow', onPageShow);
+      window.removeEventListener('pagehide', onPageHideOrFreeze);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      document.removeEventListener('freeze', onPageHideOrFreeze);
       window.visualViewport?.removeEventListener('resize', updateScale);
     };
   }, []);
-
-  const stateRef = useRef(state);
-  stateRef.current = state;
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -182,7 +249,9 @@ export function App(): React.ReactElement {
       data-testid="calc-viewport"
       style={{ '--calc-scale': String(deviceScale) } as React.CSSProperties}
     >
-      <CalculatorHardware state={state} dispatch={dispatch} />
+      <CalciosErrorBoundary onRecover={() => dispatch({ type: 'key', id: 'on' })}>
+        <CalculatorHardware state={state} dispatch={dispatch} />
+      </CalciosErrorBoundary>
     </main>
   );
 }
