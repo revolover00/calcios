@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { CalculatorAction, CalculatorState } from '../core/calculator';
 import { scanMathFromImage } from '../core/visionScan';
+import { consumeScannerQuota, getScannerQuota } from '../core/scannerRateLimit';
 import {
   LOWER_KEYPAD_ROWS,
   SCIENTIFIC_ROW_1,
@@ -311,6 +312,7 @@ export function CalculatorHardware({
   const [bodyTheme, setBodyTheme] = useState<CalciosBodyTheme>(loadBodyTheme);
   const [scanView, setScanView] = useState<'closed' | 'menu' | 'scanning'>('closed');
   const [scanError, setScanError] = useState<string | null>(null);
+  const [scanQuota, setScanQuota] = useState(getScannerQuota);
 
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
   const uploadInputRef = useRef<HTMLInputElement | null>(null);
@@ -328,6 +330,14 @@ export function CalculatorHardware({
 
   const runImageScan = useCallback(
     async (file: Blob) => {
+      const quota = consumeScannerQuota();
+      setScanQuota(quota);
+      if (!quota.allowed) {
+        const waitMinutes = Math.max(1, Math.ceil(quota.retryAfterMs / 60_000));
+        setScanError(`Hourly scan limit reached. Try again in about ${waitMinutes} minute${waitMinutes === 1 ? '' : 's'}.`);
+        setScanView('menu');
+        return;
+      }
       const seq = ++scanSeqRef.current;
       setScanError(null);
       setScanView('scanning');
@@ -433,6 +443,7 @@ export function CalculatorHardware({
                 title="Scan math problem from camera or image (or Ctrl+V paste)"
                 onClick={() => {
                   setScanError(null);
+                  setScanQuota(getScannerQuota());
                   setScanView((v) => (v === 'closed' ? 'menu' : 'closed'));
                 }}
               >
@@ -536,7 +547,7 @@ export function CalculatorHardware({
                       2:Upload Image
                     </button>
                   </div>
-                  <div className="scan-lcd-hint">Or paste any screenshot with Ctrl+V</div>
+                  <div className="scan-lcd-hint">10 scans/hour · {scanQuota.remaining} remaining · paste with Ctrl+V</div>
                 </div>
               )}
             </div>

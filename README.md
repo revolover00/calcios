@@ -63,7 +63,7 @@ Calcios combines exact symbolic arithmetic (`BigInt` rationals, surds, and $\pi$
 - **Installable offline PWA** — calculator state and preferences persist between visits, and the app shell can be used offline after it has been cached.
 - **Three hardware editions** — switch between **Onyx Black**, **Dusty Rose Pink**, and **Ice Steel Blue** from the color dots on the bezel.
 - **Built-in reference tools** — 40 CODATA physical constants and 40 unit conversions.
-- **Camera/image math scanner** — use the camera control or paste an image to scan a math problem into the calculator.
+- **Camera/image math scanner** — use the camera control or paste an image to scan a math problem into the calculator; limited to 10 scans per rolling hour in the current browser.
 
 ---
 
