@@ -66,12 +66,33 @@ export function crossVector(a: VectorValue, b: VectorValue): VectorValue {
 }
 
 export function normVector(v: VectorValue): Scalar {
+  const maxAbs = v.coords.reduce((mx, c) => D.max(mx, c.decimal.abs()), new D(0));
+  if (maxAbs.isZero()) return scalarFromInteger(0);
+  if (maxAbs.gte('1e45')) {
+    const sumScaledSq = v.coords.reduce(
+      (acc, c) => acc.plus(c.decimal.div(maxAbs).pow(2)),
+      new D(0),
+    );
+    return makeScalar(maxAbs.times(sumScaledSq.sqrt()), undefined, true);
+  }
   const sumSq = v.coords.reduce((acc, c) => add(acc, multiply(c, c)), scalarFromInteger(0));
   return applyFunction('sqrt', [sumSq], 'DEG');
 }
 
 export function angleVector(a: VectorValue, b: VectorValue, angle: AngleUnit = 'DEG'): Scalar {
   if (a.dim !== b.dim) throw new CalculatorError('Argument ERROR', 'Angle dimension mismatch');
+  const maxA = a.coords.reduce((mx, c) => D.max(mx, c.decimal.abs()), new D(0));
+  const maxB = b.coords.reduce((mx, c) => D.max(mx, c.decimal.abs()), new D(0));
+  if (maxA.isZero() || maxB.isZero()) mathError('Angle with zero vector is undefined');
+  if (maxA.gte('1e45') || maxB.gte('1e45')) {
+    const ua = a.coords.map((c) => c.decimal.div(maxA));
+    const ub = b.coords.map((c) => c.decimal.div(maxB));
+    const na = ua.reduce((acc, x) => acc.plus(x.pow(2)), new D(0)).sqrt();
+    const nb = ub.reduce((acc, x) => acc.plus(x.pow(2)), new D(0)).sqrt();
+    const dot = ua.reduce((acc, x, i) => acc.plus(x.times(ub[i])), new D(0));
+    const cosNum = D.max(new D(-1), D.min(new D(1), dot.div(na.times(nb))));
+    return applyFunction('acos', [makeScalar(cosNum, undefined, true)], angle);
+  }
   const na = normVector(a);
   const nb = normVector(b);
   if (na.decimal.isZero() || nb.decimal.isZero()) mathError('Angle with zero vector is undefined');

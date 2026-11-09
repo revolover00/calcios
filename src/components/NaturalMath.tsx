@@ -11,6 +11,8 @@ const DISPLAY_FUNC_LABELS: Record<string, string> = {
   asinh: 'sinh⁻¹',
   acosh: 'cosh⁻¹',
   atanh: 'tanh⁻¹',
+  abs: 'Abs',
+  cbrt: '³√',
   RanInt: 'RanInt#',
   StatP: 'P',
   StatQ: 'Q',
@@ -570,10 +572,10 @@ export function NaturalExpression({
 }
 
 function renderFormattedText(text: string): React.ReactNode {
-  const normalized = text.replace(/^-/, '−');
+  const normalized = text.replace(/-/g, '−');
   if (!normalized.includes('×10^')) return normalized;
   const parts: React.ReactNode[] = [];
-  const re = /×10\^(-?\d+)/g;
+  const re = /×10\^([−-]?\d+)/g;
   let lastIdx = 0;
   let match: RegExpExecArray | null;
   let k = 0;
@@ -993,6 +995,7 @@ export function NaturalResult({
 
   return (
     <div className="lcd-result-text" dir="ltr">
+      {display.simpFactor && <span className="math-simp-factor">÷{display.simpFactor} </span>}
       {renderFormattedText(display.text)}
     </div>
   );

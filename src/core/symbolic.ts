@@ -87,20 +87,26 @@ export function extractSquareFactor(n: bigint): { sq: bigint; rem: bigint } | un
 
   pull(2n);
   pull(3n);
-  let f = 5n;
-  let steps = 0;
-  while (f * f <= rem && steps < 25000) {
-    if (rem % f === ZERO) pull(f);
-    if (rem % (f + 2n) === ZERO) pull(f + 2n);
-    f += 6n;
-    steps++;
-  }
-  if (f * f <= rem) {
-    const root = isqrtBig(rem);
-    if (root * root === rem) {
-      sq *= root;
+  if (rem > ONE) {
+    const quickRoot = isqrtBig(rem);
+    if (quickRoot * quickRoot === rem) {
+      sq *= quickRoot;
       rem = ONE;
     }
+  }
+  let f = 5n;
+  while (f * f <= rem) {
+    if (rem % f === ZERO) {
+      pull(f);
+      const r = isqrtBig(rem);
+      if (r > ONE && r * r === rem) { sq *= r; rem = ONE; break; }
+    }
+    if (rem % (f + 2n) === ZERO) {
+      pull(f + 2n);
+      const r = isqrtBig(rem);
+      if (r > ONE && r * r === rem) { sq *= r; rem = ONE; break; }
+    }
+    f += 6n;
   }
   return { sq, rem };
 }

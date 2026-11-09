@@ -1,15 +1,37 @@
 import { syntax } from './errors';
 import { evaluateExpression, type EvaluationContext } from './expression';
-import type { Scalar } from './value';
+import { D, type Scalar } from './value';
 
 export type VerifOperator = '=' | '≠' | '>' | '<' | '≥' | '≤';
 
 const VERIF_OPS: VerifOperator[] = ['≠', '≥', '≤', '=', '>', '<'];
 
 function compareValues(op: VerifOperator, lhs: Scalar, rhs: Scalar): boolean {
+  if (lhs.exact && rhs.exact) {
+    const crossL = lhs.exact.n * rhs.exact.d;
+    const crossR = rhs.exact.n * lhs.exact.d;
+    switch (op) {
+      case '=': return crossL === crossR;
+      case '≠': return crossL !== crossR;
+      case '>': return crossL > crossR;
+      case '<': return crossL < crossR;
+      case '≥': return crossL >= crossR;
+      case '≤': return crossL <= crossR;
+    }
+  }
+
   const diff = lhs.decimal.minus(rhs.decimal);
-  const scale = lhs.decimal.abs().plus(rhs.decimal.abs()).plus(1);
-  const eq = diff.abs().lte(scale.times('1e-24'));
+  const lhsZero = lhs.decimal.isZero();
+  const rhsZero = rhs.decimal.isZero();
+  let eq: boolean;
+  if (lhsZero && rhsZero) {
+    eq = true;
+  } else if (lhsZero || rhsZero) {
+    eq = diff.abs().lte('1e-34');
+  } else {
+    const maxMag = D.max(lhs.decimal.abs(), rhs.decimal.abs());
+    eq = diff.abs().lte(maxMag.times('1e-12'));
+  }
 
   switch (op) {
     case '=': return eq;

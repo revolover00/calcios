@@ -521,7 +521,7 @@ describe('50-Bug Comprehensive Senior Audit Regression Suite (#1–#50)', () => 
     // Bug #46a: LaTeX normalizer handles \log_2(8), \prod, \binom, \sum + trailing term, and DMS 12°30'45"
     expect(normalizeToCalcios2D('\\log_2(8) + \\binom{5}{2}')).toBe('logb(2,8)+5nCr2');
     expect(normalizeToCalcios2D('\\sum_{x=1}^{4} x^2 + 10')).toBe('sigma(X^(2),1,4)+10');
-    expect(normalizeToCalcios2D('\\prod_{k=1}^{3} (k+1)')).toBe('prod((k+1),1,3)');
+    expect(normalizeToCalcios2D('\\prod_{k=1}^{3} (k+1)')).toBe('prod((X+1),1,3)');
     expect(normalizeToCalcios2D('12°30\'45"')).toBe('12°30°45°');
 
     // Bug #46b: HTTP 400 with custom JSON error message fails immediately on attempt 1 without poisoning remaining keys!

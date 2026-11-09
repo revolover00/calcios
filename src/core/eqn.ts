@@ -19,9 +19,14 @@ export type EqnOutcome =
   | { status: 'infinite' }
   | { status: 'no-solution' };
 
-function isTiny(s: Scalar): boolean {
+function isZeroScalar(s: Scalar): boolean {
   if (s.exact) return s.exact.n === 0n;
-  return s.decimal.abs().lt('1e-26');
+  return s.decimal.isZero();
+}
+
+function isBelowTol(s: Scalar, tol: InstanceType<typeof D>): boolean {
+  if (s.exact) return s.exact.n === 0n;
+  return s.decimal.abs().lte(tol);
 }
 
 export function snapExactScalar(s: Scalar): Scalar {
@@ -96,10 +101,13 @@ export function solveLinear2(coeffs: Scalar[]): EqnOutcome {
   const det = subtract(multiply(a1, b2), multiply(b1, a2));
   const dx = subtract(multiply(c1, b2), multiply(b1, c2));
   const dy = subtract(multiply(a1, c2), multiply(c1, a2));
-  if (isTiny(det)) {
-    if (isTiny(dx) && isTiny(dy)) {
-      if (isTiny(a1) && isTiny(b1) && !isTiny(c1)) return { status: 'no-solution' };
-      if (isTiny(a2) && isTiny(b2) && !isTiny(c2)) return { status: 'no-solution' };
+  const detScale = D.max(a1.decimal.times(b2.decimal).abs(), b1.decimal.times(a2.decimal).abs());
+  const dxScale = D.max(c1.decimal.times(b2.decimal).abs(), b1.decimal.times(c2.decimal).abs());
+  const dyScale = D.max(a1.decimal.times(c2.decimal).abs(), c1.decimal.times(a2.decimal).abs());
+  if (isBelowTol(det, detScale.times('1e-28'))) {
+    if (isBelowTol(dx, dxScale.times('1e-28')) && isBelowTol(dy, dyScale.times('1e-28'))) {
+      if (isZeroScalar(a1) && isZeroScalar(b1) && !isZeroScalar(c1)) return { status: 'no-solution' };
+      if (isZeroScalar(a2) && isZeroScalar(b2) && !isZeroScalar(c2)) return { status: 'no-solution' };
       return { status: 'infinite' };
     }
     return { status: 'no-solution' };
@@ -113,13 +121,24 @@ export function solveLinear2(coeffs: Scalar[]): EqnOutcome {
   };
 }
 
-/** 2: 3x3 linear system using Gaussian elimination with partial pivoting */
+/** 2: 3x3 linear linear system using Gaussian elimination with partial pivoting */
 export function solveLinear3(coeffs: Scalar[]): EqnOutcome {
   const m: Scalar[][] = [
     [coeffs[0], coeffs[1], coeffs[2], coeffs[3]],
     [coeffs[4], coeffs[5], coeffs[6], coeffs[7]],
     [coeffs[8], coeffs[9], coeffs[10], coeffs[11]],
   ];
+  const matScale = [
+    coeffs[0], coeffs[1], coeffs[2],
+    coeffs[4], coeffs[5], coeffs[6],
+    coeffs[8], coeffs[9], coeffs[10],
+  ].reduce((mx, c) => D.max(mx, c.decimal.abs()), new D(0));
+  const rhsScale = [coeffs[3], coeffs[7], coeffs[11]].reduce((mx, c) => D.max(mx, c.decimal.abs()), new D(0));
+  if (matScale.isZero()) {
+    return rhsScale.isZero() ? { status: 'infinite' } : { status: 'no-solution' };
+  }
+  const pivotTol = matScale.times('1e-28');
+  const rhsTol = D.max(matScale, rhsScale).times('1e-26');
 
   let row = 0;
   const pivotCols: number[] = [];
@@ -128,12 +147,12 @@ export function solveLinear3(coeffs: Scalar[]): EqnOutcome {
     for (let r = row + 1; r < 3; r++) {
       if (m[r][col].decimal.abs().gt(m[best][col].decimal.abs())) best = r;
     }
-    if (isTiny(m[best][col])) continue;
+    if (isBelowTol(m[best][col], pivotTol)) continue;
     [m[row], m[best]] = [m[best], m[row]];
     const pivot = m[row][col];
     for (let c = col; c < 4; c++) m[row][c] = divide(m[row][c], pivot);
     for (let r = 0; r < 3; r++) {
-      if (r === row || isTiny(m[r][col])) continue;
+      if (r === row || isBelowTol(m[r][col], pivotTol)) continue;
       const factor = m[r][col];
       for (let c = col; c < 4; c++) {
         m[r][c] = subtract(m[r][c], multiply(factor, m[row][c]));
@@ -144,7 +163,7 @@ export function solveLinear3(coeffs: Scalar[]): EqnOutcome {
   }
 
   for (let r = row; r < 3; r++) {
-    if (!isTiny(m[r][3])) return { status: 'no-solution' };
+    if (!isBelowTol(m[r][3], rhsTol)) return { status: 'no-solution' };
   }
   if (pivotCols.length < 3) return { status: 'infinite' };
 
@@ -161,17 +180,18 @@ export function solveLinear3(coeffs: Scalar[]): EqnOutcome {
 /** 3: aX² + bX + c = 0 (with vertex min/max like Calcios / Calcios) */
 export function solveQuadratic(coeffs: Scalar[]): EqnOutcome {
   const [a, b, c] = coeffs;
-  if (isTiny(a)) mathError('Leading coefficient a cannot be zero');
+  if (isZeroScalar(a)) mathError('Leading coefficient a cannot be zero');
 
   const twoA = multiply(scalarFromInteger(2), a);
   const fourAC = multiply(multiply(scalarFromInteger(4), a), c);
   const disc = subtract(multiply(b, b), fourAC);
+  const discScale = D.max(b.decimal.pow(2), fourAC.decimal.abs());
   const vx = negate(divide(b, twoA));
   const vy = subtract(c, divide(multiply(b, b), multiply(scalarFromInteger(4), a)));
   const extremumKind = a.decimal.gt(0) ? 'Minimum' : 'Maximum';
 
   const items: EqnSolutionItem[] = [];
-  if (isTiny(disc)) {
+  if (isBelowTol(disc, discScale.times('1e-26'))) {
     items.push({ label: 'X', scalar: snapExactScalar(vx) });
   } else if (disc.decimal.gt(0)) {
     const sq = applyFunction('sqrt', [disc], 'DEG');
@@ -244,13 +264,15 @@ function tryDeflateCubicWithExactRoot(coeffs: Scalar[], approxCandidates: Instan
     const q1 = add(multiply(aS, rExact), bS);
     const q0 = add(multiply(q1, rExact), cS);
     const rem = add(multiply(q0, rExact), dS);
-    const scale = aS.decimal.abs().plus(bS.decimal.abs()).plus(cS.decimal.abs()).plus(dS.decimal.abs()).plus(1);
-    if (!isTiny(rem) && rem.decimal.abs().gt(scale.times('1e-22'))) continue;
+    const scale = D.max(aS.decimal.abs(), bS.decimal.abs(), cS.decimal.abs(), dS.decimal.abs());
+    if (!isBelowTol(rem, scale.times('1e-22'))) continue;
 
     // Deflated quadratic: aS * X^2 + q1 * X + q0 = 0
     const twoA = multiply(scalarFromInteger(2), aS);
-    const disc = subtract(multiply(q1, q1), multiply(multiply(scalarFromInteger(4), aS), q0));
-    if (isTiny(disc)) {
+    const fourAQ0 = multiply(multiply(scalarFromInteger(4), aS), q0);
+    const disc = subtract(multiply(q1, q1), fourAQ0);
+    const discScale = D.max(q1.decimal.pow(2), fourAQ0.decimal.abs());
+    if (isBelowTol(disc, discScale.times('1e-26'))) {
       const rDouble = snapExactScalar(divide(negate(q1), twoA));
       if (rExact.decimal.minus(rDouble.decimal).abs().lt('1e-20')) {
         return { status: 'solved', items: [{ label: 'X', scalar: rExact }] };
@@ -308,7 +330,7 @@ function tryDeflateCubicWithExactRoot(coeffs: Scalar[], approxCandidates: Instan
 /** 4: aX³ + bX² + cX + d = 0 */
 export function solveCubic(coeffs: Scalar[]): EqnOutcome {
   const [aS, bS, cS, dS] = coeffs;
-  if (isTiny(aS)) mathError('Leading coefficient a cannot be zero');
+  if (isZeroScalar(aS)) mathError('Leading coefficient a cannot be zero');
 
   const a = aS.decimal;
   const b = bS.decimal.div(a);
@@ -319,16 +341,28 @@ export function solveCubic(coeffs: Scalar[]): EqnOutcome {
   const p = c.minus(b.pow(2).div(3));
   const q = b.pow(3).times(2).div(27).minus(b.times(c).div(3)).plus(d);
 
+  const pScale = D.max(new D(1), c.abs(), b.pow(2).div(3));
+  const qScale = D.max(new D(1), b.abs().pow(3).div(13.5), b.times(c).abs().div(3), d.abs());
+
+  if (p.abs().lte(pScale.times('1e-26')) && q.abs().lte(qScale.times('1e-26'))) {
+    const exactShift = snapExactScalar(divide(negate(bS), multiply(scalarFromInteger(3), aS)));
+    return tryDeflateCubicWithExactRoot(coeffs, [shift.neg()]) ?? {
+      status: 'solved',
+      items: [{ label: 'X', scalar: exactShift }],
+    };
+  }
+
   const halfQ = q.div(2);
   const thirdP = p.div(3);
   const disc = halfQ.pow(2).plus(thirdP.pow(3));
+  const discScale = D.max(new D(1), halfQ.pow(2), thirdP.abs().pow(3));
 
-  if (disc.abs().lte('1e-24')) {
-    if (p.abs().lte('1e-24')) {
-      const triple = shift.neg();
-      return tryDeflateCubicWithExactRoot(coeffs, [triple]) ?? {
+  if (disc.abs().lte(discScale.times('1e-24'))) {
+    if (p.abs().lte(pScale.times('1e-20'))) {
+      const exactShift = snapExactScalar(divide(negate(bS), multiply(scalarFromInteger(3), aS)));
+      return tryDeflateCubicWithExactRoot(coeffs, [shift.neg()]) ?? {
         status: 'solved',
-        items: [{ label: 'X', scalar: cleanScalar(triple) }],
+        items: [{ label: 'X', scalar: exactShift }],
       };
     }
     const u = halfQ.neg().cbrt();

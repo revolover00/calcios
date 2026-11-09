@@ -8,6 +8,7 @@ import { SCIENTIFIC_CONSTANTS, UNIT_CONVERSIONS } from '../core/constants';
 import type { DistSubMode } from '../core/dist';
 import type { EqnType } from '../core/eqn';
 import { formatDecimal, formatResult, type DecimalMark, type NumberFormatSetting } from '../core/format';
+import { moveCursorVertical } from '../core/mathAst';
 import { D, deserialize, makeScalar } from '../core/value';
 import { NaturalExpression, NaturalResult } from './NaturalMath';
 
@@ -51,7 +52,13 @@ function LcdStatusBar({ state }: { state: CalculatorState }): React.ReactElement
   const isMath = state.ioMode === 'Math';
   const isFix = state.numberFormat.mode === 'Fix';
   const isSci = state.numberFormat.mode === 'Sci';
-  const showReIm = state.mode === 'CMPLX' && state.phase === 'result' && state.cmplx.result !== null;
+  const eqnActiveItem =
+    state.mode === 'EQN' && state.eqn?.outcome?.status === 'solved'
+      ? state.eqn.outcome.items[state.eqn.solutionIndex]
+      : undefined;
+  const showReIm =
+    (state.mode === 'CMPLX' && state.phase === 'result' && state.cmplx.result !== null) ||
+    Boolean(eqnActiveItem?.complexParts);
   const showDisp = state.statementRun !== null;
 
   const isPagedMenu =
@@ -59,6 +66,19 @@ function LcdStatusBar({ state }: { state: CalculatorState }): React.ReactElement
     state.screen === 'setup' ||
     state.screen === 'basen-menu' ||
     state.screen === 'matrix-menu';
+  const isPickerScreen = state.screen === 'const-picker' || state.screen === 'conv-picker';
+  const isEqnSolvedMulti =
+    state.screen === 'normal' &&
+    state.mode === 'EQN' &&
+    state.eqn?.outcome?.status === 'solved' &&
+    state.eqn.outcome.items.length > 1;
+  const isTableViewMulti =
+    state.screen === 'normal' &&
+    state.mode === 'TABLE' &&
+    state.table?.stage === 'view' &&
+    state.table.rows.length > 1;
+  const distListResults =
+    state.screen === 'normal' && state.mode === 'DIST' ? state.dist?.listResults ?? null : null;
   const isExpressionReplayScreen =
     state.screen === 'normal' &&
     !state.calcPrompt &&
@@ -69,12 +89,32 @@ function LcdStatusBar({ state }: { state: CalculatorState }): React.ReactElement
     !(state.mode === 'VECTOR' && (state.vector.editingTarget || state.vector.showingVectorResult));
   const modeIndices = isExpressionReplayScreen ? getModeHistoryIndices(state) : [];
   const curHistPos = state.historyIndex !== null ? modeIndices.indexOf(state.historyIndex) : -1;
+  const lineMode = state.ioMode === 'Line' || state.mode === 'BASE-N';
+  const isFreshEditing =
+    isExpressionReplayScreen &&
+    state.phase === 'editing' &&
+    state.expression.length > 0 &&
+    state.historyIndex === null;
+
   const canUp = isPagedMenu
     ? state.menuPage > 0
-    : isExpressionReplayScreen && modeIndices.length > 0 && (curHistPos === -1 || curHistPos > 0);
+    : isPickerScreen || isEqnSolvedMulti || isTableViewMulti
+      ? true
+      : distListResults
+        ? (state.dist?.listRowIdx ?? 0) > 0
+        : isFreshEditing
+          ? moveCursorVertical(state.expression, state.cursor, 'up', lineMode) !== null
+          : isExpressionReplayScreen && modeIndices.length > 0 && (curHistPos === -1 || curHistPos > 0);
+
   const canDown = isPagedMenu
     ? state.menuPage === 0
-    : isExpressionReplayScreen && curHistPos !== -1 && curHistPos < modeIndices.length;
+    : isPickerScreen || isEqnSolvedMulti || isTableViewMulti
+      ? true
+      : distListResults
+        ? (state.dist?.listRowIdx ?? 0) < distListResults.length - 1
+        : isFreshEditing
+          ? moveCursorVertical(state.expression, state.cursor, 'down', lineMode) !== null
+          : isExpressionReplayScreen && curHistPos !== -1 && curHistPos < modeIndices.length;
 
   const modeBadge =
     state.mode === 'BASE-N'
@@ -745,6 +785,7 @@ function renderNormalInteractiveBody(state: CalculatorState): React.ReactElement
       const curC = Math.min(mat.cols - 1, state.matrix.colIdx);
       const activeCellScalar = deserialize(mat.cells[curR][curC]);
       const activeCellExact = formatResult(activeCellScalar, isEditing ? 'exact' : state.resultFormat, {
+        fractionStyle: state.fractionStyle,
         numberFormat: state.numberFormat,
         decimalMark: state.decimalMark,
       });
@@ -788,6 +829,7 @@ function renderNormalInteractiveBody(state: CalculatorState): React.ReactElement
       const curIdx = Math.min(vct.dim - 1, state.vector.coordIdx);
       const activeScalar = deserialize(vct.coords[curIdx]);
       const activeExact = formatResult(activeScalar, isEditing ? 'exact' : state.resultFormat, {
+        fractionStyle: state.fractionStyle,
         numberFormat: state.numberFormat,
         decimalMark: state.decimalMark,
       });
@@ -846,10 +888,16 @@ function renderNormalInteractiveBody(state: CalculatorState): React.ReactElement
       }
       const item = eqn.outcome.items[eqn.solutionIndex];
       const disp = item ? formatActiveEqnItemDisplay(state, item) : { type: 'text' as const, text: '0' };
+      const partPrefix =
+        item?.complexParts && eqn.partView === 're'
+          ? ' (Re)'
+          : item?.complexParts && eqn.partView === 'im'
+            ? ' (Im)'
+            : '';
       return (
         <div className="lcd-home" dir="ltr">
           <div className="lcd-expr-area">
-            <span className="lcd-eqn-res-label">{item?.label} =</span>
+            <span className="lcd-eqn-res-label">{item?.label}{partPrefix} =</span>
             <span className="lcd-eqn-nav">
               ({eqn.solutionIndex + 1}/{eqn.outcome.items.length}) ▼▲
             </span>
@@ -863,17 +911,22 @@ function renderNormalInteractiveBody(state: CalculatorState): React.ReactElement
 
     const names = EQN_COEFFS[eqn.type];
     const activeName = names[eqn.cursorIndex] ?? 'a';
+    const chipStart = Math.max(0, Math.min(eqn.cursorIndex - 2, Math.max(0, names.length - 6)));
+    const visibleNames = names.slice(chipStart, chipStart + 6);
     return (
       <div className="lcd-eqn-editor" dir="ltr">
         <div className="lcd-eqn-header">
           {EQN_LABELS[eqn.type]} — {activeName}?
         </div>
         <div className="lcd-eqn-coeffs">
-          {names.slice(0, 6).map((nm, idx) => (
-            <span key={nm} className={idx === eqn.cursorIndex ? 'eqn-chip active' : 'eqn-chip'}>
-              {nm}={formatDecimal(deserialize(eqn.coeffs[idx]), state.numberFormat, state.decimalMark)}
-            </span>
-          ))}
+          {visibleNames.map((nm, localIdx) => {
+            const idx = chipStart + localIdx;
+            return (
+              <span key={nm} className={idx === eqn.cursorIndex ? 'eqn-chip active' : 'eqn-chip'}>
+                {nm}={formatDecimal(deserialize(eqn.coeffs[idx]), state.numberFormat, state.decimalMark)}
+              </span>
+            );
+          })}
         </div>
         <div className="lcd-expr-area">
           <NaturalExpression
@@ -972,6 +1025,8 @@ function renderNormalInteractiveBody(state: CalculatorState): React.ReactElement
       const disp = formatResult(deserialize(ds.result), 'decimal', {
         fractionStyle: state.fractionStyle,
         numberFormat: state.numberFormat,
+        override: state.displayOverride,
+        engExponent: state.engExponent,
         decimalMark: state.decimalMark,
       });
       return (
