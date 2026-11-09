@@ -21,7 +21,7 @@ export type IneqSegmentDisplay =
   | { kind: 'between'; op: '<' | '≤'; lower: DisplayValue; upper: DisplayValue };
 
 export type DisplayValue =
-  | { type: 'text'; text: string }
+  | { type: 'text'; text: string; simpFactor?: string }
   | { type: 'fraction'; sign: string; numerator: string; denominator: string; simpFactor?: string }
   | { type: 'mixed-fraction'; sign: string; whole: string; numerator: string; denominator: string; simpFactor?: string }
   | { type: 'symbolic-pi'; sign: string; numerator: string; denominator: string }
@@ -60,8 +60,9 @@ export function formatSymbolicLinear(value: Scalar): string | null {
   if (value.exact) {
     const { n, d } = value.exact;
     if (d === 1n) return n.toString().replace(/^-/, '−');
-    if (n.toString().length + d.toString().length <= 10) {
-      return `${n < 0n ? '−' : ''}${n < 0n ? -n : n}/${d}`;
+    const absN = n < 0n ? -n : n;
+    if (absN.toString().length + d.toString().length <= 10) {
+      return `${n < 0n ? '−' : ''}${absN}/${d}`;
     }
   }
   if (value.symbolic?.kind === 'pi') {
@@ -121,6 +122,9 @@ export function formatDecimal(
   if (setting.mode === 'Sci') {
     const sig = setting.digits === 0 ? 10 : Math.max(1, Math.min(10, setting.digits));
     const rounded = d.toSignificantDigits(sig);
+    if (rounded.isZero()) {
+      return applyDecimalMark(`${(0).toFixed(Math.max(0, sig - 1))}×10^0`, decimalMark);
+    }
     const [mantissa, exponent] = rounded.toExponential(sig - 1).split('e');
     return applyDecimalMark(`${mantissa}×10^${Number(exponent)}`, decimalMark);
   }
@@ -128,18 +132,20 @@ export function formatDecimal(
   if (setting.mode === 'Fix') {
     const places = Math.max(0, Math.min(9, setting.digits));
     const abs = d.abs();
-    if (abs.gte('1e10')) {
+    const roundedFixed = d.toDecimalPlaces(places);
+    if (abs.gte('1e10') || roundedFixed.abs().gte('1e10')) {
       const rounded = d.toSignificantDigits(10);
       const [mantissa, exponent] = rounded.toExponential(9).split('e');
       const clean = mantissa.replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '');
       return applyDecimalMark(`${clean}×10^${Number(exponent)}`, decimalMark);
     }
-    const fixed = d.toDecimalPlaces(places).toFixed(places);
+    const fixed = roundedFixed.toFixed(places);
     const normZero = fixed === `-0.${'0'.repeat(places)}` || fixed === '-0' ? fixed.slice(1) : fixed;
     return applyDecimalMark(normZero, decimalMark);
   }
 
   const rounded = d.toSignificantDigits(10);
+  if (rounded.isZero()) return '0';
   const absolute = rounded.abs();
   const lowThreshold = setting.sub === 2 ? '1e-9' : '1e-2';
   if (absolute.gte('1e10') || absolute.lt(lowThreshold)) {
@@ -154,8 +160,10 @@ export function formatEngineering(value: Scalar, exponentMultipleOf3: number, de
   const d = value.decimal;
   if (d.isZero()) return `0×10^${exponentMultipleOf3}`;
   const rounded = d.toSignificantDigits(10);
+  if (rounded.isZero()) return `0×10^${exponentMultipleOf3}`;
   const scaled = rounded.times(`1e${-exponentMultipleOf3}`);
-  const clean = scaled.toFixed(12).replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '');
+  const rawClean = scaled.toFixed(12).replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '');
+  const clean = rawClean === '-0' ? '0' : rawClean;
   return applyDecimalMark(`${clean}×10^${exponentMultipleOf3}`, decimalMark);
 }
 
@@ -229,7 +237,7 @@ export function formatResult(
     if (value.simpUnreduced) {
       const { n, d } = value.simpUnreduced;
       const sf = value.simpFactor?.toString();
-      if (d === 1n) return { type: 'text', text: formatDecimal(value, setting, mark) };
+      if (d === 1n) return { type: 'text', text: formatDecimal(value, setting, mark), simpFactor: sf };
       const absN = n < 0n ? -n : n;
       const sign = n < 0n ? '−' : '';
       const style = options?.fractionStyle ?? 'improper';
@@ -280,7 +288,9 @@ export function formatResult(
 
     if (value.symbolic?.kind === 'surd') {
       const { a, b, rad, d } = value.symbolic;
-      const totalChars = a.toString().length + b.toString().length + rad.toString().length + d.toString().length;
+      const absA = a < 0n ? -a : a;
+      const absB = b < 0n ? -b : b;
+      const totalChars = absA.toString().length + absB.toString().length + rad.toString().length + d.toString().length;
       if (totalChars <= 16) {
         return {
           type: 'symbolic-surd',
@@ -296,7 +306,10 @@ export function formatResult(
       const { terms, d } = value.symbolic;
       const totalChars =
         d.toString().length +
-        terms.reduce((acc, t) => acc + t.coef.toString().length + t.rad.toString().length, 0);
+        terms.reduce((acc, t) => {
+          const absC = t.coef < 0n ? -t.coef : t.coef;
+          return acc + absC.toString().length + t.rad.toString().length;
+        }, 0);
       if (totalChars <= 20) {
         return {
           type: 'symbolic-multisurd',

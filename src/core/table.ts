@@ -42,6 +42,8 @@ export function generateFunctionTable(
     try {
       const val = evaluateExpression(expr, {
         ...context,
+        random: context.rng ? undefined : context.random,
+        rng: context.rng ?? (context.random === undefined ? () => Math.random() : undefined),
         variables: { ...context.variables, X: serialize(xVal) },
       });
       return formatDecimal(val, context.numberFormat, decimalMark);

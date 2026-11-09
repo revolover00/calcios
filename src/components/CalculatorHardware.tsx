@@ -324,12 +324,16 @@ export function CalculatorHardware({
     }
   };
 
+  const scanSeqRef = useRef(0);
+
   const runImageScan = useCallback(
     async (file: Blob) => {
+      const seq = ++scanSeqRef.current;
       setScanError(null);
       setScanView('scanning');
       try {
         const scanned = await scanMathFromImage(file);
+        if (scanSeqRef.current !== seq) return;
         dispatch({
           type: 'load-scanned-math',
           expression: scanned.expression,
@@ -338,6 +342,7 @@ export function CalculatorHardware({
         });
         setScanView('closed');
       } catch (err) {
+        if (scanSeqRef.current !== seq) return;
         const msg = err instanceof Error ? err.message : 'Failed to scan math image.';
         setScanError(msg);
         setScanView('menu');
@@ -379,6 +384,7 @@ export function CalculatorHardware({
   const handlePress = (id: string) => {
     if (scanView !== 'closed') {
       if (id === 'ac' || id === 'on') {
+        scanSeqRef.current++;
         setScanView('closed');
         setScanError(null);
         return;
@@ -392,9 +398,11 @@ export function CalculatorHardware({
           uploadInputRef.current?.click();
           return;
         }
+        setScanView('closed');
+        setScanError(null);
+        return;
       }
-      setScanView('closed');
-      setScanError(null);
+      return;
     }
     dispatch({ type: 'key', id });
   };
