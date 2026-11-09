@@ -366,6 +366,7 @@ function charIsPiOrE(ch: string): boolean {
 export interface CmplxEvalContext {
   angle: AngleUnit;
   variables: Record<VariableName, StoredScalar>;
+  varsIm?: Record<VariableName, StoredScalar>;
   cmplxAns: StoredComplex;
   cmplxPreAns?: StoredComplex;
   preAns?: StoredScalar;
@@ -604,7 +605,10 @@ export function evaluateComplex(
           if (ctx.cmplxPreAns) return deserializeComplex(ctx.cmplxPreAns);
           return ctx.preAns ? realToComplex(deserialize(ctx.preAns)) : deserializeComplex(ctx.cmplxAns);
         }
-        if (VAR_SET.has(tok.text)) return realToComplex(deserialize(ctx.variables[tok.text as VariableName]));
+        if (VAR_SET.has(tok.text)) {
+          const name = tok.text as VariableName;
+          return { re: deserialize(ctx.variables[name]), im: deserialize(ctx.varsIm?.[name] ?? zeroStored()) };
+        }
       }
       return syntax('Expected complex value', tok.offset);
     }
