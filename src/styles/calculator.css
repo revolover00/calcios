@@ -468,6 +468,21 @@ button {
   text-align: center;
 }
 
+.scan-lcd-expression {
+  display: block;
+  max-height: 3.2em;
+  overflow: auto;
+  overflow-wrap: anywhere;
+  padding: 4px 5px;
+  border: 1px solid rgba(2, 4, 5, 0.45);
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.32);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
 .scan-lcd-input {
   width: 100%;
   padding: 2px 5px;
