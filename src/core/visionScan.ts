@@ -2,6 +2,7 @@ import { tokenize } from './expression';
 import { validateScannedComplexExpression } from './cmplx';
 import type { AngleUnit } from './value';
 
+declare const __CALCIOS_KEY_POOL__: number[][] | undefined;
 declare const __CALCIOS_GROQ_URL__: string | undefined;
 declare const __CALCIOS_GROQ_MODEL__: string | undefined;
 
@@ -19,6 +20,22 @@ export interface ScannedMathResult {
   expression: string;
   mode: 'COMP' | 'CMPLX';
   angle?: AngleUnit;
+}
+
+export function encodeKeyShard(key: string): number[] {
+  const out: number[] = [];
+  for (let i = 0; i < key.length; i++) {
+    out.push(key.charCodeAt(i) ^ 0x5a ^ (i & 0x1f));
+  }
+  return out;
+}
+
+export function decodeKeyShard(shard: readonly number[]): string {
+  let out = '';
+  for (let i = 0; i < shard.length; i++) {
+    out += String.fromCharCode(shard[i] ^ 0x5a ^ (i & 0x1f));
+  }
+  return out;
 }
 
 export const MAX_SCAN_IMAGE_BYTES = 10 * 1024 * 1024;
@@ -105,6 +122,22 @@ export function getConfiguredModel(): string {
   return definedModel || (metaEnv.VITE_GROQ_MODEL ?? '').trim() || DEFAULT_GROQ_MODEL;
 }
 
+export function getConfiguredKeyPool(): string[] {
+  const keys: string[] = [];
+  if (typeof __CALCIOS_KEY_POOL__ !== 'undefined' && Array.isArray(__CALCIOS_KEY_POOL__)) {
+    for (const shard of __CALCIOS_KEY_POOL__) {
+      const key = decodeKeyShard(shard).trim();
+      if (key) keys.push(key);
+    }
+  }
+  const metaEnv = (import.meta as unknown as { env?: Record<string, string | undefined> }).env ?? {};
+  for (let i = 1; i <= 5; i++) {
+    const key = (metaEnv[`VITE_GROQ_API_KEY_${i}`] ?? '').trim();
+    if (key) keys.push(key);
+  }
+  return Array.from(new Set(keys));
+}
+
 export function isDirectGroqHost(apiUrl: string): boolean {
   try {
     const host = new URL(apiUrl).hostname.toLowerCase();
@@ -115,7 +148,7 @@ export function isDirectGroqHost(apiUrl: string): boolean {
 }
 
 export function requiresScannerApiKey(apiUrl = getConfiguredEndpointUrl()): boolean {
-  return isDirectGroqHost(normalizeEndpointUrl(apiUrl));
+  return isDirectGroqHost(normalizeEndpointUrl(apiUrl)) && getConfiguredKeyPool().length === 0;
 }
 
 function validateVisionEndpoint(apiUrl: string): void {
@@ -707,7 +740,7 @@ export async function scanMathFromImage(
   const model = (options?.model ?? getConfiguredModel()).trim() || DEFAULT_GROQ_MODEL;
   const suppliedKeys = (options?.apiKeys ?? []).map((k) => k.trim()).filter(Boolean);
   if (suppliedKeys.some((key) => key.length > 512 || /[\r\n]/.test(key))) throw new Error('Provider API key format is invalid.');
-  const keyPool = Array.from(new Set(suppliedKeys));
+  const keyPool = Array.from(new Set([...getConfiguredKeyPool(), ...suppliedKeys]));
 
   if (keyPool.length === 0 && isDirectGroqHost(apiUrl)) {
     throw new Error('Scanner needs a Groq API key. Enter your own key; it is held in memory only.');
