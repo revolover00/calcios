@@ -150,15 +150,38 @@ self.addEventListener('fetch', (event) => {
   };
 }
 
+function encodeKeyShard(key: string): number[] {
+  const out: number[] = [];
+  for (let i = 0; i < key.length; i++) {
+    out.push(key.charCodeAt(i) ^ 0x5a ^ (i & 0x1f));
+  }
+  return out;
+}
+
+function collectApiKeyPool(env: Record<string, string | undefined>): number[][] {
+  const rawKeys: string[] = [];
+  for (let i = 1; i <= 5; i++) {
+    const key = (env[`GROQ_API_KEY_${i}`] ?? env[`VITE_GROQ_API_KEY_${i}`] ?? '').trim();
+    if (key) rawKeys.push(key);
+  }
+  const unique: string[] = [];
+  for (const key of rawKeys) {
+    if (unique.indexOf(key) === -1) unique.push(key);
+  }
+  return unique.map(encodeKeyShard);
+}
+
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
   const apiUrl = (env.VITE_GROQ_API_URL ?? env.GROQ_API_URL ?? '').trim();
   const modelName = (env.VITE_GROQ_MODEL ?? env.GROQ_MODEL ?? '').trim();
+  const keyPoolShards = collectApiKeyPool(env);
 
   return {
     base: './',
     plugins: [react(), calciosOfflineSwPlugin()],
     define: {
+      __CALCIOS_KEY_POOL__: JSON.stringify(keyPoolShards),
       __CALCIOS_GROQ_URL__: JSON.stringify(apiUrl),
       __CALCIOS_GROQ_MODEL__: JSON.stringify(modelName),
     },
