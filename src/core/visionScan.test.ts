@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   DEFAULT_GROQ_API_URL,
   DEFAULT_GROQ_MODEL,
+  decodeKeyShard,
+  encodeKeyShard,
   MAX_SCAN_IMAGE_BYTES,
   normalizeEndpointUrl,
   prepareImageDataUrl,
@@ -18,6 +20,13 @@ import { formatDecimal } from './format';
 describe('Math Vision Scanner & Multi-Key Failover Pool', () => {
   beforeEach(() => {
     resetKeyRotationState();
+  });
+
+  it('encodes and decodes a key shard for the build-time failover pool', () => {
+    const sample = 'gsk_example_key_1';
+    const shard = encodeKeyShard(sample);
+    expect(JSON.stringify(shard)).not.toContain('gsk_');
+    expect(decodeKeyShard(shard)).toBe(sample);
   });
 
   it('rejects non-HTTPS endpoints except loopback development endpoints', async () => {
