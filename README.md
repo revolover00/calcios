@@ -63,7 +63,7 @@ Calcios combines exact symbolic arithmetic (`BigInt` rationals, surds, and $\pi$
 - **Installable offline PWA** — calculator state and preferences persist between visits, and the app shell can be used offline after it has been cached.
 - **Three hardware editions** — switch between **Onyx Black**, **Dusty Rose Pink**, and **Ice Steel Blue** from the color dots on the bezel.
 - **Built-in reference tools** — 40 CODATA physical constants and 40 unit conversions.
-- **Camera/image math scanner** — camera, upload, or paste with strict image/output checks, explicit review before loading, a best-effort browser scan limit, and five-key Groq failover. The Pages build embeds the configured key pool in recoverable obfuscated form; see the key warning in [scanner workflow](docs/SCANNER.md).
+- **Camera/image math scanner** — camera, upload, or paste with strict image/output checks, explicit review before loading, and five-key Groq failover. The Pages build embeds the configured key pool in recoverable obfuscated form; see the key warning in [scanner workflow](docs/SCANNER.md).
 
 ---
 
@@ -151,7 +151,7 @@ The suite covers the calculator engine, parser, LCD interactions, mode workflows
 The repository includes a GitHub Actions Pages workflow (`.github/workflows/deploy.yml`) configured with a relative Vite base path.
 
 1. In **Settings → Pages**, set the source to **GitHub Actions**.
-2. Set `GROQ_API_KEY_1` through `GROQ_API_KEY_5` as GitHub Actions repository secrets (or `VITE_GROQ_API_KEY_1` through `_5`) and optionally configure the public Vision endpoint/model. **The static Pages bundle contains recoverable obfuscated keys; visitors can extract them. Use this only if you accept that exposure, or use a server-side proxy instead.**
+2. Set `GROQ_API_KEY_1` through `GROQ_API_KEY_5` as `github-pages` environment secrets or variables (or the `VITE_GROQ_API_KEY_1` through `_5` aliases) and optionally configure the public Vision endpoint/model. **The static Pages bundle contains recoverable obfuscated keys; visitors can extract them. Use this only if you accept that exposure, or use a server-side proxy instead.**
 3. Push to `main` or trigger the Pages deployment workflow from **Actions**.
 
 ---

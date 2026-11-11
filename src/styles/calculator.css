@@ -483,19 +483,6 @@ button {
   line-height: 1.35;
 }
 
-.scan-lcd-input {
-  width: 100%;
-  padding: 2px 5px;
-  border: 1.2px solid rgba(2, 4, 5, 0.65);
-  border-radius: 2px;
-  background: rgba(255, 255, 255, 0.45);
-  color: #020405;
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.65rem;
-  font-weight: 600;
-  outline: none;
-}
-
 .scan-lcd-row {
   display: grid;
   grid-template-columns: 1fr auto;
