@@ -2,7 +2,6 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from './App';
 import * as visionScan from './core/visionScan';
-import { SCANNER_RATE_LIMIT, SCANNER_RATE_STORAGE_KEY } from './core/scannerRateLimit';
 
 function clickHardwareKey(container: HTMLElement, keyId: string) {
   const btn = container.querySelector<HTMLButtonElement>(`[data-key-id="${keyId}"]`);
@@ -69,7 +68,7 @@ describe('Calcios Handheld Viewport & Scientific Engine Integration', () => {
     const scanSpy = vi.spyOn(visionScan, 'scanMathFromImage').mockResolvedValue({ expression: '2+2', mode: 'COMP' });
     const { unmount } = render(<App />);
     fireEvent.click(screen.getByTestId('scan-math-btn'));
-    fireEvent.change(screen.getByTestId('scanner-api-key'), { target: { value: 'gsk-test' } });
+    expect(screen.queryByTestId('scanner-api-key')).toBeNull();
     fireEvent.change(screen.getByTestId('scan-upload-input'), {
       target: { files: [new File(['image'], 'math.png', { type: 'image/png' })] },
     });
@@ -81,39 +80,6 @@ describe('Calcios Handheld Viewport & Scientific Engine Integration', () => {
     expect(scanSpy).toHaveBeenCalledOnce();
     scanSpy.mockRestore();
     unmount();
-  });
-
-  it('requires a runtime key for direct Groq without persisting it or spending quota when missing', () => {
-    render(<App />);
-    fireEvent.click(screen.getByTestId('scan-math-btn'));
-    const keyField = screen.getByTestId('scanner-api-key');
-    fireEvent.change(keyField, { target: { value: 'gsk-runtime-only' } });
-    const savedStorage = Array.from({ length: window.localStorage.length }, (_, index) => {
-      const storageKey = window.localStorage.key(index);
-      return storageKey ? `${storageKey}:${window.localStorage.getItem(storageKey)}` : '';
-    }).join('|');
-    expect(savedStorage).not.toContain('gsk-runtime-only');
-    fireEvent.change(keyField, { target: { value: '' } });
-    fireEvent.change(screen.getByTestId('scan-upload-input'), {
-      target: { files: [new File(['image'], 'math.png', { type: 'image/png' })] },
-    });
-    expect(screen.getByTestId('scan-lcd-error').textContent).toContain('Enter your Groq API key');
-    expect(screen.getByText(/10 remaining/)).toBeInTheDocument();
-  });
-
-  it('blocks image scans after the per-hour quota is used', () => {
-    window.localStorage.setItem(
-      SCANNER_RATE_STORAGE_KEY,
-      JSON.stringify(Array.from({ length: SCANNER_RATE_LIMIT }, () => Date.now())),
-    );
-    render(<App />);
-    fireEvent.click(screen.getByTestId('scan-math-btn'));
-    fireEvent.change(screen.getByTestId('scanner-api-key'), { target: { value: 'gsk-test' } });
-    const upload = screen.getByTestId('scan-upload-input');
-    fireEvent.change(upload, { target: { files: [new File(['image'], 'math.png', { type: 'image/png' })] } });
-
-    expect(screen.getByTestId('scan-lcd-error').textContent).toContain('Hourly scan limit reached');
-    expect(screen.getByText(/0 remaining/)).toBeInTheDocument();
   });
 
   it('supports physical keyboard input when no text input is focused', () => {

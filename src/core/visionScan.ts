@@ -147,10 +147,6 @@ export function isDirectGroqHost(apiUrl: string): boolean {
   }
 }
 
-export function requiresScannerApiKey(apiUrl = getConfiguredEndpointUrl()): boolean {
-  return isDirectGroqHost(normalizeEndpointUrl(apiUrl)) && getConfiguredKeyPool().length === 0;
-}
-
 function validateVisionEndpoint(apiUrl: string): void {
   let url: URL;
   try {
@@ -743,7 +739,7 @@ export async function scanMathFromImage(
   const keyPool = Array.from(new Set([...getConfiguredKeyPool(), ...suppliedKeys]));
 
   if (keyPool.length === 0 && isDirectGroqHost(apiUrl)) {
-    throw new Error('Scanner needs a Groq API key. Enter your own key; it is held in memory only.');
+    throw new Error('Scanner service is not configured. Check the GitHub Pages environment key settings.');
   }
   if (options?.signal?.aborted) throw new Error('Scan cancelled.');
 

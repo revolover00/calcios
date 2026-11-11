@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { CalculatorAction, CalculatorState } from '../core/calculator';
-import { getConfiguredEndpointUrl, requiresScannerApiKey, scanMathFromImage, validateScanImageFile, type ScannedMathResult } from '../core/visionScan';
-import { consumeScannerQuota, getScannerQuota } from '../core/scannerRateLimit';
+import { getConfiguredEndpointUrl, scanMathFromImage, validateScanImageFile, type ScannedMathResult } from '../core/visionScan';
 import {
   LOWER_KEYPAD_ROWS,
   SCIENTIFIC_ROW_1,
@@ -320,8 +319,6 @@ export function CalculatorHardware({
   const [bodyTheme, setBodyTheme] = useState<CalciosBodyTheme>(loadBodyTheme);
   const [scanView, setScanView] = useState<'closed' | 'menu' | 'scanning' | 'review'>('closed');
   const [scanError, setScanError] = useState<string | null>(null);
-  const [scanQuota, setScanQuota] = useState(getScannerQuota);
-  const [scannerApiKey, setScannerApiKey] = useState('');
   const [pendingScan, setPendingScan] = useState<ScannedMathResult | null>(null);
 
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
@@ -354,19 +351,6 @@ export function CalculatorHardware({
         setScanView('menu');
         return;
       }
-      if (requiresScannerApiKey() && !scannerApiKey.trim()) {
-        setScanError('Enter your Groq API key first. It is kept in memory only.');
-        setScanView('menu');
-        return;
-      }
-      const quota = consumeScannerQuota();
-      setScanQuota(quota);
-      if (!quota.allowed) {
-        const waitMinutes = Math.max(1, Math.ceil(quota.retryAfterMs / 60_000));
-        setScanError(`Hourly scan limit reached. Try again in about ${waitMinutes} minute${waitMinutes === 1 ? '' : 's'}.`);
-        setScanView('menu');
-        return;
-      }
       const seq = ++scanSeqRef.current;
       setPendingScan(null);
       const controller = new AbortController();
@@ -374,10 +358,7 @@ export function CalculatorHardware({
       setScanError(null);
       setScanView('scanning');
       try {
-        const scanned = await scanMathFromImage(file, {
-          apiKeys: scannerApiKey.trim() ? [scannerApiKey.trim()] : [],
-          signal: controller.signal,
-        });
+        const scanned = await scanMathFromImage(file, { signal: controller.signal });
         if (scanSeqRef.current !== seq) return;
         setPendingScan(scanned);
         setScanView('review');
@@ -390,7 +371,7 @@ export function CalculatorHardware({
         if (scanAbortRef.current === controller) scanAbortRef.current = null;
       }
     },
-    [dispatch, scannerApiKey],
+    [],
   );
 
   const acceptScannedExpression = () => {
@@ -508,7 +489,6 @@ export function CalculatorHardware({
                     setScanView('closed');
                   } else {
                     setScanError(null);
-                    setScanQuota(getScannerQuota());
                     setScanView('menu');
                   }
                 }}
@@ -623,20 +603,6 @@ export function CalculatorHardware({
                       [AC]
                     </button>
                   </div>
-                  <label className="scan-lcd-hint" htmlFor="scanner-api-key">Provider API key (kept in memory only)</label>
-                  <input
-                    id="scanner-api-key"
-                    type="password"
-                    className="scan-lcd-input"
-                    data-testid="scanner-api-key"
-                    autoComplete="off"
-                    autoCapitalize="off"
-                    spellCheck={false}
-                    value={scannerApiKey}
-                    onChange={(event) => setScannerApiKey(event.target.value)}
-                    placeholder="Required for direct Groq use"
-                    aria-label="Vision provider API key, not saved"
-                  />
                   {scanError && <div className="scan-lcd-err" data-testid="scan-lcd-error" role="alert">{scanError}</div>}
                   <div className="scan-lcd-actions">
                     <button
@@ -656,7 +622,7 @@ export function CalculatorHardware({
                       2:Upload Image
                     </button>
                   </div>
-                  <div className="scan-lcd-hint">10 scans/hour · {scanQuota.remaining} remaining · paste with Ctrl+V</div>
+                  <div className="scan-lcd-hint">Paste an image with Ctrl+V</div>
                   <div className="scan-lcd-hint">Image is sent to: {scannerProviderHost()}</div>
                 </div>
               )}
