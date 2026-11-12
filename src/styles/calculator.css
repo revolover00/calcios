@@ -468,19 +468,17 @@ button {
   text-align: center;
 }
 
-.scan-lcd-expression {
-  display: block;
-  max-height: 3.2em;
-  overflow: auto;
-  overflow-wrap: anywhere;
-  padding: 4px 5px;
-  border: 1px solid rgba(2, 4, 5, 0.45);
+.scan-lcd-input {
+  width: 100%;
+  padding: 2px 5px;
+  border: 1.2px solid rgba(2, 4, 5, 0.65);
   border-radius: 2px;
-  background: rgba(255, 255, 255, 0.32);
+  background: rgba(255, 255, 255, 0.45);
+  color: #020405;
   font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.72rem;
-  font-weight: 700;
-  line-height: 1.35;
+  font-size: 0.65rem;
+  font-weight: 600;
+  outline: none;
 }
 
 .scan-lcd-row {

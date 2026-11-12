@@ -539,7 +539,7 @@ describe('50-Bug Comprehensive Senior Audit Regression Suite (#1–#50)', () => 
         apiUrl: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
         model: 'gemini-2.5-flash',
       }),
-    ).rejects.toThrow('HTTP 400');
+    ).rejects.toThrow('Invalid image payload');
     expect(fetchSpy).toHaveBeenCalledTimes(1); // Did NOT retry or poison key-1/key-2/key-3!
     fetchSpy.mockRestore();
 
