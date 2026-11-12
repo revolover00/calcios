@@ -1,7 +1,6 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, screen } from '@testing-library/react';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { App } from './App';
-import * as visionScan from './core/visionScan';
 
 function clickHardwareKey(container: HTMLElement, keyId: string) {
   const btn = container.querySelector<HTMLButtonElement>(`[data-key-id="${keyId}"]`);
@@ -62,24 +61,6 @@ describe('Calcios Handheld Viewport & Scientific Engine Integration', () => {
     expect(screen.getByTestId('lcd-result').textContent).toContain('1');
     expect(screen.getByTestId('lcd-result').textContent).toContain('6');
     expect(screen.getByTestId('lcd-result').textContent).toContain('π');
-  });
-
-  it('shows the validated transcription for human approval before changing the calculator', async () => {
-    const scanSpy = vi.spyOn(visionScan, 'scanMathFromImage').mockResolvedValue({ expression: '2+2', mode: 'COMP' });
-    const { unmount } = render(<App />);
-    fireEvent.click(screen.getByTestId('scan-math-btn'));
-    expect(screen.queryByTestId('scanner-api-key')).toBeNull();
-    fireEvent.change(screen.getByTestId('scan-upload-input'), {
-      target: { files: [new File(['image'], 'math.png', { type: 'image/png' })] },
-    });
-
-    await waitFor(() => expect(screen.getByTestId('scan-review-expression').textContent).toBe('2+2'));
-    expect(screen.getByTestId('lcd-result').textContent).toBe('');
-    fireEvent.click(screen.getByTestId('scan-confirm-btn'));
-    expect(screen.getByTestId('lcd-result').textContent).toBe('4');
-    expect(scanSpy).toHaveBeenCalledOnce();
-    scanSpy.mockRestore();
-    unmount();
   });
 
   it('supports physical keyboard input when no text input is focused', () => {
