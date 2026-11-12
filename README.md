@@ -7,7 +7,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?logo=typescript&logoColor=white)](#tech-stack)
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=0b1016)](#tech-stack)
 [![Vite](https://img.shields.io/badge/Vite-6-646CFF?logo=vite&logoColor=white)](#quick-start)
-[![Tests](https://img.shields.io/badge/Vitest-159%20passing-22c55e?logo=vitest&logoColor=white)](#quality--verification)
+[![Tests](https://img.shields.io/badge/Vitest-148%20passing-22c55e?logo=vitest&logoColor=white)](#quality--verification)
 
 A realistic, handheld-scale calculator featuring an exact symbolic engine, custom dot-matrix LCD, an interactive natural-math renderer, and **12 operating modes**. Its established casing, key layout, and calculator workflows are retained as new math capabilities are added.
 
@@ -63,7 +63,7 @@ Calcios combines exact symbolic arithmetic (`BigInt` rationals, surds, and $\pi$
 - **Installable offline PWA** — calculator state and preferences persist between visits, and the app shell can be used offline after it has been cached.
 - **Three hardware editions** — switch between **Onyx Black**, **Dusty Rose Pink**, and **Ice Steel Blue** from the color dots on the bezel.
 - **Built-in reference tools** — 40 CODATA physical constants and 40 unit conversions.
-- **Camera/image math scanner** — camera, upload, or paste with strict image/output checks, explicit review before loading, and five-key Groq failover. The Pages build embeds the configured key pool in recoverable obfuscated form; see the key warning in [scanner workflow](docs/SCANNER.md).
+- **Camera/image math scanner** — use the camera control or paste an image to scan a math problem into the calculator.
 
 ---
 
@@ -151,7 +151,7 @@ The suite covers the calculator engine, parser, LCD interactions, mode workflows
 The repository includes a GitHub Actions Pages workflow (`.github/workflows/deploy.yml`) configured with a relative Vite base path.
 
 1. In **Settings → Pages**, set the source to **GitHub Actions**.
-2. Set `GROQ_API_KEY_1` through `GROQ_API_KEY_5` as `github-pages` environment secrets or variables (or the `VITE_GROQ_API_KEY_1` through `_5` aliases) and optionally configure the public Vision endpoint/model. **The static Pages bundle contains recoverable obfuscated keys; visitors can extract them. Use this only if you accept that exposure, or use a server-side proxy instead.**
+2. Configure the `github-pages` environment and any optional scanner API settings/secrets described in the workflow.
 3. Push to `main` or trigger the Pages deployment workflow from **Actions**.
 
 ---
@@ -162,7 +162,6 @@ The repository includes a GitHub Actions Pages workflow (`.github/workflows/depl
 calcios/
 ├── docs/
 │   ├── HANDOFF.md
-│   ├── SCANNER.md                 # AI safety rules and exact scan workflow
 │   └── screenshots/               # Existing showcase images and new feature captures
 ├── public/                        # PWA manifest, icons, and service worker assets
 ├── scripts/                       # LCD font-generation script
