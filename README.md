@@ -125,6 +125,10 @@ Hardware keys can be clicked or used from a physical keyboard.
 # Install dependencies
 npm ci
 
+# Optional: configure server-only Groq credentials for local scanning
+cp .env.example .env.local
+# Edit .env.local and set GROQ_API_KEY_1 (never use a VITE_ prefix)
+
 # Start the Vite development server
 npm run dev
 
@@ -148,11 +152,11 @@ The suite covers the calculator engine, parser, LCD interactions, mode workflows
 
 ## Deploying to GitHub Pages
 
-The repository includes a GitHub Actions Pages workflow (`.github/workflows/deploy.yml`) configured with a relative Vite base path.
+The repository includes a GitHub Actions Pages workflow (`.github/workflows/deploy.yml`) configured with a relative Vite base path. GitHub Pages is static hosting, so the calculator works there but image scanning requires a server API and is unavailable on Pages alone.
 
 1. In **Settings → Pages**, set the source to **GitHub Actions**.
-2. Configure the `github-pages` environment and any optional scanner API settings/secrets described in the workflow.
-3. Push to `main` or trigger the Pages deployment workflow from **Actions**.
+2. Push to `main` or trigger the Pages deployment workflow from **Actions**.
+3. For image scanning, deploy on Vercel and configure `GROQ_API_KEY_1` (and optional `GROQ_API_KEY_2`…`GROQ_API_KEY_5`) as server-side environment variables. Do not add a `VITE_` prefix or put keys in GitHub Pages build secrets.
 
 ---
 

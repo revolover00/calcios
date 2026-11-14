@@ -1,6 +1,7 @@
 import { loadEnv, type Plugin } from 'vite';
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
+import { proxyVisionRequest } from './src/server/groqProxy';
 
 function computeFnv1aHex(input: string): string {
   let hash = 0x811c9dc5;
@@ -150,51 +151,79 @@ self.addEventListener('fetch', (event) => {
   };
 }
 
-function encodeKeyShard(key: string): number[] {
-  const out: number[] = [];
-  for (let i = 0; i < key.length; i++) {
-    out.push(key.charCodeAt(i) ^ 0x5a ^ (i & 0x1f));
-  }
-  return out;
+function createVisionApiMiddleware(env: Record<string, string | undefined>) {
+  return (req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse, next: () => void) => {
+    if (req.method !== 'POST') {
+      res.statusCode = 405;
+      res.setHeader('Allow', 'POST');
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify({ error: { message: 'Method not allowed.' } }));
+      return;
+    }
+
+    const chunks: Buffer[] = [];
+    let size = 0;
+    let tooLarge = false;
+    req.on('data', (chunk: Buffer | string) => {
+      const data = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      size += data.length;
+      if (size > 4_000_000) {
+        tooLarge = true;
+        return;
+      }
+      chunks.push(data);
+    });
+    req.on('error', next);
+    req.on('end', () => {
+      if (tooLarge) {
+        res.statusCode = 413;
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({ error: { message: 'Image is too large for scanning.' } }));
+        return;
+      }
+      let body: unknown;
+      try {
+        body = JSON.parse(Buffer.concat(chunks).toString('utf8')) as unknown;
+      } catch {
+        res.statusCode = 400;
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({ error: { message: 'Invalid scan request.' } }));
+        return;
+      }
+      void proxyVisionRequest(body, env).then((result) => {
+        res.statusCode = result.status;
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify(result.body));
+      }).catch(() => {
+        res.statusCode = 502;
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({ error: { message: 'Vision service temporarily unavailable.' } }));
+      });
+    });
+  };
 }
 
-function collectApiKeyPool(env: Record<string, string | undefined>): number[][] {
-  const rawKeys: string[] = [];
-  for (let i = 1; i <= 5; i++) {
-    const k = (env[`GROQ_API_KEY_${i}`] ?? env[`VITE_GROQ_API_KEY_${i}`] ?? '').trim();
-    if (k) rawKeys.push(k);
-  }
-  const csv = (env.GROQ_API_KEYS ?? env.VITE_GROQ_API_KEYS ?? '').trim();
-  if (csv) {
-    for (const part of csv.split(',')) {
-      const trimmed = part.trim();
-      if (trimmed) rawKeys.push(trimmed);
-    }
-  }
-  const single = (env.GROQ_API_KEY ?? env.VITE_GROQ_API_KEY ?? '').trim();
-  if (single) rawKeys.push(single);
-
-  const unique: string[] = [];
-  for (let i = 0; i < rawKeys.length; i++) {
-    if (unique.indexOf(rawKeys[i]) === -1) {
-      unique.push(rawKeys[i]);
-    }
-  }
-  return unique.map(encodeKeyShard);
+function visionApiPlugin(env: Record<string, string | undefined>): Plugin {
+  const middleware = createVisionApiMiddleware(env);
+  return {
+    name: 'calcios-vision-api',
+    configureServer(server) {
+      server.middlewares.use('/api/scan-math', middleware);
+    },
+    configurePreviewServer(server) {
+      server.middlewares.use('/api/scan-math', middleware);
+    },
+  };
 }
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
-  const keyPoolShards = collectApiKeyPool(env);
-  const apiUrl = (env.VITE_GROQ_API_URL ?? env.GROQ_API_URL ?? '').trim();
   const modelName = (env.VITE_GROQ_MODEL ?? env.GROQ_MODEL ?? '').trim();
 
   return {
     base: './',
-    plugins: [react(), calciosOfflineSwPlugin()],
+    plugins: [react(), calciosOfflineSwPlugin(), visionApiPlugin(env)],
     define: {
-      __CALCIOS_KEY_POOL__: JSON.stringify(keyPoolShards),
-      __CALCIOS_GROQ_URL__: JSON.stringify(apiUrl),
       __CALCIOS_GROQ_MODEL__: JSON.stringify(modelName),
     },
     server: { host: '0.0.0.0', allowedHosts: true },

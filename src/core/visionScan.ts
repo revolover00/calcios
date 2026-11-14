@@ -1,10 +1,9 @@
 import type { AngleUnit } from './value';
 
-declare const __CALCIOS_KEY_POOL__: number[][] | undefined;
-declare const __CALCIOS_GROQ_URL__: string | undefined;
 declare const __CALCIOS_GROQ_MODEL__: string | undefined;
 
 export const DEFAULT_GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
+export const DEFAULT_VISION_PROXY_URL = '/api/scan-math';
 export const DEFAULT_GROQ_MODEL = 'qwen/qwen3.8-27b';
 
 export interface VisionRuntimeOptions {
@@ -22,22 +21,6 @@ export interface ScannedMathResult {
   angle?: AngleUnit;
 }
 
-export function encodeKeyShard(key: string): number[] {
-  const out: number[] = [];
-  for (let i = 0; i < key.length; i++) {
-    out.push(key.charCodeAt(i) ^ 0x5a ^ (i & 0x1f));
-  }
-  return out;
-}
-
-export function decodeKeyShard(shard: readonly number[]): string {
-  let out = '';
-  for (let i = 0; i < shard.length; i++) {
-    out += String.fromCharCode(shard[i] ^ 0x5a ^ (i & 0x1f));
-  }
-  return out;
-}
-
 export function normalizeEndpointUrl(rawUrl: string): string {
   const trimmed = rawUrl.trim();
   if (!trimmed) return DEFAULT_GROQ_API_URL;
@@ -52,41 +35,18 @@ export function normalizeEndpointUrl(rawUrl: string): string {
 }
 
 export function getConfiguredEndpointUrl(): string {
-  const definedUrl = typeof __CALCIOS_GROQ_URL__ === 'string' ? __CALCIOS_GROQ_URL__ : '';
-  const metaEnv = (import.meta as unknown as { env?: Record<string, string | undefined> }).env ?? {};
-  return normalizeEndpointUrl(definedUrl || metaEnv.VITE_GROQ_API_URL || DEFAULT_GROQ_API_URL);
+  // API credentials are server-only; the browser always calls the same-origin proxy.
+  return DEFAULT_VISION_PROXY_URL;
 }
 
 export function getConfiguredModel(): string {
   const definedModel = typeof __CALCIOS_GROQ_MODEL__ === 'string' ? __CALCIOS_GROQ_MODEL__.trim() : '';
-  const metaEnv = (import.meta as unknown as { env?: Record<string, string | undefined> }).env ?? {};
-  return definedModel || (metaEnv.VITE_GROQ_MODEL ?? '').trim() || DEFAULT_GROQ_MODEL;
+  return definedModel || DEFAULT_GROQ_MODEL;
 }
 
 export function getConfiguredKeyPool(): string[] {
-  const keys: string[] = [];
-  if (typeof __CALCIOS_KEY_POOL__ !== 'undefined' && Array.isArray(__CALCIOS_KEY_POOL__)) {
-    for (const shard of __CALCIOS_KEY_POOL__) {
-      const decoded = decodeKeyShard(shard).trim();
-      if (decoded) keys.push(decoded);
-    }
-  }
-  const metaEnv = (import.meta as unknown as { env?: Record<string, string | undefined> }).env ?? {};
-  for (let i = 1; i <= 5; i++) {
-    const k = (metaEnv[`VITE_GROQ_API_KEY_${i}`] ?? '').trim();
-    if (k) keys.push(k);
-  }
-  const csv = (metaEnv.VITE_GROQ_API_KEYS ?? '').trim();
-  if (csv) {
-    for (const part of csv.split(',')) {
-      const trimmed = part.trim();
-      if (trimmed) keys.push(trimmed);
-    }
-  }
-  const single = (metaEnv.VITE_GROQ_API_KEY ?? '').trim();
-  if (single) keys.push(single);
-
-  return Array.from(new Set(keys));
+  // The browser must never receive provider credentials. Key rotation happens in the API function.
+  return [];
 }
 
 export function isDirectGroqHost(apiUrl: string): boolean {
@@ -589,12 +549,58 @@ function readTextField(data: Record<string, unknown> | null, keys: readonly stri
   for (const key of keys) {
     const value = data[key];
     if (typeof value === 'string' && value.trim()) return value;
-    if (Array.isArray(value) && value.every((part) => typeof part === 'string')) {
-      const joined = value.join('\n');
+    if (Array.isArray(value)) {
+      const joined = value
+        .map((part) => {
+          if (typeof part === 'string') return part;
+          if (part && typeof part === 'object' && 'text' in part && typeof part.text === 'string') return part.text;
+          return '';
+        })
+        .filter(Boolean)
+        .join('\n');
       if (joined.trim()) return joined;
     }
   }
   return '';
+}
+
+function readAssistantContent(payload: unknown): string {
+  if (!payload || typeof payload !== 'object' || !('choices' in payload) || !Array.isArray(payload.choices)) return '';
+  const firstChoice = payload.choices[0];
+  if (!firstChoice || typeof firstChoice !== 'object' || !('message' in firstChoice)) return '';
+  const message = firstChoice.message;
+  if (!message || typeof message !== 'object' || !('content' in message)) return '';
+  const content = message.content;
+  if (typeof content === 'string') return content.trim();
+  if (Array.isArray(content)) {
+    return content
+      .map((part) => {
+        if (typeof part === 'string') return part;
+        if (part && typeof part === 'object' && 'text' in part && typeof part.text === 'string') return part.text;
+        return '';
+      })
+      .filter(Boolean)
+      .join('\n')
+      .trim();
+  }
+  return '';
+}
+
+function lineCount(text: string): number {
+  return text.split('\n').filter((line) => line.trim()).length;
+}
+
+function likelyQuestionOnlyTranscription(text: string): boolean {
+  const trimmed = text.trim();
+  const englishQuestion = /^(?:find|determine|calculate|evaluate|solve|what\s+is|compute|show\s+that|prove)\b/i.test(trimmed);
+  const arabicQuestion = /^(?:احسب|أوجد|اوجد|حدد|حل)(?:\s|$)/.test(trimmed);
+  return lineCount(trimmed) === 1 && trimmed.length < 240 && (englishQuestion || arabicQuestion);
+}
+
+function preferMoreCompleteTranscription(current: string, candidate: string): string {
+  if (!candidate) return current;
+  if (!current || lineCount(candidate) > lineCount(current) || candidate.length > current.length) return candidate;
+  return current;
 }
 
 async function sendSingleKeyVisionRequest(
@@ -723,17 +729,15 @@ export async function scanMathFromImage(
     throw new Error(lastErrorDetail);
   }
 
-  const payload = (await winningResponse.json()) as {
-    choices?: Array<{ message?: { content?: string } }>;
-  };
-  const rawContent = payload.choices?.[0]?.message?.content?.trim() ?? '';
+  const payload: unknown = await winningResponse.json();
+  const rawContent = readAssistantContent(payload);
   if (!rawContent) {
     throw new Error('Vision model returned an empty response.');
   }
 
   const parsed = parseModelObject(rawContent);
   const expressionRaw = readTextField(parsed, ['expression', 'calculator_expression', 'math_expression']);
-  let transcription = cleanTranscription(readTextField(parsed, [
+  const transcriptKeys = [
     'transcription',
     'problemText',
     'problem_text',
@@ -742,27 +746,26 @@ export async function scanMathFromImage(
     'ocr_text',
     'text',
     'problem',
-  ]) || expressionRaw || (parsed ? '' : rawContent));
+  ] as const;
+  let transcription = cleanTranscription(readTextField(parsed, transcriptKeys) || (parsed ? '' : rawContent));
 
-  // Some vision responses satisfy JSON mode but return an empty/invisible OCR field.
-  // Retry once with a plain-text OCR-only instruction rather than showing a blank review form.
-  if (!transcription) {
+  // An answer-only JSON field is not a full transcription. Retry when transcription is
+  // missing (even if an expression exists), blank/invisible, or looks like only the final ask.
+  if (!transcription || likelyQuestionOnlyTranscription(transcription)) {
     try {
       const fallbackResponse = await sendTranscriptionFallbackRequest(apiUrl, model, winningApiKey, dataUrl);
       if (fallbackResponse.ok) {
-        const fallbackPayload = (await fallbackResponse.json()) as {
-          choices?: Array<{ message?: { content?: string } }>;
-        };
-        const fallbackContent = fallbackPayload.choices?.[0]?.message?.content?.trim() ?? '';
+        const fallbackContent = readAssistantContent(await fallbackResponse.json());
         if (fallbackContent) {
           const fallbackParsed = parseModelObject(fallbackContent);
-          transcription = cleanTranscription(readTextField(fallbackParsed, [
-            'transcription', 'problemText', 'problem_text', 'fullProblem', 'full_problem', 'ocr_text', 'text', 'problem',
-          ]) || (fallbackParsed ? '' : fallbackContent));
+          const fallbackTranscription = cleanTranscription(
+            readTextField(fallbackParsed, transcriptKeys) || (fallbackParsed ? '' : fallbackContent),
+          );
+          transcription = preferMoreCompleteTranscription(transcription, fallbackTranscription);
         }
       }
     } catch {
-      // Fall through to the explicit readable-text error below.
+      // Fall through to the explicit readable-text error or keep the best available transcription.
     }
   }
 

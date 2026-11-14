@@ -7,7 +7,7 @@
 - **Complex math (`src/core/cmplx.ts`)** — rectangular/polar values, branch-aware arithmetic, trigonometric and hyperbolic functions, complex variable memory `A`–`F`, `M`, `X`, and `Y`, and complex `STO`/`RCL` and memory accumulation.
 - **Math-mode engines** — `calculus.ts`, `eqn.ts`, `ineq.ts`, `ratio.ts`, `stat.ts`, `dist.ts`, `matrix.ts`, `vector.ts`, and `table.ts` implement mode-specific solvers and data structures.
 - **LCD and hardware (`src/components/LcdScreen.tsx`, `NaturalMath.tsx`, `CalculatorHardware.tsx`, `src/styles/calculator.css`)** — custom dot-matrix fonts, 2D math renderer, menus/editors/prompts, physical key layout, and existing color themes.
-- **Scanner (`src/core/visionScan.ts`) and PWA** — image math scanning with optional configured API, install/offline support, and session persistence.
+- **Scanner (`src/core/visionScan.ts`, `src/server/groqProxy.ts`, `api/scan-math.ts`) and PWA** — image OCR via a same-origin server-side Groq proxy; API keys stay in Vercel/server environment variables and never enter the browser bundle. GitHub Pages remains static and does not provide the scanner API.
 
 ## Current Operating Modes
 

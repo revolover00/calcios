@@ -2,8 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   DEFAULT_GROQ_API_URL,
   DEFAULT_GROQ_MODEL,
-  decodeKeyShard,
-  encodeKeyShard,
+  DEFAULT_VISION_PROXY_URL,
+  getConfiguredEndpointUrl,
+  getConfiguredKeyPool,
   normalizeEndpointUrl,
   normalizeToCalcios2D,
   resetKeyRotationState,
@@ -16,11 +17,25 @@ describe('Math Vision Scanner & Multi-Key Failover Pool', () => {
     resetKeyRotationState();
   });
 
-  it('obfuscates and restores API key shards without exposing plaintext prefixes', () => {
-    const sample = 'gsk_AbCdEfGhIjKlMnOpQrStUvWxYz123456';
-    const shard = encodeKeyShard(sample);
-    expect(JSON.stringify(shard)).not.toContain('gsk_');
-    expect(decodeKeyShard(shard)).toBe(sample);
+  it('uses the same-origin server proxy and never reads API keys from browser configuration', () => {
+    expect(getConfiguredEndpointUrl()).toBe(DEFAULT_VISION_PROXY_URL);
+    expect(getConfiguredKeyPool()).toEqual([]);
+  });
+
+  it('sends scans to the same-origin proxy without an Authorization header by default', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response(JSON.stringify({
+      choices: [{ message: { content: JSON.stringify({
+        transcription: '2x + 3 = 7',
+        expression: '2x+3=7',
+        mode: 'COMP',
+      }) } }],
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+
+    await scanMathFromImage(new Blob(['image'], { type: 'image/png' }));
+
+    expect(fetchSpy.mock.calls[0][0]).toBe(DEFAULT_VISION_PROXY_URL);
+    const headers = new Headers(fetchSpy.mock.calls[0][1]?.headers);
+    expect(headers.has('authorization')).toBe(false);
   });
 
   it('normalizes bare Groq and OpenAI-compatible base URLs to /chat/completions', () => {
@@ -111,6 +126,58 @@ describe('Math Vision Scanner & Multi-Key Failover Pool', () => {
     expect(retryBody.response_format).toBeUndefined();
   });
 
+  it('retries a non-empty answer-only transcription that contains just the final question', async () => {
+    const fullText = [
+      'Let f(x,y) = (x^2 + y^2)^2 + 3xy - 4x - 6y + 1 = 0',
+      'x,y in R, x != y',
+      'df/dx = 4x(x^2+y^2) + 3y - 4 = 0',
+      'df/dy = 4y(x^2+y^2) + 3x - 6 = 0',
+      'x(0) = 1, y(0) = -1',
+      'Find lim(t->infinity) (x(t)+y(t))',
+    ].join('\\n');
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        choices: [{ message: { content: JSON.stringify({
+          transcription: 'Find lim(t->infinity) (x(t)+y(t))',
+          expression: 'lim(t->infinity)(x(t)+y(t))',
+          mode: 'COMP',
+        }) } }],
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        choices: [{ message: { content: fullText } }],
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+
+    const result = await scanMathFromImage(new Blob(['image'], { type: 'image/png' }), {
+      apiUrl: DEFAULT_GROQ_API_URL,
+      model: DEFAULT_GROQ_MODEL,
+      apiKeys: ['test-key'],
+    });
+
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(result.transcription).toBe(fullText);
+    expect(result.expression).toBe('lim(t->infinity)(X(t)+Y(t))');
+  });
+
+  it('does not treat a JSON expression as a complete transcription when the OCR field is absent', async () => {
+    const fullText = 'Question 1\\n2x + 3y = 12\\nx - y = 1\\nFind x and y';
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        choices: [{ message: { content: JSON.stringify({ expression: '2x+3y=12' }) } }],
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        choices: [{ message: { content: [{ type: 'text', text: fullText }] } }],
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+
+    const result = await scanMathFromImage(new Blob(['image'], { type: 'image/png' }), {
+      apiUrl: DEFAULT_GROQ_API_URL,
+      model: DEFAULT_GROQ_MODEL,
+      apiKeys: ['test-key'],
+    });
+
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(result.transcription).toBe(fullText);
+  });
+
   it('automatically fails over across 5 API keys on 429/401 and sticks to the healthy key on subsequent scans', async () => {
     const keys = ['gsk_key_1', 'gsk_key_2', 'gsk_key_3', 'gsk_key_4', 'gsk_key_5'];
 
@@ -137,6 +204,7 @@ describe('Math Vision Scanner & Multi-Key Failover Pool', () => {
               {
                 message: {
                   content: JSON.stringify({
+                    transcription: 'integ(cos(X),0,frac(π,2))',
                     expression: 'integ(cos(X),0,frac(π,2))',
                     mode: 'COMP',
                     angle: 'RAD',
@@ -156,6 +224,7 @@ describe('Math Vision Scanner & Multi-Key Failover Pool', () => {
               {
                 message: {
                   content: JSON.stringify({
+                    transcription: 'frac(1+sqrt(5),2)',
                     expression: 'frac(1+sqrt(5),2)',
                     mode: 'COMP',
                     angle: null,
