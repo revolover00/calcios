@@ -1,4 +1,4 @@
-import React, { useEffect, useReducer, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react';
 import { CalculatorHardware } from './components/CalculatorHardware';
 import { calculatorReducer, hydrateState, saveableState, type CalculatorState } from './core/calculator';
 
@@ -6,14 +6,33 @@ const STORAGE_KEY = 'calcios-state-v1';
 const PHYSICAL_WIDTH = 356;
 const PHYSICAL_HEIGHT = 708;
 
+export function calculateDeviceScale(
+  viewportWidth: number,
+  viewportHeight: number,
+  calculatorWidth = PHYSICAL_WIDTH,
+  calculatorHeight = PHYSICAL_HEIGHT,
+): number {
+  if (
+    !Number.isFinite(viewportWidth) || !Number.isFinite(viewportHeight) ||
+    !Number.isFinite(calculatorWidth) || !Number.isFinite(calculatorHeight) ||
+    viewportWidth <= 0 || viewportHeight <= 0 || calculatorWidth <= 0 || calculatorHeight <= 0
+  ) return 1;
+
+  const availableWidth = Math.max(1, viewportWidth - 28);
+  const availableHeight = Math.max(1, viewportHeight - 32);
+  return Math.min(1, availableWidth / calculatorWidth, availableHeight / calculatorHeight);
+}
+
 function computeDeviceScale(): number {
   if (typeof window === 'undefined') return 1;
-  const vw = window.visualViewport?.width ?? window.innerWidth;
-  const vh = window.visualViewport?.height ?? window.innerHeight;
-  if (!vw || !vh) return 1;
-  const availW = Math.max(200, vw - 28);
-  const availH = Math.max(320, vh - 32);
-  return Math.min(1, availW / PHYSICAL_WIDTH, availH / PHYSICAL_HEIGHT);
+  const viewportWidth = window.visualViewport?.width ?? window.innerWidth;
+  const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
+  const casing = document.querySelector<HTMLElement>('.calcios-casing');
+  // Measure the untransformed element so the scale always fits the real rendered
+  // shell, including font and content changes, rather than a stale height guess.
+  const calculatorWidth = casing?.offsetWidth || PHYSICAL_WIDTH;
+  const calculatorHeight = casing?.offsetHeight || PHYSICAL_HEIGHT;
+  return calculateDeviceScale(viewportWidth, viewportHeight, calculatorWidth, calculatorHeight);
 }
 
 function isInsideUnclosedParen(expr: string, cursor: number): boolean {
@@ -169,8 +188,10 @@ export function App(): React.ReactElement {
 
   const [deviceScale, setDeviceScale] = useState<number>(computeDeviceScale);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     let rafId: number | null = null;
+    let disposed = false;
+    let resizeObserver: ResizeObserver | null = null;
     const updateScale = () => {
       if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
         return;
@@ -205,6 +226,16 @@ export function App(): React.ReactElement {
     };
 
     updateScale();
+    if (typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(updateScale);
+      const casing = document.querySelector('.calcios-casing');
+      const viewport = document.querySelector('.calc-viewport');
+      if (casing) resizeObserver.observe(casing);
+      if (viewport) resizeObserver.observe(viewport);
+    }
+    void document.fonts?.ready.then(() => {
+      if (!disposed) scheduleScaleRefresh();
+    });
     window.addEventListener('resize', updateScale);
     window.addEventListener('orientationchange', scheduleScaleRefresh);
     window.addEventListener('pageshow', onPageShow);
@@ -213,6 +244,8 @@ export function App(): React.ReactElement {
     document.addEventListener('freeze', onPageHideOrFreeze);
     window.visualViewport?.addEventListener('resize', updateScale);
     return () => {
+      disposed = true;
+      resizeObserver?.disconnect();
       if (rafId !== null && typeof window.cancelAnimationFrame === 'function') {
         window.cancelAnimationFrame(rafId);
       }

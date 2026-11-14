@@ -517,7 +517,7 @@ button {
 
 .lcd-glass {
   position: relative;
-  height: 126px;
+  height: 144px;
   padding: 5px 10px 7px;
   border-radius: 3.5px;
   border: 1.5px solid var(--lcd-frame-bdr);
@@ -610,6 +610,7 @@ button {
 /* Home Expression & Result Areas — Exact 5×9 & 5×6 Calcios Dot-Matrix Proportions */
 .lcd-home {
   flex: 1;
+  min-width: 0;
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -619,11 +620,14 @@ button {
 
 .lcd-expr-area {
   flex: 1;
-  min-height: 44px;
+  min-width: 0;
+  min-height: 58px;
   display: flex;
   align-items: flex-start;
   gap: 5px;
-  padding-top: 2px;
+  padding: 8px 4px 6px;
+  scroll-padding-inline: 8px;
+  overscroll-behavior-x: contain;
   font-family: 'CalciosLCDLarge', 'IBM Plex Mono', monospace;
   font-size: 28px;
   font-weight: 400;
@@ -648,6 +652,9 @@ button {
 .lcd-expr-inner {
   display: inline-flex;
   align-items: center;
+  flex: 0 0 auto;
+  width: max-content;
+  min-width: max-content;
   min-height: 28px;
   white-space: nowrap;
 }
@@ -664,15 +671,27 @@ button {
 }
 
 .lcd-result-area {
+  width: 100%;
+  min-width: 0;
   min-height: 48px;
   flex-shrink: 0;
   display: flex;
   align-items: flex-end;
-  justify-content: flex-end;
+  justify-content: flex-start;
   gap: 4px;
   padding-bottom: 1px;
   overflow-x: auto;
+  overscroll-behavior-x: contain;
   scrollbar-width: none;
+}
+
+/* Keep wide numbers at their natural width so the LCD scrolls instead of
+   shrinking, hiding, or clipping leading/trailing digits at the glass edges. */
+.lcd-result-area > * {
+  flex: 0 0 auto;
+  width: max-content;
+  max-width: none;
+  margin-left: auto;
 }
 
 .lcd-result-area::-webkit-scrollbar {
@@ -838,13 +857,26 @@ button {
 }
 
 .lcd-cell-readout {
+  width: 100%;
+  min-width: 0;
   display: flex;
-  justify-content: flex-end;
+  justify-content: flex-start;
   align-items: center;
   min-height: 24px;
   padding-top: 2px;
   border-top: 1.5px solid rgba(2, 4, 5, 0.28);
   font-size: 21px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.lcd-cell-readout > * {
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+.lcd-cell-readout::-webkit-scrollbar {
+  display: none;
 }
 
 .math-frac-num,
@@ -1100,16 +1132,23 @@ button {
 
 /* Pair Result (Pol / Rec / SOLVE) */
 .lcd-pair-result {
-  width: 100%;
+  width: max-content;
+  min-width: 100%;
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 
 .lcd-pair-row {
+  width: max-content;
+  min-width: 100%;
   display: flex;
   justify-content: space-between;
   font-size: 24px;
+}
+
+.lcd-pair-row > * {
+  flex: 0 0 auto;
 }
 
 /* Firmware Pixel-Bordered Tables: STAT, DIST, MATRIX, VECTOR, TABLE */
@@ -1128,12 +1167,26 @@ button {
   padding: 1px 4px;
 }
 
-.lcd-table-head > span,
-.lcd-table-row > span {
+.lcd-table-head > span {
   padding: 1px 4px;
   overflow: hidden;
-  text-overflow: ellipsis;
+  text-overflow: clip;
   white-space: nowrap;
+}
+
+.lcd-table-row > span {
+  min-width: 0;
+  padding: 1px 4px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  text-overflow: clip;
+  white-space: nowrap;
+  scrollbar-width: none;
+}
+
+.lcd-table-row > span::-webkit-scrollbar,
+.lcd-mat-cell::-webkit-scrollbar {
+  display: none;
 }
 
 .lcd-table-row {
@@ -1161,14 +1214,17 @@ button {
 }
 
 .lcd-mat-cell {
+  min-width: 0;
   text-align: right;
   padding: 1px 4px;
   border: 1px solid rgba(2, 4, 5, 0.3);
   background: rgba(2, 4, 5, 0.04);
   font-size: 18px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-x: auto;
+  overflow-y: hidden;
+  text-overflow: clip;
   white-space: nowrap;
+  scrollbar-width: none;
 }
 
 .lcd-mat-cell.focused {
