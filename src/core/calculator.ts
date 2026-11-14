@@ -2848,24 +2848,9 @@ export function calculatorReducer(state: CalculatorState, action: CalculatorActi
       solvePrompt: null,
       notice: null,
     };
-    if (targetMode === 'COMP' && expr.includes('=') && !parseAssignmentStatement(expr)) {
-      const solveInit = startSolveWorkflow(editingState);
-      if (solveInit.solvePrompt) {
-        const solvedDefault = handleSolvePrompt(solveInit, 'equals');
-        if (!solvedDefault.error) return solvedDefault;
-        for (const fallbackGuess of ['1', '0', '-1', '2']) {
-          const withGuess: CalculatorState = {
-            ...solveInit,
-            solvePrompt: { ...solveInit.solvePrompt, input: fallbackGuess },
-          };
-          const solvedFallback = handleSolvePrompt(withGuess, 'equals');
-          if (!solvedFallback.error) return solvedFallback;
-        }
-      }
-      return editingState;
-    }
-    const evaluated = calculatorReducer(editingState, { type: 'key', id: 'equals' });
-    return evaluated.error ? editingState : evaluated;
+    // OCR is transcription, never an implicit calculation. Keep the recognized
+    // input visible and let the student choose = or SOLVE explicitly.
+    return editingState;
   }
   if (action.type === 'angle') {
     return { ...state, angle: action.angle, screen: 'normal', shift: false, alpha: false };

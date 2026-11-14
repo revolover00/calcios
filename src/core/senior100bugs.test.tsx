@@ -435,13 +435,15 @@ describe('Second 50-Bug Senior Audit Regression Suite (#51–#100)', () => {
     expect(sHyp.hyp).toBe(false);
     expect(sHyp.expression).toBe('5');
 
-    // #90: load-scanned-math solves √X=3 -> X=9 even when X previously held -5 (out of domain)
+    // #90: scanned equations are shown as transcription only; stale X cannot trigger an implicit solve/error.
     let sStaleX = createInitialState();
     sStaleX = { ...sStaleX, variables: { ...sStaleX.variables, X: serialize(scalarFromInteger(-5)) } };
     const sScanned = calculatorReducer(sStaleX, { type: 'load-scanned-math', expression: 'sqrt(X)=3', mode: 'COMP' });
     expect(sScanned.error).toBeNull();
-    expect(sScanned.solvePrompt?.stage).toBe('solved');
-    expect(deserialize(sScanned.solvePrompt!.root!).decimal.toNumber()).toBeCloseTo(9, 8);
+    expect(sScanned.phase).toBe('editing');
+    expect(sScanned.expression).toBe('sqrt(X)=3');
+    expect(sScanned.solvePrompt).toBeNull();
+    expect(sScanned.result).toBeNull();
 
     // #91: RCL in BASE-N immediately displays recalled variable in active base & recalls A value in HEX
     let sBaseRcl = createInitialState();

@@ -10,8 +10,6 @@ import {
   scanMathFromImage,
 } from './visionScan';
 import { calculatorReducer, formatActiveResult, hydrateState } from './calculator';
-import { deserialize } from './value';
-import { formatDecimal } from './format';
 
 describe('Math Vision Scanner & Multi-Key Failover Pool', () => {
   beforeEach(() => {
@@ -137,17 +135,22 @@ describe('Math Vision Scanner & Multi-Key Failover Pool', () => {
       angle: firstScan.angle,
     });
     expect(next.angle).toBe('RAD');
-    expect(formatActiveResult(next)).toEqual({ type: 'text', text: '1' });
+    expect(next.phase).toBe('editing');
+    expect(next.expression).toBe(firstScan.expression);
+    expect(next.result).toBeNull();
+    expect(formatActiveResult(next)).toBeNull();
   });
 
-  it('automatically solves single-variable equations loaded from a scanned photo', () => {
+  it('loads scanned equations as editable transcription without solving them automatically', () => {
     const initial = hydrateState(null);
-    const solved = calculatorReducer(initial, {
+    const loaded = calculatorReducer(initial, {
       type: 'load-scanned-math',
       expression: '2X+5=13',
       mode: 'COMP',
     });
-    expect(solved.solvePrompt?.stage).toBe('solved');
-    expect(solved.solvePrompt?.root && formatDecimal(deserialize(solved.solvePrompt.root))).toBe('4');
+    expect(loaded.phase).toBe('editing');
+    expect(loaded.expression).toBe('2X+5=13');
+    expect(loaded.solvePrompt).toBeNull();
+    expect(loaded.result).toBeNull();
   });
 });
