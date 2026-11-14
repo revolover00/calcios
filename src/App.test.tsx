@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import { beforeEach, describe, expect, it } from 'vitest';
-import { App } from './App';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { App, calculateDeviceScale } from './App';
 
 function clickHardwareKey(container: HTMLElement, keyId: string) {
   const btn = container.querySelector<HTMLButtonElement>(`[data-key-id="${keyId}"]`);
@@ -9,6 +9,38 @@ function clickHardwareKey(container: HTMLElement, keyId: string) {
 }
 
 describe('Calcios Handheld Viewport & Scientific Engine Integration', () => {
+  it('scales the complete calculator to fit narrow, short, and invalid viewports', () => {
+    expect(calculateDeviceScale(390, 844, 356, 740)).toBeCloseTo(Math.min(1, 362 / 356, 812 / 740));
+    expect(calculateDeviceScale(320, 640, 356, 740)).toBeCloseTo(Math.min(1, 292 / 356, 608 / 740));
+    expect(calculateDeviceScale(240, 400, 356, 740)).toBeCloseTo(Math.min(1, 212 / 356, 368 / 740));
+    expect(calculateDeviceScale(0, 400)).toBe(1);
+    expect(calculateDeviceScale(320, 640, 0, 740)).toBe(1);
+  });
+
+  it('recalculates the initial fit from the actual rendered shell dimensions before paint', () => {
+    const widthSpy = vi.spyOn(window, 'innerWidth', 'get').mockReturnValue(390);
+    const heightSpy = vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(700);
+    const shellWidthSpy = vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockImplementation(function (this: HTMLElement) {
+      return this.classList?.contains('calcios-casing') ? 356 : 0;
+    });
+    const shellHeightSpy = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(function (this: HTMLElement) {
+      return this.classList?.contains('calcios-casing') ? 760 : 0;
+    });
+
+    try {
+      const { unmount } = render(<App />);
+      const viewport = screen.getByTestId('calc-viewport');
+      expect(Number(viewport.style.getPropertyValue('--calc-scale')))
+        .toBeCloseTo(calculateDeviceScale(390, 700, 356, 760));
+      unmount();
+    } finally {
+      shellHeightSpy.mockRestore();
+      shellWidthSpy.mockRestore();
+      heightSpy.mockRestore();
+      widthSpy.mockRestore();
+    }
+  });
+
   beforeEach(() => {
     window.localStorage.clear();
   });
@@ -27,6 +59,23 @@ describe('Calcios Handheld Viewport & Scientific Engine Integration', () => {
 
     const imgs = container.querySelectorAll('img');
     expect(imgs.length).toBe(0);
+  });
+
+  it('scrolls overflowing LCD expressions and results to keep their final digits visible', () => {
+    const { container } = render(<App />);
+    const expressionArea = container.querySelector<HTMLElement>('.lcd-expr-area');
+    const resultArea = container.querySelector<HTMLElement>('.lcd-result-area');
+    if (!expressionArea || !resultArea) throw new Error('Missing LCD reading areas');
+
+    Object.defineProperty(expressionArea, 'scrollWidth', { configurable: true, value: 420 });
+    Object.defineProperty(resultArea, 'scrollWidth', { configurable: true, value: 420 });
+    clickHardwareKey(container, '1');
+    clickHardwareKey(container, 'add');
+    clickHardwareKey(container, '2');
+    clickHardwareKey(container, 'equals');
+
+    expect(expressionArea.scrollLeft).toBe(420);
+    expect(resultArea.scrollLeft).toBe(420);
   });
 
   it('computes exact fractions, symbolic surds, and π multiples on the LCD and toggles S⇔D', () => {

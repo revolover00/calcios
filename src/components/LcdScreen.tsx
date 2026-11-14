@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useLayoutEffect, useRef } from 'react';
 import {
   formatActiveComplexDisplay, formatActiveEqnItemDisplay,
   formatActiveInequalityDisplay, formatActiveResult, getModeHistoryIndices,
@@ -1202,8 +1202,33 @@ function renderNormalInteractiveBody(state: CalculatorState): React.ReactElement
 }
 
 export function LcdScreen({ state }: { state: CalculatorState }): React.ReactElement {
+  const lcdRef = useRef<HTMLDivElement | null>(null);
   const contrastOpacity = (0.45 + state.contrast * 0.055).toFixed(3);
   const glassStyle = { '--lcd-contrast-alpha': contrastOpacity } as React.CSSProperties;
+
+  useLayoutEffect(() => {
+    const scrollToTrailingDigits = () => {
+      const screen = lcdRef.current;
+      const resultArea = screen?.querySelector<HTMLElement>('.lcd-result-area');
+      if (resultArea) resultArea.scrollLeft = resultArea.scrollWidth;
+      screen?.querySelectorAll<HTMLElement>(
+        '.lcd-table-row.active > span, .lcd-mat-cell.focused, .lcd-cell-readout',
+      ).forEach((cell) => {
+        cell.scrollLeft = cell.scrollWidth;
+      });
+
+      // When a calculation completes, keep the rightmost expression digits in
+      // view too; while editing, the caret owns horizontal scrolling.
+      if (state.phase === 'result') {
+        const expressionArea = screen?.querySelector<HTMLElement>('.lcd-expr-area');
+        if (expressionArea) expressionArea.scrollLeft = expressionArea.scrollWidth;
+      }
+    };
+
+    scrollToTrailingDigits();
+    // Repeat after the LCD font loads in case its glyph metrics increase width.
+    void document.fonts?.ready.then(scrollToTrailingDigits);
+  }, [state]);
 
   if (state.screen === 'off') {
     return (
@@ -1216,7 +1241,7 @@ export function LcdScreen({ state }: { state: CalculatorState }): React.ReactEle
   if (state.phase === 'error' && state.error) {
     return (
       <div className="lcd-bezel">
-        <div className="lcd-glass" style={glassStyle} data-testid="lcd-screen">
+        <div ref={lcdRef} className="lcd-glass" style={glassStyle} data-testid="lcd-screen">
           <LcdStatusBar state={state} />
           <div className="lcd-error" data-testid="lcd-error" dir="ltr">
             <div className="lcd-error-title">{state.error}</div>
@@ -1234,7 +1259,7 @@ export function LcdScreen({ state }: { state: CalculatorState }): React.ReactEle
   if (menuNode) {
     return (
       <div className="lcd-bezel">
-        <div className="lcd-glass" style={glassStyle} data-testid="lcd-screen">
+        <div ref={lcdRef} className="lcd-glass" style={glassStyle} data-testid="lcd-screen">
           <LcdStatusBar state={state} />
           {menuNode}
         </div>
@@ -1246,7 +1271,7 @@ export function LcdScreen({ state }: { state: CalculatorState }): React.ReactEle
   if (interactiveNode) {
     return (
       <div className="lcd-bezel">
-        <div className="lcd-glass" style={glassStyle} data-testid="lcd-screen">
+        <div ref={lcdRef} className="lcd-glass" style={glassStyle} data-testid="lcd-screen">
           <LcdStatusBar state={state} />
           {interactiveNode}
         </div>
@@ -1260,7 +1285,7 @@ export function LcdScreen({ state }: { state: CalculatorState }): React.ReactEle
 
   return (
     <div className="lcd-bezel">
-      <div className="lcd-glass" style={glassStyle} data-testid="lcd-screen">
+      <div ref={lcdRef} className="lcd-glass" style={glassStyle} data-testid="lcd-screen">
         <LcdStatusBar state={state} />
         <div className="lcd-home">
           <div className="lcd-expr-area" data-testid="lcd-expression">
