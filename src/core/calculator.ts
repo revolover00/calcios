@@ -37,7 +37,7 @@ import { computeStatSummary, type StatRow, type StatSubMode } from './stat';
 import { computeRecurringDecimal } from './symbolic';
 import { generateFunctionTable, type TableRow } from './table';
 import {
-  VARIABLES, add, deserialize, primeFactorize, roundScalar, scalarFromInteger, serialize, subtract, zeroStored,
+  VARIABLES, add, deserialize, primeFactorize, roundScalar, scalarFromInteger, scalarFromLiteral, serialize, subtract, zeroStored,
   type AngleUnit, type StoredScalar, type VariableName,
 } from './value';
 import {
@@ -299,7 +299,7 @@ export type CalculatorAction =
   | { type: 'insert-token'; token: string; behavior?: 'fresh' | 'continue' }
   | { type: 'select-mode'; mode: string }
   | { type: 'angle'; angle: AngleUnit }
-  | { type: 'load-scanned-math'; expression: string; mode?: 'COMP' | 'CMPLX'; angle?: AngleUnit }
+  | { type: 'load-scanned-math'; expression: string; mode?: ActiveMode; recommendedMode?: ActiveMode; angle?: AngleUnit; notice?: string; modeData?: Record<string, unknown> }
   | { type: 'clear-notice' };
 
 function clearComplexImagForRealWrites(
@@ -2823,33 +2823,196 @@ function handleTableMode(s: CalculatorState, id: string, random?: number): Calcu
   return null;
 }
 
+function scannedRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null;
+}
+
+function scannedNumericText(value: unknown): string | null {
+  if (typeof value === 'number') return Number.isFinite(value) ? String(value) : null;
+  return typeof value === 'string' && /^[+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?$/i.test(value.trim())
+    ? value.trim()
+    : null;
+}
+
+function scannedNumeric(value: unknown): StoredScalar | null {
+  const text = scannedNumericText(value);
+  if (text === null) return null;
+  try { return serialize(scalarFromLiteral(text)); } catch { return null; }
+}
+
+function scannedText(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function scannedNumberArray(value: unknown, min: number, max: number): StoredScalar[] | null {
+  if (!Array.isArray(value) || value.length < min || value.length > max) return null;
+  const parsed = value.map(scannedNumeric);
+  return parsed.every((item): item is StoredScalar => item !== null) ? parsed : null;
+}
+
+function scannedModeState(
+  mode: ActiveMode,
+  data: Record<string, unknown>,
+): Partial<CalculatorState> | null {
+  if (mode === 'TABLE') {
+    const fExpr = scannedText(data.fExpr);
+    if (!fExpr) return null;
+    const table = createTableState();
+    table.fExpr = fExpr;
+    table.gExpr = scannedText(data.gExpr) ?? '';
+    const start = data.start === undefined ? null : scannedNumericText(data.start);
+    const end = data.end === undefined ? null : scannedNumericText(data.end);
+    const step = data.step === undefined ? null : scannedNumericText(data.step);
+    if ((data.start !== undefined && !start) || (data.end !== undefined && !end) || (data.step !== undefined && !step)) return null;
+    table.startInput = start ?? '1';
+    table.endInput = end ?? '5';
+    table.stepInput = step ?? '1';
+    return { table, expression: fExpr, cursor: fExpr.length };
+  }
+  if (mode === 'STAT') {
+    const subMode = data.subMode;
+    const validSubModes: StatSubMode[] = ['1-VAR', 'A+BX', '_+CX2', 'LN_X', 'E_X', 'AB_X', 'AX_B', 'INV_X'];
+    if (!validSubModes.includes(subMode as StatSubMode) || !Array.isArray(data.rows) || data.rows.length < 2 || data.rows.length > 80) return null;
+    const hasY = subMode !== '1-VAR';
+    const rows: StatRow[] = [];
+    for (const item of data.rows) {
+      const row = scannedRecord(item);
+      const x = scannedNumericText(row?.x);
+      const y = hasY ? scannedNumericText(row?.y) : undefined;
+      const freq = scannedNumericText(row?.freq) ?? '1';
+      const frequencyValue = Number(freq);
+      if (!x || (hasY && !y) || !scannedNumeric(x) || (y && !scannedNumeric(y)) || !scannedNumeric(freq)
+        || !Number.isInteger(frequencyValue) || frequencyValue < 0) return null;
+      rows.push({ x, y: y ?? undefined, freq });
+    }
+    const useFreq = data.useFreq === true || rows.some((row) => row.freq !== '1');
+    return { stat: { ...createDefaultStat(subMode as StatSubMode, useFreq), rows, editingTable: false } };
+  }
+  if (mode === 'EQN') {
+    const type = data.type as EqnType;
+    if (!['lin2', 'lin3', 'quad', 'cubic'].includes(type)) return null;
+    const expected = type === 'lin2' ? 6 : type === 'lin3' ? 12 : type === 'quad' ? 3 : 4;
+    const coeffs = scannedNumberArray(data.coefficients, expected, expected);
+    if (!coeffs) return null;
+    return { eqn: { ...createEqnState(type), coeffs } };
+  }
+  if (mode === 'INEQ') {
+    const degree = data.degree;
+    const relation = data.relation as IneqRelation;
+    if ((degree !== 2 && degree !== 3) || !['>', '<', '≥', '≤'].includes(relation)) return null;
+    const coeffs = scannedNumberArray(data.coefficients, degree === 2 ? 3 : 4, degree === 2 ? 3 : 4);
+    if (!coeffs) return null;
+    const initialIneq = createIneqState(degree, relation);
+    return { ineq: { ...initialIneq, coeffs } };
+  }
+  if (mode === 'MATRIX') {
+    const matrices = scannedRecord(data.matrices);
+    if (!matrices) return null;
+    const nextMatrices: MatrixModeState['matrices'] = { MatA: null, MatB: null, MatC: null, MatAns: null };
+    let loaded = false;
+    for (const name of ['MatA', 'MatB', 'MatC'] as const) {
+      const grid = matrices[name];
+      if (grid === undefined) continue;
+      if (!Array.isArray(grid) || grid.length < 1 || grid.length > 4 || !grid.every((row) => Array.isArray(row) && row.length >= 1 && row.length <= 4)) return null;
+      const width = (grid[0] as unknown[]).length;
+      if (!grid.every((row) => (row as unknown[]).length === width)) return null;
+      const cells = (grid as unknown[][]).map((row) => row.map(scannedNumeric));
+      if (cells.some((row) => row.some((cell) => cell === null))) return null;
+      nextMatrices[name] = { rows: grid.length, cols: width, cells: cells as StoredScalar[][] };
+      loaded = true;
+    }
+    return loaded ? { matrix: { ...createDefaultMatrix(), matrices: nextMatrices } } : null;
+  }
+  if (mode === 'VECTOR') {
+    const vectors = scannedRecord(data.vectors);
+    if (!vectors) return null;
+    const nextVectors: VectorModeState['vectors'] = { VctA: null, VctB: null, VctC: null, VctAns: null };
+    let loaded = false;
+    for (const name of ['VctA', 'VctB', 'VctC'] as const) {
+      if (vectors[name] === undefined) continue;
+      const coords = scannedNumberArray(vectors[name], 2, 3);
+      if (!coords) return null;
+      nextVectors[name] = { dim: coords.length as 2 | 3, coords };
+      loaded = true;
+    }
+    return loaded ? { vector: { ...createDefaultVector(), vectors: nextVectors } } : null;
+  }
+  if (mode === 'DIST') {
+    const subMode = data.subMode as DistSubMode;
+    const knownModes: DistSubMode[] = ['norm-pd', 'norm-cd', 'inv-norm', 'binom-pd', 'binom-cd', 'poisson-pd', 'poisson-cd'];
+    if (!knownModes.includes(subMode)) return null;
+    const defaults = createDistState(subMode);
+    const params = scannedNumberArray(data.params, defaults.params.length, defaults.params.length);
+    if (!params) return null;
+    return { dist: { ...defaults, params: defaults.params.map((param, index) => ({ ...param, value: params[index].decimal })) } };
+  }
+  if (mode === 'RATIO') {
+    const form = data.form as RatioForm;
+    if (form !== 'a:b=X:d' && form !== 'a:b=c:X') return null;
+    const coeffs = scannedNumberArray(data.coefficients, 3, 3);
+    if (!coeffs) return null;
+    return { screen: 'ratio-editor', ratio: { ...createDefaultRatio(form), coeffs } };
+  }
+  if (mode === 'BASE-N') {
+    const base = data.base;
+    if (base !== 'DEC' && base !== 'HEX' && base !== 'BIN' && base !== 'OCT') return null;
+    return { baseN: { ...createDefaultBaseN(), base } };
+  }
+  if (mode === 'VERIF') {
+    const expression = scannedText(data.expression);
+    return expression ? { expression, cursor: expression.length } : null;
+  }
+  return mode === 'COMP' || mode === 'CMPLX' ? {} : null;
+}
+
 export function calculatorReducer(state: CalculatorState, action: CalculatorAction): CalculatorState {
   if (action.type === 'clear-notice') return { ...state, notice: null };
   if (action.type === 'load-scanned-math') {
-    const expr = action.expression.trim();
-    if (!expr) return state;
-    const targetMode = action.mode ?? 'COMP';
+    const requestedMode = action.mode ?? 'COMP';
+    const data = action.modeData ?? {};
+    const textExpression = action.expression.trim()
+      || scannedText(data.expression)
+      || scannedText(data.fExpr)
+      || '';
+    const modePatch = scannedModeState(requestedMode, data);
+    const structuredModeReady = requestedMode === 'COMP' || requestedMode === 'CMPLX'
+      ? Boolean(textExpression)
+      : Boolean(modePatch);
+    if (!structuredModeReady && !textExpression) return state;
+    const targetMode: ActiveMode = structuredModeReady ? requestedMode : 'COMP';
     let next = activateModeByName(
       { ...state, screen: 'normal', ioMode: 'Math', shift: false, alpha: false, notice: null },
       targetMode,
     );
-    if (action.angle) {
-      next = { ...next, angle: action.angle };
-    }
+    if (action.angle) next = { ...next, angle: action.angle };
+    const patch = structuredModeReady ? modePatch ?? {} : {};
+    const recommendation = !structuredModeReady
+      ? action.recommendedMode ?? requestedMode
+      : action.recommendedMode;
+    const specializedNotice = targetMode !== 'COMP' && targetMode !== 'CMPLX'
+      ? `Loaded scan into ${targetMode}; review the prefilled input before continuing.`
+      : targetMode === 'COMP' && textExpression.includes('=') && /[A-Z]/i.test(textExpression)
+        ? 'Equation loaded in COMP. Press SHIFT + CALC (SOLVE) when ready; it will not solve automatically.'
+        : null;
+    const recommendationNotice = recommendation
+      ? `Suggested mode: ${recommendation}. The scan was kept in COMP for review because its inputs were incomplete.`
+      : null;
+    const notice = action.notice ?? ([recommendationNotice, specializedNotice].filter(Boolean).join(' ') || null);
     const editingState: CalculatorState = {
       ...resetResultModifiers(next),
-      screen: 'normal',
+      ...patch,
+      screen: patch.screen ?? 'normal',
       phase: 'editing',
-      expression: expr,
-      cursor: expr.length,
+      expression: textExpression,
+      cursor: textExpression.length,
       result: null,
       error: null,
       calcPrompt: null,
       solvePrompt: null,
-      notice: null,
+      notice,
     };
-    // OCR is transcription, never an implicit calculation. Keep the recognized
-    // input visible and let the student choose = or SOLVE explicitly.
+    // OCR never calculates implicitly. Complete native inputs are prefilled;
+    // simple equations stay editable in COMP until the student chooses SOLVE.
     return editingState;
   }
   if (action.type === 'angle') {

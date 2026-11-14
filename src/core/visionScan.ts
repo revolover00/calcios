@@ -1,3 +1,4 @@
+import type { ActiveMode } from './calculator';
 import type { AngleUnit } from './value';
 
 declare const __CALCIOS_GROQ_MODEL__: string | undefined;
@@ -17,7 +18,12 @@ export interface ScannedMathResult {
   expression: string;
   /** Faithful OCR of all readable text and mathematics, in reading order. */
   transcription: string;
-  mode: 'COMP' | 'CMPLX';
+  /** Calculator mode selected for loading; specialized modes require validated modeData. */
+  mode: ActiveMode;
+  /** Suggested native mode when its structured inputs could not be confidently extracted. */
+  recommendedMode?: ActiveMode;
+  /** Validated, mode-specific values to prefill in the calculator. */
+  modeData?: Record<string, unknown>;
   angle?: AngleUnit;
 }
 
@@ -461,16 +467,26 @@ export function normalizeToCalcios2D(raw: string): string {
 }
 
 const VISION_SYSTEM_PROMPT = `You transcribe handwritten or printed math images and separately identify a calculator-ready expression.
-Return ONLY valid JSON with this exact schema:
+Return ONLY valid JSON with this schema:
 {
   "transcription": "<faithful transcription of the entire problem>",
   "expression": "<one calculator-ready expression, or empty string>",
-  "mode": "COMP" | "CMPLX",
+  "mode": "COMP" | "CMPLX" | "STAT" | "BASE-N" | "EQN" | "MATRIX" | "TABLE" | "VECTOR" | "INEQ" | "VERIF" | "DIST" | "RATIO",
+  "recommendedMode": "<one supported mode, or empty string>",
+  "modeConfidence": 0.0,
+  "modeData": { "<mode-specific fields>": "..." },
   "angle": "DEG" | "RAD" | null
 }
 
+Mode routing requirements:
+- Use COMP for ordinary evaluation and equations with unknowns. Do not auto-solve equations: load them as editable expressions so the user can choose SOLVE.
+- Use CMPLX only when the expression genuinely requires complex arithmetic.
+- For specialized modes, set mode to that mode ONLY when modeData contains enough clearly read data to prefill its native workflow and modeConfidence is at least 0.85. Otherwise set mode to COMP, set recommendedMode to the best match, and keep the full text and any safe expression for review. Confidence is about the mode and every value to be prefilled, not merely the OCR text.
+- modeData formats: TABLE {fExpr,gExpr,start,end,step}; STAT {subMode,rows:[{x,y,freq}]} where subMode is 1-VAR, A+BX, _+CX2, LN_X, E_X, AB_X, AX_B, or INV_X; EQN {type,coefficients} where type is lin2, lin3, quad, or cubic and coefficients are in calculator-entry order; INEQ {degree,relation,coefficients} with degree 2 or 3; MATRIX {matrices:{MatA:[[...]],MatB:[[...]]}}; VECTOR {vectors:{VctA:[...],VctB:[...]}}; DIST {subMode,params:[...]} where subMode is norm-pd, norm-cd, inv-norm, binom-pd, binom-cd, poisson-pd, or poisson-cd; RATIO {form,coefficients} where form is a:b=X:d or a:b=c:X; BASE-N {base} where base is DEC, HEX, BIN, or OCT; VERIF {expression}. Use numeric strings for coefficients/data. Never invent omitted values; if any required value is unclear, recommend the mode instead of activating it.
+
 Transcription requirements:
-- Transcribe ALL readable lines in order: prose, definitions, constraints, every equation/system, initial conditions, and the final question.
+- Transcribe ALL readable lines of the problem in order: prose, definitions, constraints, every equation/system, initial conditions, and the final question.
+- Ignore calculator hardware labels and key legends (for example SHIFT, MODE, MATRIX, sin, or cos) unless they are visibly part of the printed/handwritten problem itself; never present the keypad's button layout as the problem.
 - Do not summarize, solve, or omit earlier lines just because the final line looks like a standalone expression.
 - Preserve the original mathematical meaning and line breaks. Mark genuinely uncertain handwriting as [unclear] instead of guessing.
 - The transcription is for human review and may include notation that the calculator cannot evaluate.
@@ -490,7 +506,7 @@ Calcios 2D expression syntax rules (use these exact templates):
 - Trig & inverse trig: sin(x), cos(x), tan(x), asin(x), acos(x), atan(x), sinh(x), cosh(x), tanh(x)
 - Operators & constants: +, -, ×, ÷, !, %, nCr, nPr, GCD(a,b), LCM(a,b), π, e
 - Single-variable equations to solve: keep '=' with variable X, e.g. 2X+5=13 or X^(2)-5X+6=0. Strip trailing '=' or '=?' if the right side is blank.
-- Complex numbers: set "mode": "CMPLX" when imaginary i or phasor ∠ is used (e.g. (1+i)÷(1-i)). Otherwise "mode": "COMP".
+- When the selected task is ordinary evaluation, use COMP; use CMPLX for genuine imaginary-number or phasor calculations. Do not replace a specialized mode selected above with COMP/CMPLX.
 - Set "angle": "RAD" if trig/calculus clearly uses radians (like π), "DEG" if degrees (°) are shown, otherwise null.`;
 
 async function sendTranscriptionFallbackRequest(
@@ -509,7 +525,7 @@ async function sendTranscriptionFallbackRequest(
       messages: [
         {
           role: 'system',
-          content: 'Transcribe every visible line of text and mathematics from the image in reading order. Include prose, equations, conditions, initial values, and the final question. Do not summarize or solve. Preserve line breaks. Mark uncertain words as [unclear]. Return plain transcription only.',
+          content: 'Transcribe the complete math problem in reading order: include prose, equations, conditions, initial values, and the final question. Ignore calculator keypad legends such as SHIFT, MODE, MATRIX, sin, and cos unless they are part of the problem text. Do not summarize or solve. Preserve line breaks. Mark uncertain words as [unclear]. Return plain transcription only.',
         },
         {
           role: 'user',
@@ -590,11 +606,107 @@ function lineCount(text: string): number {
   return text.split('\n').filter((line) => line.trim()).length;
 }
 
+const SCAN_MODES = ['COMP', 'CMPLX', 'STAT', 'BASE-N', 'EQN', 'MATRIX', 'TABLE', 'VECTOR', 'INEQ', 'VERIF', 'DIST', 'RATIO'] as const;
+type ScanMode = typeof SCAN_MODES[number];
+
+function readScanMode(value: unknown): ScanMode | undefined {
+  return typeof value === 'string' && (SCAN_MODES as readonly string[]).includes(value)
+    ? value as ScanMode
+    : undefined;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function isNumericText(value: unknown): value is string | number {
+  if (typeof value === 'number') return Number.isFinite(value);
+  return typeof value === 'string' && /^[+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?$/i.test(value.trim());
+}
+
+function numericList(value: unknown, min: number, max: number): value is Array<string | number> {
+  return Array.isArray(value) && value.length >= min && value.length <= max && value.every(isNumericText);
+}
+
+function isMatrixData(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  const names = Object.keys(value);
+  if (names.length === 0 || names.some((name) => !['MatA', 'MatB', 'MatC'].includes(name))) return false;
+  return Object.values(value).every((matrix) => Array.isArray(matrix)
+    && matrix.length >= 1 && matrix.length <= 4
+    && matrix.every((row) => numericList(row, 1, 4))
+    && matrix.every((row) => row.length === matrix[0].length));
+}
+
+function hasUsableModeData(mode: ScanMode, raw: unknown, expression: string): boolean {
+  const data = isRecord(raw) ? raw : {};
+  switch (mode) {
+    case 'COMP': return Boolean(expression);
+    case 'CMPLX': return Boolean(expression);
+    case 'BASE-N': return ['DEC', 'HEX', 'BIN', 'OCT'].includes(String(data.base)) && Boolean(expression);
+    case 'TABLE': {
+      const optionalNumber = (key: string) => data[key] === undefined || isNumericText(data[key]);
+      return typeof data.fExpr === 'string' && Boolean(data.fExpr.trim())
+        && (data.gExpr === undefined || typeof data.gExpr === 'string')
+        && optionalNumber('start') && optionalNumber('end') && optionalNumber('step');
+    }
+    case 'STAT': {
+      const validSubmode = ['1-VAR', 'A+BX', '_+CX2', 'LN_X', 'E_X', 'AB_X', 'AX_B', 'INV_X'].includes(String(data.subMode));
+      const rows = data.rows;
+      return validSubmode && Array.isArray(rows) && rows.length >= 2 && rows.length <= 80
+        && rows.every((row) => {
+          if (!isRecord(row) || !isNumericText(row.x)) return false;
+          if (data.subMode !== '1-VAR' && !isNumericText(row.y)) return false;
+          if (row.freq === undefined) return true;
+          const frequency = Number(row.freq);
+          return isNumericText(row.freq) && Number.isInteger(frequency) && frequency >= 0;
+        });
+    }
+    case 'EQN': {
+      const type = String(data.type);
+      const size = type === 'lin2' ? 6 : type === 'lin3' ? 12 : type === 'quad' ? 3 : type === 'cubic' ? 4 : 0;
+      return size > 0 && numericList(data.coefficients, size, size);
+    }
+    case 'INEQ': {
+      const size = data.degree === 2 ? 3 : data.degree === 3 ? 4 : 0;
+      return size > 0 && ['>', '<', '≥', '≤'].includes(String(data.relation))
+        && numericList(data.coefficients, size, size);
+    }
+    case 'MATRIX': return isMatrixData(data.matrices);
+    case 'VECTOR': {
+      if (!isRecord(data.vectors)) return false;
+      const names = Object.keys(data.vectors);
+      return names.length > 0 && names.every((name) => ['VctA', 'VctB', 'VctC'].includes(name))
+        && Object.values(data.vectors).every((coords) => numericList(coords, 2, 3));
+    }
+    case 'DIST': {
+      const counts: Record<string, number> = { 'norm-pd': 3, 'norm-cd': 4, 'inv-norm': 3, 'binom-pd': 3, 'binom-cd': 3, 'poisson-pd': 2, 'poisson-cd': 2 };
+      const modeCount = counts[String(data.subMode)];
+      return Boolean(modeCount) && numericList(data.params, modeCount, modeCount);
+    }
+    case 'RATIO': return ['a:b=X:d', 'a:b=c:X'].includes(String(data.form)) && numericList(data.coefficients, 3, 3);
+    case 'VERIF': return typeof data.expression === 'string' && Boolean(data.expression.trim());
+    default: return false;
+  }
+}
+
 function likelyQuestionOnlyTranscription(text: string): boolean {
   const trimmed = text.trim();
   const englishQuestion = /^(?:find|determine|calculate|evaluate|solve|what\s+is|compute|show\s+that|prove)\b/i.test(trimmed);
   const arabicQuestion = /^(?:احسب|أوجد|اوجد|حدد|حل)(?:\s|$)/.test(trimmed);
   return lineCount(trimmed) === 1 && trimmed.length < 240 && (englishQuestion || arabicQuestion);
+}
+
+/** Reject OCR that is predominantly calculator-panel labels rather than a problem. */
+function looksLikeCalculatorKeypadNoise(text: string): boolean {
+  const tokens = text.toLowerCase().match(/[a-z]+(?:\^-?\d+)?|[a-z]\d+|[0-9]+/g) ?? [];
+  if (tokens.length < 6) return false;
+  const keyLabels = new Set([
+    'shift', 'alpha', 'mode', 'setup', 'opt', 'optn', 'calc', 'table', 'matrix', 'vector',
+    'replay', 'menu', 'on', 'off', 'ac', 'del', 'ins', 'sto', 'rcl', 'eng',
+  ]);
+  const matches = tokens.filter((token) => keyLabels.has(token) || /^(?:sin|cos|tan)\^-?1$/.test(token));
+  return new Set(matches).size >= 4 && matches.length / tokens.length >= 0.45;
 }
 
 function preferMoreCompleteTranscription(current: string, candidate: string): string {
@@ -748,9 +860,10 @@ export async function scanMathFromImage(
     'problem',
   ] as const;
   let transcription = cleanTranscription(readTextField(parsed, transcriptKeys) || (parsed ? '' : rawContent));
+  if (looksLikeCalculatorKeypadNoise(transcription)) transcription = '';
 
-  // An answer-only JSON field is not a full transcription. Retry when transcription is
-  // missing (even if an expression exists), blank/invisible, or looks like only the final ask.
+  // Retry when the transcription is missing, answer-only, or mostly calculator-panel labels.
+  // A keypad dump is never suitable human-review text, even if the model also proposed an expression.
   if (!transcription || likelyQuestionOnlyTranscription(transcription)) {
     try {
       const fallbackResponse = await sendTranscriptionFallbackRequest(apiUrl, model, winningApiKey, dataUrl);
@@ -761,7 +874,9 @@ export async function scanMathFromImage(
           const fallbackTranscription = cleanTranscription(
             readTextField(fallbackParsed, transcriptKeys) || (fallbackParsed ? '' : fallbackContent),
           );
-          transcription = preferMoreCompleteTranscription(transcription, fallbackTranscription);
+          if (!looksLikeCalculatorKeypadNoise(fallbackTranscription)) {
+            transcription = preferMoreCompleteTranscription(transcription, fallbackTranscription);
+          }
         }
       }
     } catch {
@@ -777,8 +892,17 @@ export async function scanMathFromImage(
   const inferredDeg = /°/.test(expressionRaw);
   const normalizedExpr = normalizeToCalcios2D(expressionRaw);
 
+  const detectedMode = readScanMode(parsed?.mode);
+  const recommendedMode = readScanMode(parsed?.recommendedMode);
+  const candidateModeData = isRecord(parsed?.modeData) ? parsed.modeData : null;
+  const modeConfidence = typeof parsed?.modeConfidence === 'number' ? parsed.modeConfidence : 0;
+  const autoFillMode = detectedMode
+    && hasUsableModeData(detectedMode, candidateModeData, normalizedExpr)
+    && (detectedMode === 'COMP' || detectedMode === 'CMPLX' || (modeConfidence >= 0.85 && modeConfidence <= 1))
+    ? detectedMode
+    : undefined;
   const isCmplx =
-    parsed?.mode === 'CMPLX' ||
+    (detectedMode === 'CMPLX' && Boolean(normalizedExpr)) ||
     normalizedExpr.includes('∠') ||
     /(^|[^a-zA-Z])i([^a-zA-Z]|$)/.test(normalizedExpr);
 
@@ -790,10 +914,28 @@ export async function scanMathFromImage(
     angle = 'RAD';
   }
 
+  const selectedMode: ActiveMode = autoFillMode ?? (isCmplx ? 'CMPLX' : 'COMP');
+  const fallbackRecommendation = detectedMode && detectedMode !== 'COMP' && !autoFillMode
+    ? detectedMode
+    : recommendedMode && recommendedMode !== selectedMode ? recommendedMode : undefined;
+  let acceptedModeData: Record<string, unknown> | undefined;
+  if (autoFillMode && autoFillMode !== 'COMP' && autoFillMode !== 'CMPLX' && candidateModeData) {
+    acceptedModeData = { ...candidateModeData };
+    if (autoFillMode === 'TABLE') {
+      if (typeof acceptedModeData.fExpr === 'string') acceptedModeData.fExpr = normalizeToCalcios2D(acceptedModeData.fExpr);
+      if (typeof acceptedModeData.gExpr === 'string') acceptedModeData.gExpr = normalizeToCalcios2D(acceptedModeData.gExpr);
+    }
+    if (autoFillMode === 'VERIF' && typeof acceptedModeData.expression === 'string') {
+      acceptedModeData.expression = normalizeToCalcios2D(acceptedModeData.expression);
+    }
+  }
+
   return {
     expression: normalizedExpr,
     transcription,
-    mode: isCmplx ? 'CMPLX' : 'COMP',
+    mode: selectedMode,
+    ...(fallbackRecommendation ? { recommendedMode: fallbackRecommendation } : {}),
+    ...(acceptedModeData ? { modeData: acceptedModeData } : {}),
     angle,
   };
 }

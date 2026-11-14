@@ -11,6 +11,7 @@ import {
   scanMathFromImage,
 } from './visionScan';
 import { calculatorReducer, formatActiveResult, hydrateState } from './calculator';
+import { deserialize } from './value';
 
 describe('Math Vision Scanner & Multi-Key Failover Pool', () => {
   beforeEach(() => {
@@ -96,6 +97,85 @@ describe('Math Vision Scanner & Multi-Key Failover Pool', () => {
     expect(typeof systemContent === 'string' ? systemContent : '').toContain('Transcribe ALL readable lines');
     expect(Array.isArray(userContent) ? userContent[0]?.text : userContent).toContain('complete problem faithfully');
     expect(request.max_completion_tokens).toBeGreaterThanOrEqual(1000);
+  });
+
+  it('retries when OCR mistakes calculator key labels for the problem and keeps the full retry text', async () => {
+    const keypadDump = 'SHIFT MODE ALPHA OPTN CALC MATRIX VECTOR TABLE\\nsin cos tan sin^-1 cos^-1 tan^-1\\nMATRIX VECTOR REPLAY SETUP';
+    const fullProblem = 'A particle moves with position x(t) = t^2 + 3t.\\nFind its velocity at t = 2.';
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        choices: [{ message: { content: JSON.stringify({
+          transcription: keypadDump,
+          expression: 'sin(x)',
+          mode: 'COMP',
+        }) } }],
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        choices: [{ message: { content: fullProblem } }],
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+
+    const result = await scanMathFromImage(new Blob(['image'], { type: 'image/png' }), {
+      apiUrl: DEFAULT_GROQ_API_URL,
+      model: DEFAULT_GROQ_MODEL,
+      apiKeys: ['test-key'],
+    });
+
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(result.transcription).toBe(fullProblem);
+    expect(result.expression).toBe('sin(X)');
+  });
+
+  it('rejects keypad-label OCR when the transcription retry is also only calculator controls', async () => {
+    const keypadDump = 'SHIFT MODE ALPHA OPTN CALC MATRIX VECTOR TABLE\\nsin cos tan sin^-1 cos^-1 tan^-1\\nMATRIX VECTOR REPLAY SETUP';
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        choices: [{ message: { content: JSON.stringify({ transcription: keypadDump, expression: 'sin(x)' }) } }],
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        choices: [{ message: { content: keypadDump } }],
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+
+    await expect(scanMathFromImage(new Blob(['image'], { type: 'image/png' }), {
+      apiUrl: DEFAULT_GROQ_API_URL,
+      model: DEFAULT_GROQ_MODEL,
+      apiKeys: ['test-key'],
+    })).rejects.toThrow('The AI returned no readable text');
+  });
+
+  it('auto-routes to a specialized mode only when structured values are complete and high-confidence', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response(JSON.stringify({
+      choices: [{ message: { content: JSON.stringify({
+        transcription: 'Solve x^2 - 5x + 6 = 0.',
+        expression: '',
+        mode: 'EQN',
+        modeConfidence: 0.97,
+        modeData: { type: 'quad', coefficients: ['1', '-5', '6'] },
+        angle: null,
+      }) } }],
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+
+    const result = await scanMathFromImage(new Blob(['image'], { type: 'image/png' }));
+    expect(result.mode).toBe('EQN');
+    expect(result.modeData).toEqual({ type: 'quad', coefficients: ['1', '-5', '6'] });
+    expect(result.recommendedMode).toBeUndefined();
+  });
+
+  it('keeps uncertain specialized-mode scans in COMP while preserving the recommendation and expression', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response(JSON.stringify({
+      choices: [{ message: { content: JSON.stringify({
+        transcription: 'x^2 - 5x + 6 = 0',
+        expression: 'x^2-5x+6=0',
+        mode: 'EQN',
+        modeConfidence: 0.62,
+        modeData: { type: 'quad', coefficients: ['1', '-5', '6'] },
+      }) } }],
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+
+    const result = await scanMathFromImage(new Blob(['image'], { type: 'image/png' }));
+    expect(result.mode).toBe('COMP');
+    expect(result.recommendedMode).toBe('EQN');
+    expect(result.modeData).toBeUndefined();
+    expect(result.expression).toBe('X^(2)-5X+6=0');
   });
 
   it('retries OCR-only when JSON mode returns an invisible blank transcription', async () => {
@@ -278,6 +358,76 @@ describe('Math Vision Scanner & Multi-Key Failover Pool', () => {
     expect(next.expression).toBe(firstScan.expression);
     expect(next.result).toBeNull();
     expect(formatActiveResult(next)).toBeNull();
+  });
+
+  it('prefills supported structured scan payloads into their native calculator modes', () => {
+    const cases = [
+      { mode: 'TABLE', expression: '', modeData: { fExpr: 'X^(2)', start: '-2', end: '2', step: '1' } },
+      { mode: 'STAT', expression: '', modeData: { subMode: '1-VAR', rows: [{ x: '1', freq: '1' }, { x: '2', freq: '1' }] } },
+      { mode: 'INEQ', expression: '', modeData: { degree: 2, relation: '>', coefficients: ['1', '0', '-4'] } },
+      { mode: 'MATRIX', expression: 'MatA', modeData: { matrices: { MatA: [['1', '2'], ['3', '4']] } } },
+      { mode: 'VECTOR', expression: 'VctA', modeData: { vectors: { VctA: ['3', '4'] } } },
+      { mode: 'DIST', expression: '', modeData: { subMode: 'poisson-pd', params: ['2', '3'] } },
+      { mode: 'RATIO', expression: '', modeData: { form: 'a:b=X:d', coefficients: ['2', '3', '12'] } },
+      { mode: 'BASE-N', expression: 'FF', modeData: { base: 'HEX' } },
+      { mode: 'VERIF', expression: '1=1', modeData: { expression: '1=1' } },
+    ] as const;
+
+    for (const entry of cases) {
+      const loaded = calculatorReducer(hydrateState(null), {
+        type: 'load-scanned-math',
+        expression: entry.expression,
+        mode: entry.mode,
+        modeData: entry.modeData,
+      });
+      expect(loaded.mode).toBe(entry.mode);
+      expect(loaded.notice).toContain(`Loaded scan into ${entry.mode}`);
+    }
+  });
+
+  it('turns scanned statistical frequencies on when the extracted rows contain frequency counts', () => {
+    const loaded = calculatorReducer(hydrateState(null), {
+      type: 'load-scanned-math',
+      expression: '',
+      mode: 'STAT',
+      modeData: {
+        subMode: '1-VAR',
+        rows: [{ x: '4', freq: '3' }, { x: '8', freq: '1' }],
+      },
+    });
+    expect(loaded.mode).toBe('STAT');
+    expect(loaded.stat.useFreq).toBe(true);
+    expect(loaded.stat.rows).toEqual([
+      { x: '4', y: undefined, freq: '3' },
+      { x: '8', y: undefined, freq: '1' },
+    ]);
+  });
+
+  it('prefills a complete scanned quadratic into EQN mode without calculating it', () => {
+    const loaded = calculatorReducer(hydrateState(null), {
+      type: 'load-scanned-math',
+      expression: '',
+      mode: 'EQN',
+      modeData: { type: 'quad', coefficients: ['1', '-5', '6'] },
+    });
+    expect(loaded.mode).toBe('EQN');
+    expect(loaded.eqn?.type).toBe('quad');
+    expect(loaded.eqn?.coeffs.map((value) => deserialize(value).decimal.toString())).toEqual(['1', '-5', '6']);
+    expect(loaded.eqn?.outcome).toBeNull();
+    expect(loaded.phase).toBe('editing');
+  });
+
+  it('keeps an incomplete specialized scan in COMP and displays the recommendation', () => {
+    const loaded = calculatorReducer(hydrateState(null), {
+      type: 'load-scanned-math',
+      expression: 'X^(2)-5X+6=0',
+      mode: 'EQN',
+      recommendedMode: 'EQN',
+      modeData: { type: 'quad', coefficients: ['1', 'bad', '6'] },
+    });
+    expect(loaded.mode).toBe('COMP');
+    expect(loaded.expression).toBe('X^(2)-5X+6=0');
+    expect(loaded.notice).toContain('EQN');
   });
 
   it('loads scanned equations as editable transcription without solving them automatically', () => {

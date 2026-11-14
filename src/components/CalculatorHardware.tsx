@@ -356,12 +356,18 @@ export function CalculatorHardware({
   };
 
   const loadScannedExpression = () => {
-    if (!scanReview?.expression.trim()) return;
+    if (!scanReview || (!scanReview.expression.trim() && !scanReview.modeData)) return;
+    const isEquation = scanReview.mode === 'COMP'
+      && scanReview.expression.includes('=')
+      && /[A-Z]/i.test(scanReview.expression);
     dispatch({
       type: 'load-scanned-math',
       expression: scanReview.expression,
       mode: scanReview.mode,
+      ...(scanReview.recommendedMode ? { recommendedMode: scanReview.recommendedMode } : {}),
+      ...(scanReview.modeData ? { modeData: scanReview.modeData } : {}),
       angle: scanReview.angle,
+      notice: isEquation ? 'Equation loaded in COMP. Press SHIFT + CALC (SOLVE) when ready; it will not solve automatically.' : undefined,
     });
     setScanView('closed');
     setScanReview(null);
@@ -530,6 +536,22 @@ export function CalculatorHardware({
                       [AC]
                     </button>
                   </div>
+                  {scanReview.modeData && scanReview.mode !== 'COMP' && scanReview.mode !== 'CMPLX' && (
+                    <>
+                      <div className="scan-lcd-hint" data-testid="scan-mode-prefilled">
+                        Detected {scanReview.mode}; clear values were extracted and will be prefilled for review.
+                      </div>
+                      <details className="scan-mode-data-preview" data-testid="scan-mode-data-preview">
+                        <summary>Review extracted {scanReview.mode} values</summary>
+                        <pre>{JSON.stringify(scanReview.modeData, null, 2)}</pre>
+                      </details>
+                    </>
+                  )}
+                  {scanReview.recommendedMode && (
+                    <div className="scan-lcd-hint" data-testid="scan-mode-recommendation">
+                      Suggested mode: {scanReview.recommendedMode}. Not enough clear inputs to auto-fill it, so the scan stays in COMP for review.
+                    </div>
+                  )}
                   <label className="scan-review-label" htmlFor="scan-transcription">Complete problem transcription</label>
                   <textarea
                     id="scan-transcription"
@@ -557,14 +579,21 @@ export function CalculatorHardware({
                     }}
                     placeholder="No single expression selected"
                   />
+                  {scanReview.mode === 'COMP' && scanReview.expression.includes('=') && /[A-Z]/i.test(scanReview.expression) && (
+                    <div className="scan-lcd-hint" data-testid="scan-solve-guidance">
+                      Equation detected. It will load without solving; press SHIFT + CALC (SOLVE) when ready.
+                    </div>
+                  )}
                   <button
                     type="button"
                     className="scan-lcd-save"
                     data-testid="scan-load-expression"
-                    disabled={!scanReview.expression.trim()}
+                    disabled={!scanReview.expression.trim() && !scanReview.modeData}
                     onClick={loadScannedExpression}
                   >
-                    Load expression into calculator
+                    {scanReview.modeData && scanReview.mode !== 'COMP' && scanReview.mode !== 'CMPLX'
+                      ? `Load into ${scanReview.mode}`
+                      : 'Load expression into calculator'}
                   </button>
                 </div>
               )}

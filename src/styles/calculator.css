@@ -438,6 +438,28 @@ button {
   outline: none;
 }
 
+.scan-mode-data-preview {
+  flex: 0 0 auto;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.55rem;
+}
+
+.scan-mode-data-preview summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.scan-mode-data-preview pre {
+  max-height: 52px;
+  overflow: auto;
+  margin: 2px 0;
+  padding: 3px;
+  background: rgba(255, 255, 255, 0.36);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+}
+
 .scan-lcd-hdr {
   display: flex;
   align-items: center;
