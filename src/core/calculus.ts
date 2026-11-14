@@ -34,8 +34,7 @@ export function numericDerivative(fn: (x: Scalar) => Scalar, x0: Scalar, toleran
         const d2 = fp2.minus(fm2).div(h2.times(2));
         const extrapolated = d2.times(4).minus(d1).div(3);
         if (!extrapolated.isFinite()) mathError('Derivative failed to converge');
-        const cleaned = extrapolated.abs().lt('1e-22') ? new D(0) : extrapolated;
-        return makeScalar(cleaned, undefined, true);
+        return makeScalar(extrapolated, undefined, true);
       }
     }
     h1 = h1.div(4);
@@ -53,7 +52,7 @@ export function numericDerivative(fn: (x: Scalar) => Scalar, x0: Scalar, toleran
       const d2 = f0.times(-3).plus(fpHalf.times(4)).minus(fp1).div(h);
       const extrap = d2.times(4).minus(d1).div(3);
       if (extrap.isFinite()) {
-        return makeScalar(extrap.abs().lt('1e-20') ? new D(0) : extrap, undefined, true);
+        return makeScalar(extrap, undefined, true);
       }
     }
     const fm1 = safeEval(center.minus(h));
@@ -64,7 +63,7 @@ export function numericDerivative(fn: (x: Scalar) => Scalar, x0: Scalar, toleran
       const d2 = f0.times(3).minus(fmHalf.times(4)).plus(fm1).div(h);
       const extrap = d2.times(4).minus(d1).div(3);
       if (extrap.isFinite()) {
-        return makeScalar(extrap.abs().lt('1e-20') ? new D(0) : extrap, undefined, true);
+        return makeScalar(extrap, undefined, true);
       }
     }
   }
@@ -158,7 +157,6 @@ export function numericIntegral(fn: (x: Scalar) => Scalar, lower: Scalar, upper:
   }
 
   if (sign === -1) total = total.neg();
-  if (total.abs().lt('1e-22')) total = new D(0);
   return makeScalar(total, undefined, true);
 }
 
@@ -221,27 +219,36 @@ export function solveRoot(fn: (x: Scalar) => Scalar, initialGuess: Scalar): Solv
 
   for (const seed of seeds) {
     let x = seed;
-    let fx = safeEval(x);
-    if (fx === null) continue;
+    const initialRaw = safeEval(x);
+    if (initialRaw === null) continue;
+    const scaleStep = D.max(new D('1e-24'), x.abs().times('1e-8'));
+    const initialPlus = safeEval(x.plus(scaleStep));
+    const initialMinus = safeEval(x.minus(scaleStep));
+    const functionScale = [initialRaw, initialPlus, initialMinus]
+      .filter((value): value is InstanceType<typeof D> => value !== null)
+      .reduce((scale, value) => D.max(scale, value.abs()), new D(0));
+    const normalization = functionScale.isZero() ? new D(1) : functionScale;
+    const evalScaled = (at: InstanceType<typeof D>) => safeEval(at)?.div(normalization) ?? null;
+    let fx: InstanceType<typeof D> | null = initialRaw.div(normalization);
+    let hasTakenStep = false;
 
     for (let iter = 0; iter < 80; iter++) {
-      if (fx.abs().lte('1e-24')) {
-        const cleanRoot = x.abs().lt('1e-22') ? new D(0) : x;
-        const finalRes = safeEval(cleanRoot) ?? fx;
-        if (finalRes.abs().lte('1e-18')) {
+      // A small residual at the initial guess does not prove that it is a root:
+      // e.g. f(x) = x - 1e-30 at x = 0. Require an actual successful update
+      // unless the residual is exactly zero.
+      if (fx.abs().lte('1e-24') && (hasTakenStep || fx.isZero())) {
+        const finalRes = evalScaled(x) ?? fx;
+        if (finalRes.abs().lte('1e-24')) {
+          const rawResidual = safeEval(x) ?? new D(0);
           return {
-            root: makeScalar(cleanRoot, undefined, true),
-            residual: makeScalar(finalRes.abs().lt('1e-20') ? new D(0) : finalRes, undefined, true),
+            root: makeScalar(x, undefined, true),
+            residual: makeScalar(rawResidual, undefined, true),
           };
         }
-        return {
-          root: makeScalar(x, undefined, true),
-          residual: makeScalar(fx.abs().lt('1e-20') ? new D(0) : fx, undefined, true),
-        };
       }
       const step = D.max(new D('1e-24'), x.abs().times('1e-8'));
-      const fPlus = safeEval(x.plus(step));
-      const fMinus = safeEval(x.minus(step));
+      const fPlus = evalScaled(x.plus(step));
+      const fMinus = evalScaled(x.minus(step));
       let slope: InstanceType<typeof D> | null = null;
       if (fPlus !== null && fMinus !== null) {
         slope = fPlus.minus(fMinus).div(step.times(2));
@@ -253,7 +260,7 @@ export function solveRoot(fn: (x: Scalar) => Scalar, initialGuess: Scalar): Solv
       if (slope === null) break;
       if (slope.abs().lt('1e-26')) {
         x = x.plus('0.37');
-        fx = safeEval(x);
+        fx = evalScaled(x);
         if (fx === null) break;
         continue;
       }
@@ -267,13 +274,14 @@ export function solveRoot(fn: (x: Scalar) => Scalar, initialGuess: Scalar): Solv
           damping = damping.div(2);
           continue;
         }
-        const fCand = safeEval(candidate);
+        const fCand = evalScaled(candidate);
         if (
           fCand !== null &&
           (fCand.abs().lt(fx.abs()) || stepVec.abs().lte(D.max(new D('1e-26'), x.abs().times('1e-22'))))
         ) {
           x = candidate;
           fx = fCand;
+          hasTakenStep = true;
           accepted = true;
           break;
         }
@@ -282,19 +290,15 @@ export function solveRoot(fn: (x: Scalar) => Scalar, initialGuess: Scalar): Solv
       if (!accepted || fx === null) break;
     }
 
-    if (fx !== null && fx.abs().lte('1e-9')) {
-      const cleanRoot = x.abs().lt('1e-18') ? new D(0) : x;
-      const finalRes = safeEval(cleanRoot);
+    if (fx !== null && hasTakenStep && fx.abs().lte('1e-9')) {
+      const finalRes = evalScaled(x);
       if (finalRes !== null && finalRes.abs().lte('1e-9')) {
+        const rawResidual = safeEval(x) ?? finalRes.times(normalization);
         return {
-          root: makeScalar(cleanRoot, undefined, true),
-          residual: makeScalar(finalRes.abs().lt('1e-16') ? new D(0) : finalRes, undefined, true),
+          root: makeScalar(x, undefined, true),
+          residual: makeScalar(rawResidual, undefined, true),
         };
       }
-      return {
-        root: makeScalar(x, undefined, true),
-        residual: makeScalar(fx.abs().lt('1e-16') ? new D(0) : fx, undefined, true),
-      };
     }
   }
 

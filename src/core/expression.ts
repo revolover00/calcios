@@ -2,6 +2,7 @@ import { numericDerivative, numericIntegral, numericProduct, numericSummation } 
 import { CONSTANT_BY_TOKEN } from './constants';
 import { statNormP, statNormQ, statNormR } from './dist';
 import { CalculatorError, mathError, syntax } from './errors';
+import { normalizeInverseTrigNotation } from './trigNotation';
 import type { NumberFormatSetting } from './format';
 import {
   estimateStatXHat, estimateStatXHat2, estimateStatYHat, standardizeStatT,
@@ -104,6 +105,8 @@ const VARIABLE_SET = new Set<string>(VARIABLES);
 
 export function tokenize(source: string): Token[] {
   if (source.length > 320) syntax('Expression is too long');
+  // Accept common written forms for inverse trigonometric functions.
+  source = normalizeInverseTrigNotation(source);
   const tokens: Token[] = [];
   let i = 0;
   while (i < source.length) {
@@ -495,9 +498,14 @@ class Parser {
       const right = operator === '⏨'
         ? this.sciExponent()
         : this.expression(operator === '^' ? precedence : precedence + 1);
+      // On a physical scientific calculator, a percent operand after +/− is
+      // relative to the accumulated left side; multiplication/division keep
+      // the ordinary postfix divide-by-100 interpretation.
+      const rightIsPercent = this.tokens[this.pos - 1]?.type === 'operator' &&
+        this.tokens[this.pos - 1]?.text === '%';
       switch (operator) {
-        case '+': left = add(left, right); break;
-        case '-': left = subtract(left, right); break;
+        case '+': left = rightIsPercent ? add(left, multiply(left, right)) : add(left, right); break;
+        case '-': left = rightIsPercent ? subtract(left, multiply(left, right)) : subtract(left, right); break;
         case '×': case '*': left = multiply(left, right); break;
         case '÷': case '/': left = divide(left, right); break;
         case '^': left = power(left, right); break;

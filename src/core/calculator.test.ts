@@ -3,7 +3,7 @@ import {
   calculatorReducer, createInitialState, formatActiveComplexDisplay, formatActiveEqnItemDisplay,
   formatActiveInequalityDisplay, formatActiveResult, hydrateState, saveableState, type CalculatorState,
 } from './calculator';
-import { deserialize } from './value';
+import { deserialize, scalarFromInteger, serialize } from './value';
 import { formatDecimal, formatResult } from './format';
 
 function press(...ids: string[]): CalculatorState {
@@ -12,7 +12,54 @@ function press(...ids: string[]): CalculatorState {
 const shown = (s: CalculatorState) => s.result && formatDecimal(deserialize(s.result));
 
 describe('calculator state machine', () => {
+  it('uses relative-percent arithmetic through the MATRIX, VECTOR, and CMPLX calculator workflows', () => {
+    for (const mode of ['MATRIX', 'VECTOR', 'CMPLX'] as const) {
+      const initial = createInitialState();
+      const state = {
+        ...initial,
+        mode,
+        expression: '200+10%',
+        cursor: '200+10%'.length,
+        phase: 'editing' as const,
+      };
+      const result = calculatorReducer(state, { type: 'key', id: 'equals' });
+      expect(result.error).toBeNull();
+      expect(formatActiveResult(result)).toEqual({ type: 'text', text: '220' });
+    }
+  });
+
+  it('uses stored variables when BASE-N expressions are consumed by memory operations', () => {
+    let state = createInitialState();
+    state = {
+      ...state,
+      mode: 'BASE-N',
+      baseN: { ...state.baseN, base: 'DEC' },
+      variables: { ...state.variables, A: serialize(scalarFromInteger(5)) },
+    };
+    for (const id of ['alpha', 'neg', 'add', '1', 'mplus']) {
+      state = calculatorReducer(state, { type: 'key', id });
+    }
+    expect(deserialize(state.variables.M).decimal.toString()).toBe('6');
+
+    let storeState = createInitialState();
+    storeState = {
+      ...storeState,
+      mode: 'BASE-N',
+      baseN: { ...storeState.baseN, base: 'DEC' },
+      variables: { ...storeState.variables, A: serialize(scalarFromInteger(5)) },
+    };
+    for (const id of ['alpha', 'neg', 'add', '1', 'shift', 'rcl', 'dms']) {
+      storeState = calculatorReducer(storeState, { type: 'key', id });
+    }
+    expect(deserialize(storeState.variables.B).decimal.toString()).toBe('6');
+  });
+
   it('evaluates a key sequence', () => expect(shown(press('1', 'add', '2', 'equals'))).toBe('3'));
+  it('enters inverse trig from SHIFT keys and respects the selected angle unit', () => {
+    expect(shown(press('shift', 'tan', '1', 'close', 'equals'))).toBe('45');
+    expect(shown(press('shift', 'sin', '1', 'divide', '2', 'close', 'equals'))).toBe('30');
+    expect(shown(press('shift', 'cos', '0', 'equals'))).toBe('90');
+  });
   it('starts a new calculation on digit, or continues with Ans on operator', () => {
     expect(shown(press('1', 'add', '2', 'equals', '4', 'equals'))).toBe('4');
     expect(shown(press('1', 'add', '2', 'equals', 'multiply', '4', 'equals'))).toBe('12');
