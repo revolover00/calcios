@@ -19,7 +19,7 @@ import {
 } from './calculator';
 import { numericDerivative, numericIntegral, numericProduct, numericSummation, solveRoot } from './calculus';
 import { evaluateComplex, formatComplexDisplay, zeroStoredComplex } from './cmplx';
-import { binomialCd, binomialPd, inverseNormal, normalCd, poissonCd, poissonPd, statNormR } from './dist';
+import { binomialCd, binomialPd, inverseNormal, normalCd, poissonCd, poissonPd, statNormP, statNormR } from './dist';
 import { solveCubic, solveEqn } from './eqn';
 import { evaluateExpression, evaluateRichExpression } from './expression';
 import { formatDecimal, formatDms, formatResult, initialEngExponent } from './format';
@@ -136,6 +136,18 @@ describe('50-Bug Comprehensive Senior Audit Regression Suite (#1–#50)', () => 
     expect(Number(inv975.decimal.toString())).toBeCloseTo(1.9599639845, 9);
     const invDeep = inverseNormal(scalarFromLiteral('1e-50'), scalarFromInteger(0), scalarFromInteger(1));
     expect(invDeep.decimal.lt(-14) && invDeep.decimal.gt(-16)).toBe(true);
+    const tail50 = scalarFromLiteral('1e-50').decimal;
+    expect(statNormP(invDeep).decimal.minus(tail50).abs().div(tail50).lt('1e-25')).toBe(true);
+
+    const tail100 = scalarFromLiteral('1e-100').decimal;
+    const invTail100 = inverseNormal(scalarFromLiteral('1e-100'), scalarFromInteger(0), scalarFromInteger(1));
+    expect(invTail100.decimal.lt(-20) && invTail100.decimal.gt(-22)).toBe(true);
+    expect(statNormP(invTail100).decimal.minus(tail100).abs().div(tail100).lt('1e-25')).toBe(true);
+
+    const upperArea = scalarFromLiteral(`0.${'9'.repeat(100)}`);
+    const invUpperTail = inverseNormal(upperArea, scalarFromInteger(0), scalarFromInteger(1));
+    expect(invUpperTail.decimal.gt(20) && invUpperTail.decimal.lt(22)).toBe(true);
+    expect(statNormR(invUpperTail).decimal.minus(tail100).abs().div(tail100).lt('1e-25')).toBe(true);
 
     // Bug #10: Binomial N = 1000, k = 500, p = 0.5 and Poisson λ = 600, k = 600
     const b1000 = binomialPd(scalarFromInteger(500), scalarFromInteger(1000), scalarFromLiteral('0.5'));

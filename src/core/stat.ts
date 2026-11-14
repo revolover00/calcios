@@ -45,11 +45,11 @@ export interface StatSummary {
   regB?: Scalar;
   regC?: Scalar;
   corrR?: Scalar;
+  quadraticFit?: { center: Scalar; scale: Scalar; a: Scalar; b: Scalar; c: Scalar };
 }
 
 function sc(v: InstanceType<typeof D>): Scalar {
-  const clean = v.abs().lt('1e-24') ? new D(0) : v;
-  return makeScalar(clean, undefined, true);
+  return makeScalar(v, undefined, true);
 }
 
 function parseStatCellDecimal(raw: string | undefined, fallback: string): InstanceType<typeof D> {
@@ -74,6 +74,12 @@ export function computeStatSummary(subMode: StatSubMode, rows: StatRow[], useFre
 
   let n = new D(0);
   let totalFreqBig = 0n;
+  // Track centered second moments online. E[x²] - E[x]² loses all low-order
+  // variance when observations have a large common offset.
+  let stableMeanX = new D(0);
+  let stableM2X = new D(0);
+  let stableMeanY = new D(0);
+  let stableM2Y = new D(0);
   let sumX = new D(0);
   let sumX2 = new D(0);
   let sumX3 = new D(0);
@@ -90,6 +96,7 @@ export function computeStatSummary(subMode: StatSubMode, rows: StatRow[], useFre
 
   const weightedX: Array<{ x: InstanceType<typeof D>; freq: bigint }> = [];
   const transformedPairs: Array<{ tx: InstanceType<typeof D>; ty: InstanceType<typeof D>; f: InstanceType<typeof D> }> = [];
+  const quadraticPairs: Array<{ x: InstanceType<typeof D>; y: InstanceType<typeof D>; f: InstanceType<typeof D> }> = [];
 
   for (const row of rows) {
     const x = parseStatCellDecimal(row.x, '0');
@@ -98,7 +105,22 @@ export function computeStatSummary(subMode: StatSubMode, rows: StatRow[], useFre
     if (f.lt(0) || !f.isInteger() || f.gte('1e15')) mathError('Invalid frequency');
     if (f.isZero()) continue;
 
-    n = n.plus(f);
+    // Combine this frequency-weighted batch with the observations already seen.
+    // This is the parallel/weighted form of Welford's stable variance update.
+    const nextN = n.plus(f);
+    if (n.isZero()) {
+      stableMeanX = x;
+      stableMeanY = y;
+    } else {
+      const deltaX = x.minus(stableMeanX);
+      const deltaY = y.minus(stableMeanY);
+      const crossWeight = n.times(f).div(nextN);
+      stableM2X = stableM2X.plus(deltaX.pow(2).times(crossWeight));
+      stableM2Y = stableM2Y.plus(deltaY.pow(2).times(crossWeight));
+      stableMeanX = stableMeanX.plus(deltaX.times(f).div(nextN));
+      stableMeanY = stableMeanY.plus(deltaY.times(f).div(nextN));
+    }
+    n = nextN;
     sumX = sumX.plus(x.times(f));
     sumX2 = sumX2.plus(x.pow(2).times(f));
     if (minX === null || x.lt(minX)) minX = x;
@@ -120,6 +142,7 @@ export function computeStatSummary(subMode: StatSubMode, rows: StatRow[], useFre
       if (minY === null || y.lt(minY)) minY = y;
       if (maxY === null || y.gt(maxY)) maxY = y;
 
+      if (subMode === '_+CX2') quadraticPairs.push({ x, y, f });
       if (subMode !== '_+CX2') {
         let tx = x;
         let ty = y;
@@ -142,10 +165,9 @@ export function computeStatSummary(subMode: StatSubMode, rows: StatRow[], useFre
   if (n.isZero() || minX === null || maxX === null) mathError('Empty statistical dataset');
 
   const meanX = sumX.div(n);
-  const varPopX = D.max(new D(0), sumX2.div(n).minus(meanX.pow(2)));
-  const popSdX = varPopX.sqrt();
+  const popSdX = D.max(new D(0), stableM2X.div(n)).sqrt();
   const sampSdX = n.gt(1)
-    ? D.max(new D(0), sumX2.minus(n.times(meanX.pow(2))).div(n.minus(1))).sqrt()
+    ? D.max(new D(0), stableM2X.div(n.minus(1))).sqrt()
     : undefined;
 
   const summary: StatSummary = {
@@ -189,10 +211,9 @@ export function computeStatSummary(subMode: StatSubMode, rows: StatRow[], useFre
 
   if (!is1Var && minY !== null && maxY !== null) {
     const meanY = sumY.div(n);
-    const varPopY = D.max(new D(0), sumY2.div(n).minus(meanY.pow(2)));
-    const popSdY = varPopY.sqrt();
+    const popSdY = D.max(new D(0), stableM2Y.div(n)).sqrt();
     const sampSdY = n.gt(1)
-      ? D.max(new D(0), sumY2.minus(n.times(meanY.pow(2))).div(n.minus(1))).sqrt()
+      ? D.max(new D(0), stableM2Y.div(n.minus(1))).sqrt()
       : undefined;
 
     summary.sumY = sc(sumY);
@@ -208,55 +229,93 @@ export function computeStatSummary(subMode: StatSubMode, rows: StatRow[], useFre
     summary.maxY = sc(maxY);
 
     if (subMode === '_+CX2') {
-      // Solve 3x3 normal equations:
-      // [ n     sumX   sumX2 ] [ A ]   [ sumY   ]
-      // [ sumX  sumX2  sumX3 ] [ B ] = [ sumXY  ]
-      // [ sumX2 sumX3  sumX4 ] [ C ]   [ sumX2Y ]
-      const mat = [
-        [n, sumX, sumX2, sumY],
-        [sumX, sumX2, sumX3, sumXY],
-        [sumX2, sumX3, sumX4, sumX2Y],
-      ];
-      const matScale = D.max(n.abs(), sumX2.abs(), sumX4.abs(), new D(1));
-      let singular = false;
-      for (let col = 0; col < 3; col++) {
-        let best = col;
-        for (let r = col + 1; r < 3; r++) {
-          if (mat[r][col].abs().gt(mat[best][col].abs())) best = r;
+      // Fit in a centered, scaled coordinate z = (x - center) / scale.
+      // Raw normal equations in x lose the low-order differences when x has
+      // a large offset or a very small magnitude.
+      const center = stableMeanX;
+      const scale = quadraticPairs.reduce(
+        (mx, p) => D.max(mx, p.x.minus(center).abs()),
+        new D(0),
+      );
+      if (!scale.isZero()) {
+        const mat: InstanceType<typeof D>[][] = Array.from(
+          { length: 3 },
+          () => Array.from({ length: 4 }, () => new D(0)),
+        );
+        for (const p of quadraticPairs) {
+          const z = p.x.minus(center).div(scale);
+          const powers = [new D(1), z, z.pow(2), z.pow(3), z.pow(4)];
+          for (let r = 0; r < 3; r++) {
+            for (let c = 0; c < 3; c++) {
+              mat[r][c] = mat[r][c].plus(powers[r + c].times(p.f));
+            }
+            mat[r][3] = mat[r][3].plus(powers[r].times(p.y).times(p.f));
+          }
         }
-        if (mat[best][col].abs().lte(matScale.times('1e-24'))) {
-          singular = true;
-          break;
+
+        let singular = false;
+        for (let col = 0; col < 3; col++) {
+          let best = col;
+          for (let r = col + 1; r < 3; r++) {
+            if (mat[r][col].abs().gt(mat[best][col].abs())) best = r;
+          }
+          const columnScale = mat.slice(col).reduce((mx, row) => D.max(mx, row[col].abs()), new D(0));
+          if (columnScale.isZero() || mat[best][col].abs().lte(columnScale.times('1e-24'))) {
+            singular = true;
+            break;
+          }
+          [mat[col], mat[best]] = [mat[best], mat[col]];
+          const piv = mat[col][col];
+          for (let c = col; c < 4; c++) mat[col][c] = mat[col][c].div(piv);
+          for (let r = 0; r < 3; r++) {
+            if (r === col) continue;
+            const fac = mat[r][col];
+            for (let c = col; c < 4; c++) mat[r][c] = mat[r][c].minus(fac.times(mat[col][c]));
+          }
         }
-        [mat[col], mat[best]] = [mat[best], mat[col]];
-        const piv = mat[col][col];
-        for (let c = col; c < 4; c++) mat[col][c] = mat[col][c].div(piv);
-        for (let r = 0; r < 3; r++) {
-          if (r === col) continue;
-          const fac = mat[r][col];
-          for (let c = col; c < 4; c++) mat[r][c] = mat[r][c].minus(fac.times(mat[col][c]));
+        if (!singular) {
+          const alpha = mat[0][3];
+          const beta = mat[1][3];
+          const gamma = mat[2][3];
+          const scaledB = beta.div(scale);
+          const scaledC = gamma.div(scale.pow(2));
+          const A = alpha.minus(center.times(scaledB)).plus(center.pow(2).times(scaledC));
+          const B = scaledB.minus(center.times(2).times(scaledC));
+          summary.regA = sc(A);
+          summary.regB = sc(B);
+          summary.regC = sc(scaledC);
+          summary.quadraticFit = {
+            center: sc(center), scale: sc(scale),
+            a: sc(alpha), b: sc(beta), c: sc(gamma),
+          };
         }
-      }
-      if (!singular) {
-        summary.regA = sc(mat[0][3]);
-        summary.regB = sc(mat[1][3]);
-        summary.regC = sc(mat[2][3]);
       }
     } else if (transformedPairs.length > 0) {
-      let sTx = new D(0), sTy = new D(0), sTxx = new D(0), sTyy = new D(0), sTxy = new D(0);
+      // Centered weighted co-moments avoid catastrophic cancellation in
+      // Σ(tx²) - Σ(tx)²/n for large-offset regression data.
+      let pairN = new D(0);
+      let meanTx = new D(0), meanTy = new D(0);
+      let sxx = new D(0), syy = new D(0), sxy = new D(0);
       for (const p of transformedPairs) {
-        sTx = sTx.plus(p.tx.times(p.f));
-        sTy = sTy.plus(p.ty.times(p.f));
-        sTxx = sTxx.plus(p.tx.pow(2).times(p.f));
-        sTyy = sTyy.plus(p.ty.pow(2).times(p.f));
-        sTxy = sTxy.plus(p.tx.times(p.ty).times(p.f));
+        const nextN = pairN.plus(p.f);
+        if (pairN.isZero()) {
+          meanTx = p.tx;
+          meanTy = p.ty;
+        } else {
+          const dx = p.tx.minus(meanTx);
+          const dy = p.ty.minus(meanTy);
+          const crossWeight = pairN.times(p.f).div(nextN);
+          sxx = sxx.plus(dx.pow(2).times(crossWeight));
+          syy = syy.plus(dy.pow(2).times(crossWeight));
+          sxy = sxy.plus(dx.times(dy).times(crossWeight));
+          meanTx = meanTx.plus(dx.times(p.f).div(nextN));
+          meanTy = meanTy.plus(dy.times(p.f).div(nextN));
+        }
+        pairN = nextN;
       }
-      const sxx = sTxx.minus(sTx.pow(2).div(n));
-      const syy = sTyy.minus(sTy.pow(2).div(n));
-      const sxy = sTxy.minus(sTx.times(sTy).div(n));
-      if (!sxx.abs().lt('1e-28')) {
+      if (!sxx.isZero()) {
         const bLin = sxy.div(sxx);
-        const aLin = sTy.minus(bLin.times(sTx)).div(n);
+        const aLin = meanTy.minus(bLin.times(meanTx));
         let A = aLin;
         let B = bLin;
         if (subMode === 'E_X' || subMode === 'AX_B') {
@@ -267,7 +326,7 @@ export function computeStatSummary(subMode: StatSubMode, rows: StatRow[], useFre
         }
         summary.regA = sc(A);
         summary.regB = sc(B);
-        if (!syy.abs().lt('1e-28')) {
+        if (!syy.isZero()) {
           summary.corrR = sc(sxy.div(sxx.times(syy).sqrt()));
         }
       }
@@ -284,7 +343,14 @@ export function estimateStatYHat(subMode: StatSubMode, summary: StatSummary, xVa
   const x = xVal.decimal;
   switch (subMode) {
     case 'A+BX': return sc(A.plus(B.times(x)));
-    case '_+CX2': return sc(A.plus(B.times(x)).plus((summary.regC?.decimal ?? new D(0)).times(x.pow(2))));
+    case '_+CX2': {
+      const fit = summary.quadraticFit;
+      if (fit) {
+        const z = x.minus(fit.center.decimal).div(fit.scale.decimal);
+        return sc(fit.a.decimal.plus(fit.b.decimal.times(z)).plus(fit.c.decimal.times(z.pow(2))));
+      }
+      return sc(A.plus(B.times(x)).plus((summary.regC?.decimal ?? new D(0)).times(x.pow(2))));
+    }
     case 'LN_X': if (x.lte(0)) mathError('Domain'); return sc(A.plus(B.times(x.ln())));
     case 'E_X': return sc(A.times(B.times(x).exp()));
     case 'AB_X': return sc(A.times(B.pow(x)));
@@ -294,20 +360,55 @@ export function estimateStatYHat(subMode: StatSubMode, summary: StatSummary, xVa
   }
 }
 
+function stableQuadraticRoots(
+  a: InstanceType<typeof D>,
+  b: InstanceType<typeof D>,
+  c: InstanceType<typeof D>,
+  y: InstanceType<typeof D>,
+  errorMessage: string,
+) {
+  const discriminant = b.pow(2).minus(c.times(4).times(a.minus(y)));
+  if (discriminant.lt(0)) mathError(errorMessage);
+  const sqrtDiscriminant = discriminant.sqrt();
+  if (sqrtDiscriminant.isZero()) {
+    const root = b.neg().div(c.times(2));
+    return { plus: root, minus: root };
+  }
+  // Avoid subtracting two nearly equal values in the conventional quadratic
+  // formula; one root is computed from the product of roots instead.
+  const q = b.gte(0)
+    ? b.plus(sqrtDiscriminant).neg().div(2)
+    : sqrtDiscriminant.minus(b).div(2);
+  const directRoot = q.div(c);
+  const companionRoot = a.minus(y).div(q);
+  return b.gte(0)
+    ? { plus: companionRoot, minus: directRoot }
+    : { plus: directRoot, minus: companionRoot };
+}
+
 export function estimateStatXHat(subMode: StatSubMode, summary: StatSummary, yVal: Scalar): Scalar {
   if (!summary.regA || !summary.regB) mathError('Regression unavailable');
   const A = summary.regA.decimal;
   const B = summary.regB.decimal;
   const y = yVal.decimal;
   if (subMode === '_+CX2') {
+    const fit = summary.quadraticFit;
+    if (fit) {
+      const qa = fit.a.decimal, qb = fit.b.decimal, qc = fit.c.decimal;
+      if (qc.isZero()) {
+        if (qb.isZero()) mathError('Slope is zero');
+        return sc(fit.center.decimal.plus(fit.scale.decimal.times(y.minus(qa).div(qb))));
+      }
+      const roots = stableQuadraticRoots(qa, qb, qc, y, 'Non-real x̂₁');
+      return sc(fit.center.decimal.plus(fit.scale.decimal.times(roots.plus)));
+    }
     const C = summary.regC?.decimal ?? new D(0);
     if (C.isZero()) {
       if (B.isZero()) mathError('Slope is zero');
       return sc(y.minus(A).div(B));
     }
-    const disc = B.pow(2).minus(C.times(4).times(A.minus(y)));
-    if (disc.lt(0)) mathError('Non-real x̂₁');
-    return sc(B.neg().plus(disc.sqrt()).div(C.times(2)));
+    const roots = stableQuadraticRoots(A, B, C, y, 'Non-real x̂₁');
+    return sc(roots.plus);
   }
   if (B.isZero()) mathError('Slope is zero');
   switch (subMode) {
@@ -329,10 +430,16 @@ export function estimateStatXHat2(subMode: StatSubMode, summary: StatSummary, yV
   const B = summary.regB.decimal;
   const C = summary.regC.decimal;
   const y = yVal.decimal;
+  const fit = summary.quadraticFit;
+  if (fit) {
+    const qa = fit.a.decimal, qb = fit.b.decimal, qc = fit.c.decimal;
+    if (qc.isZero()) mathError('Quadratic coefficient C is zero');
+    const roots = stableQuadraticRoots(qa, qb, qc, y, 'Non-real x̂₂');
+    return sc(fit.center.decimal.plus(fit.scale.decimal.times(roots.minus)));
+  }
   if (C.isZero()) mathError('Quadratic coefficient C is zero');
-  const disc = B.pow(2).minus(C.times(4).times(A.minus(y)));
-  if (disc.lt(0)) mathError('Non-real x̂₂');
-  return sc(B.neg().minus(disc.sqrt()).div(C.times(2)));
+  const roots = stableQuadraticRoots(A, B, C, y, 'Non-real x̂₂');
+  return sc(roots.minus);
 }
 
 export function standardizeStatT(summary: StatSummary, xVal: Scalar): Scalar {
