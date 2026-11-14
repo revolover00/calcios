@@ -521,7 +521,7 @@ describe('Second 50-Bug Senior Audit Regression Suite (#51–#100)', () => {
     expect(appDom.textContent).not.toContain('SCANNING MATH');
     // Now resolve the stale scan — it must be ignored!
     await act(async () => {
-      resolveScan({ expression: '999', mode: 'COMP' });
+      resolveScan({ expression: '999', transcription: '999', mode: 'COMP' });
     });
     expect(appDom.querySelector('[data-testid="lcd-expression"]')?.textContent ?? '').not.toContain('999');
     scanSpy.mockRestore();

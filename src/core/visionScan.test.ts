@@ -42,6 +42,47 @@ describe('Math Vision Scanner & Multi-Key Failover Pool', () => {
     expect(normalizeToCalcios2D('|-7| \\times 3')).toBe('abs(-7)×3');
   });
 
+  it('keeps the entire multi-line problem transcription separate from the calculator expression', async () => {
+    const transcription = [
+      'Let f(x,y) = (x^2+y^2)^2 + 3xy - 4x - 6y + 1 = 0',
+      'x,y ∈ R, x ≠ y',
+      '∂f/∂x = 4x(x^2+y^2) + 3y - 4 = 0',
+      '∂f/∂y = 4y(x^2+y^2) + 3x - 6 = 0',
+      'x(0) = 1, y(0) = -1',
+      'Find lim(t→∞)(x(t)+y(t))',
+    ].join('\\n');
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          choices: [{ message: { content: JSON.stringify({
+            transcription,
+            expression: '2x+5=13',
+            mode: 'COMP',
+            angle: null,
+          }) } }],
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
+    );
+
+    const result = await scanMathFromImage(new Blob(['image'], { type: 'image/png' }), {
+      apiUrl: DEFAULT_GROQ_API_URL,
+      model: DEFAULT_GROQ_MODEL,
+      apiKeys: ['test-key'],
+    });
+    expect(result.transcription).toBe(transcription);
+    expect(result.expression).toBe('2X+5=13');
+    const request = JSON.parse(String(fetchSpy.mock.calls[0][1]?.body)) as {
+      messages: Array<{ content: string | Array<{ text: string }> }>;
+      max_completion_tokens: number;
+    };
+    const systemContent = request.messages[0].content;
+    const userContent = request.messages[1].content;
+    expect(typeof systemContent === 'string' ? systemContent : '').toContain('Transcribe ALL readable lines');
+    expect(Array.isArray(userContent) ? userContent[0]?.text : userContent).toContain('complete problem faithfully');
+    expect(request.max_completion_tokens).toBeGreaterThanOrEqual(1000);
+  });
+
   it('automatically fails over across 5 API keys on 429/401 and sticks to the healthy key on subsequent scans', async () => {
     const keys = ['gsk_key_1', 'gsk_key_2', 'gsk_key_3', 'gsk_key_4', 'gsk_key_5'];
 
@@ -113,6 +154,7 @@ describe('Math Vision Scanner & Multi-Key Failover Pool', () => {
     expect((fetchSpy.mock.calls[2][1]?.headers as Record<string, string>).Authorization).toBe('Bearer gsk_key_3');
     expect(firstScan).toEqual({
       expression: 'integ(cos(X),0,frac(π,2))',
+      transcription: 'integ(cos(X),0,frac(π,2))',
       mode: 'COMP',
       angle: 'RAD',
     });

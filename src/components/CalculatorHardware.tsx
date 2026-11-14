@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { CalculatorAction, CalculatorState } from '../core/calculator';
-import { scanMathFromImage } from '../core/visionScan';
+import { scanMathFromImage, type ScannedMathResult } from '../core/visionScan';
 import {
   LOWER_KEYPAD_ROWS,
   SCIENTIFIC_ROW_1,
@@ -309,8 +309,9 @@ export function CalculatorHardware({
   dispatch,
 }: CalculatorHardwareProps): React.ReactElement {
   const [bodyTheme, setBodyTheme] = useState<CalciosBodyTheme>(loadBodyTheme);
-  const [scanView, setScanView] = useState<'closed' | 'menu' | 'scanning'>('closed');
+  const [scanView, setScanView] = useState<'closed' | 'menu' | 'scanning' | 'review'>('closed');
   const [scanError, setScanError] = useState<string | null>(null);
+  const [scanReview, setScanReview] = useState<ScannedMathResult | null>(null);
 
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
   const uploadInputRef = useRef<HTMLInputElement | null>(null);
@@ -330,17 +331,13 @@ export function CalculatorHardware({
     async (file: Blob) => {
       const seq = ++scanSeqRef.current;
       setScanError(null);
+      setScanReview(null);
       setScanView('scanning');
       try {
         const scanned = await scanMathFromImage(file);
         if (scanSeqRef.current !== seq) return;
-        dispatch({
-          type: 'load-scanned-math',
-          expression: scanned.expression,
-          mode: scanned.mode,
-          angle: scanned.angle,
-        });
-        setScanView('closed');
+        setScanReview(scanned);
+        setScanView('review');
       } catch (err) {
         if (scanSeqRef.current !== seq) return;
         const msg = err instanceof Error ? err.message : 'Failed to scan math image.';
@@ -350,6 +347,25 @@ export function CalculatorHardware({
     },
     [dispatch],
   );
+
+  const closeScanner = () => {
+    scanSeqRef.current++;
+    setScanView('closed');
+    setScanError(null);
+    setScanReview(null);
+  };
+
+  const loadScannedExpression = () => {
+    if (!scanReview?.expression.trim()) return;
+    dispatch({
+      type: 'load-scanned-math',
+      expression: scanReview.expression,
+      mode: scanReview.mode,
+      angle: scanReview.angle,
+    });
+    setScanView('closed');
+    setScanReview(null);
+  };
 
   useEffect(() => {
     const onPaste = (e: ClipboardEvent) => {
@@ -384,9 +400,11 @@ export function CalculatorHardware({
   const handlePress = (id: string) => {
     if (scanView !== 'closed') {
       if (id === 'ac' || id === 'on') {
-        scanSeqRef.current++;
-        setScanView('closed');
-        setScanError(null);
+        closeScanner();
+        return;
+      }
+      if (scanView === 'review' && id === 'equals') {
+        loadScannedExpression();
         return;
       }
       if (scanView === 'menu') {
@@ -500,7 +518,54 @@ export function CalculatorHardware({
               {scanView === 'scanning' && (
                 <div className="scan-lcd-center">
                   <div className="scan-lcd-title">SCANNING MATH...</div>
-                  <div className="scan-lcd-sub">Converting image to 2D expression</div>
+                  <div className="scan-lcd-sub">Reading the complete problem</div>
+                </div>
+              )}
+
+              {scanView === 'review' && scanReview && (
+                <div className="scan-lcd-review" data-testid="scan-review">
+                  <div className="scan-lcd-hdr">
+                    <span>REVIEW FULL SCAN</span>
+                    <button type="button" className="scan-lcd-close" aria-label="Close scanner" onClick={closeScanner}>
+                      [AC]
+                    </button>
+                  </div>
+                  <label className="scan-review-label" htmlFor="scan-transcription">Complete problem transcription</label>
+                  <textarea
+                    id="scan-transcription"
+                    className="scan-lcd-transcription"
+                    data-testid="scan-transcription"
+                    aria-label="Complete problem transcription"
+                    value={scanReview.transcription}
+                    onChange={(e) => {
+                      const transcription = e.currentTarget.value;
+                      setScanReview((prev) => prev ? { ...prev, transcription } : prev);
+                    }}
+                    spellCheck={false}
+                  />
+                  <div className="scan-lcd-hint">Check every line; OCR may misread handwriting.</div>
+                  <label className="scan-review-label" htmlFor="scan-expression">Calculator expression (optional)</label>
+                  <input
+                    id="scan-expression"
+                    className="scan-lcd-input"
+                    data-testid="scan-expression"
+                    aria-label="Calculator expression"
+                    value={scanReview.expression}
+                    onChange={(e) => {
+                      const expression = e.currentTarget.value;
+                      setScanReview((prev) => prev ? { ...prev, expression } : prev);
+                    }}
+                    placeholder="No single expression selected"
+                  />
+                  <button
+                    type="button"
+                    className="scan-lcd-save"
+                    data-testid="scan-load-expression"
+                    disabled={!scanReview.expression.trim()}
+                    onClick={loadScannedExpression}
+                  >
+                    Load expression into calculator
+                  </button>
                 </div>
               )}
 
@@ -512,7 +577,7 @@ export function CalculatorHardware({
                       type="button"
                       className="scan-lcd-close"
                       aria-label="Close scanner"
-                      onClick={() => setScanView('closed')}
+                      onClick={closeScanner}
                     >
                       [AC]
                     </button>

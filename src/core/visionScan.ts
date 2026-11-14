@@ -14,7 +14,10 @@ export interface VisionRuntimeOptions {
 }
 
 export interface ScannedMathResult {
+  /** Best single calculator-ready expression, if the image contains one. */
   expression: string;
+  /** Faithful OCR of all readable text and mathematics, in reading order. */
+  transcription: string;
   mode: 'COMP' | 'CMPLX';
   angle?: AngleUnit;
 }
@@ -497,13 +500,21 @@ export function normalizeToCalcios2D(raw: string): string {
   return s;
 }
 
-const VISION_SYSTEM_PROMPT = `You convert an image of a handwritten or printed mathematical problem into a JSON object for the Calcios 2D scientific calculator.
+const VISION_SYSTEM_PROMPT = `You transcribe handwritten or printed math images and separately identify a calculator-ready expression.
 Return ONLY valid JSON with this exact schema:
 {
-  "expression": "<Calcios 2D expression>",
+  "transcription": "<faithful transcription of the entire problem>",
+  "expression": "<one calculator-ready expression, or empty string>",
   "mode": "COMP" | "CMPLX",
   "angle": "DEG" | "RAD" | null
 }
+
+Transcription requirements:
+- Transcribe ALL readable lines in order: prose, definitions, constraints, every equation/system, initial conditions, and the final question.
+- Do not summarize, solve, or omit earlier lines just because the final line looks like a standalone expression.
+- Preserve the original mathematical meaning and line breaks. Mark genuinely uncertain handwriting as [unclear] instead of guessing.
+- The transcription is for human review and may include notation that the calculator cannot evaluate.
+- The separate expression field is only a best-effort single expression that fits this calculator's syntax. Never put only the requested limit/answer there when the image contains a larger problem. If no suitable standalone expression can be selected without losing meaning, return an empty string.
 
 Calcios 2D expression syntax rules (use these exact templates):
 - Stacked fraction: frac(num,den)  e.g. (1+sqrt(5))/2 -> frac(1+sqrt(5),2)
@@ -542,13 +553,13 @@ async function sendSingleKeyVisionRequest(
       {
         role: 'user',
         content: [
-          { type: 'text', text: 'Extract the mathematical problem from this image as Calcios JSON.' },
+          { type: 'text', text: 'Transcribe the complete problem faithfully, then provide a separate calculator-ready expression only if one can be selected without losing the problem context.' },
           { type: 'image_url', image_url: { url: dataUrl } },
         ],
       },
     ],
     temperature: 0.1,
-    max_completion_tokens: 300,
+    max_completion_tokens: 1200,
     response_format: { type: 'json_object' },
   };
 
@@ -654,22 +665,25 @@ export async function scanMathFromImage(
     throw new Error('Vision model returned an empty response.');
   }
 
-  let parsed: { expression?: string; mode?: string; angle?: string | null };
+  let parsed: { transcription?: string; expression?: string; mode?: string; angle?: string | null };
   try {
     const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
     parsed = JSON.parse(jsonMatch ? jsonMatch[0] : rawContent) as {
+      transcription?: string;
       expression?: string;
       mode?: string;
       angle?: string | null;
     };
   } catch {
-    parsed = { expression: rawContent };
+    // Backward-compatible fallback for endpoints/models that return only a math string.
+    parsed = { expression: rawContent, transcription: rawContent };
   }
 
+  const transcription = (parsed.transcription ?? parsed.expression ?? '').trim();
   const rawAngle = parsed.angle ?? null;
   const inferredDeg = /°/.test(parsed.expression ?? '');
   const normalizedExpr = normalizeToCalcios2D(parsed.expression ?? '');
-  if (!normalizedExpr) {
+  if (!normalizedExpr && !transcription) {
     throw new Error('No math problem detected in image.');
   }
 
@@ -688,6 +702,7 @@ export async function scanMathFromImage(
 
   return {
     expression: normalizedExpr,
+    transcription,
     mode: isCmplx ? 'CMPLX' : 'COMP',
     angle,
   };
