@@ -50,7 +50,7 @@ describe('Math Vision Scanner & Multi-Key Failover Pool', () => {
       '∂f/∂y = 4y(x^2+y^2) + 3x - 6 = 0',
       'x(0) = 1, y(0) = -1',
       'Find lim(t→∞)(x(t)+y(t))',
-    ].join('\\n');
+    ].join('\n');
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
       new Response(
         JSON.stringify({
@@ -81,6 +81,34 @@ describe('Math Vision Scanner & Multi-Key Failover Pool', () => {
     expect(typeof systemContent === 'string' ? systemContent : '').toContain('Transcribe ALL readable lines');
     expect(Array.isArray(userContent) ? userContent[0]?.text : userContent).toContain('complete problem faithfully');
     expect(request.max_completion_tokens).toBeGreaterThanOrEqual(1000);
+  });
+
+  it('retries OCR-only when JSON mode returns an invisible blank transcription', async () => {
+    const fullText = 'Definition line\nFirst equation\nInitial values\nFinal question';
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        choices: [{ message: { content: JSON.stringify({
+          transcription: '\u200b',
+          expression: '',
+          mode: 'COMP',
+          angle: null,
+        }) } }],
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        choices: [{ message: { content: fullText } }],
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+
+    const result = await scanMathFromImage(new Blob(['image'], { type: 'image/png' }), {
+      apiUrl: DEFAULT_GROQ_API_URL,
+      model: DEFAULT_GROQ_MODEL,
+      apiKeys: ['test-key'],
+    });
+
+    expect(result.transcription).toBe(fullText);
+    expect(result.expression).toBe('');
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    const retryBody = JSON.parse(String(fetchSpy.mock.calls[1][1]?.body)) as Record<string, unknown>;
+    expect(retryBody.response_format).toBeUndefined();
   });
 
   it('automatically fails over across 5 API keys on 429/401 and sticks to the healthy key on subsequent scans', async () => {

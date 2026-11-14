@@ -533,6 +533,70 @@ Calcios 2D expression syntax rules (use these exact templates):
 - Complex numbers: set "mode": "CMPLX" when imaginary i or phasor ∠ is used (e.g. (1+i)÷(1-i)). Otherwise "mode": "COMP".
 - Set "angle": "RAD" if trig/calculus clearly uses radians (like π), "DEG" if degrees (°) are shown, otherwise null.`;
 
+async function sendTranscriptionFallbackRequest(
+  apiUrl: string,
+  model: string,
+  apiKey: string,
+  dataUrl: string,
+): Promise<Response> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
+  return fetch(apiUrl, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      model,
+      messages: [
+        {
+          role: 'system',
+          content: 'Transcribe every visible line of text and mathematics from the image in reading order. Include prose, equations, conditions, initial values, and the final question. Do not summarize or solve. Preserve line breaks. Mark uncertain words as [unclear]. Return plain transcription only.',
+        },
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: 'Write out the complete problem exactly as shown. Do not return a blank answer.' },
+            { type: 'image_url', image_url: { url: dataUrl } },
+          ],
+        },
+      ],
+      temperature: 0,
+      max_completion_tokens: 1200,
+    }),
+  });
+}
+
+function cleanTranscription(value: string): string {
+  return value
+    .replace(/[\u200B-\u200F\u202A-\u202E\u2060\uFEFF]/g, '')
+    .replace(/\r\n?/g, '\n')
+    .trim();
+}
+
+function parseModelObject(raw: string): Record<string, unknown> | null {
+  try {
+    const jsonMatch = raw.match(/\{[\s\S]*\}/);
+    const value = JSON.parse(jsonMatch ? jsonMatch[0] : raw) as unknown;
+    return value && typeof value === 'object' && !Array.isArray(value)
+      ? value as Record<string, unknown>
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function readTextField(data: Record<string, unknown> | null, keys: readonly string[]): string {
+  if (!data) return '';
+  for (const key of keys) {
+    const value = data[key];
+    if (typeof value === 'string' && value.trim()) return value;
+    if (Array.isArray(value) && value.every((part) => typeof part === 'string')) {
+      const joined = value.join('\n');
+      if (joined.trim()) return joined;
+    }
+  }
+  return '';
+}
+
 async function sendSingleKeyVisionRequest(
   apiUrl: string,
   model: string,
@@ -608,6 +672,7 @@ export async function scanMathFromImage(
     keyPool.length > 0 ? orderCandidateKeys(keyPool, now) : [{ key: '', index: 0 }];
 
   let winningResponse: Response | null = null;
+  let winningApiKey = '';
   let lastErrorDetail = 'Vision service temporarily unavailable.';
 
   for (let attempt = 0; attempt < candidates.length; attempt++) {
@@ -631,6 +696,7 @@ export async function scanMathFromImage(
         keyCooldownUntil.delete(key);
       }
       winningResponse = res;
+      winningApiKey = key;
       break;
     }
 
@@ -665,30 +731,51 @@ export async function scanMathFromImage(
     throw new Error('Vision model returned an empty response.');
   }
 
-  let parsed: { transcription?: string; expression?: string; mode?: string; angle?: string | null };
-  try {
-    const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
-    parsed = JSON.parse(jsonMatch ? jsonMatch[0] : rawContent) as {
-      transcription?: string;
-      expression?: string;
-      mode?: string;
-      angle?: string | null;
-    };
-  } catch {
-    // Backward-compatible fallback for endpoints/models that return only a math string.
-    parsed = { expression: rawContent, transcription: rawContent };
+  const parsed = parseModelObject(rawContent);
+  const expressionRaw = readTextField(parsed, ['expression', 'calculator_expression', 'math_expression']);
+  let transcription = cleanTranscription(readTextField(parsed, [
+    'transcription',
+    'problemText',
+    'problem_text',
+    'fullProblem',
+    'full_problem',
+    'ocr_text',
+    'text',
+    'problem',
+  ]) || expressionRaw || (parsed ? '' : rawContent));
+
+  // Some vision responses satisfy JSON mode but return an empty/invisible OCR field.
+  // Retry once with a plain-text OCR-only instruction rather than showing a blank review form.
+  if (!transcription) {
+    try {
+      const fallbackResponse = await sendTranscriptionFallbackRequest(apiUrl, model, winningApiKey, dataUrl);
+      if (fallbackResponse.ok) {
+        const fallbackPayload = (await fallbackResponse.json()) as {
+          choices?: Array<{ message?: { content?: string } }>;
+        };
+        const fallbackContent = fallbackPayload.choices?.[0]?.message?.content?.trim() ?? '';
+        if (fallbackContent) {
+          const fallbackParsed = parseModelObject(fallbackContent);
+          transcription = cleanTranscription(readTextField(fallbackParsed, [
+            'transcription', 'problemText', 'problem_text', 'fullProblem', 'full_problem', 'ocr_text', 'text', 'problem',
+          ]) || (fallbackParsed ? '' : fallbackContent));
+        }
+      }
+    } catch {
+      // Fall through to the explicit readable-text error below.
+    }
   }
 
-  const transcription = (parsed.transcription ?? parsed.expression ?? '').trim();
-  const rawAngle = parsed.angle ?? null;
-  const inferredDeg = /°/.test(parsed.expression ?? '');
-  const normalizedExpr = normalizeToCalcios2D(parsed.expression ?? '');
-  if (!normalizedExpr && !transcription) {
-    throw new Error('No math problem detected in image.');
+  if (!transcription) {
+    throw new Error('The AI returned no readable text. Try a sharper, closer photo with the whole problem in frame.');
   }
+
+  const rawAngle = typeof parsed?.angle === 'string' ? parsed.angle : null;
+  const inferredDeg = /°/.test(expressionRaw);
+  const normalizedExpr = normalizeToCalcios2D(expressionRaw);
 
   const isCmplx =
-    parsed.mode === 'CMPLX' ||
+    parsed?.mode === 'CMPLX' ||
     normalizedExpr.includes('∠') ||
     /(^|[^a-zA-Z])i([^a-zA-Z]|$)/.test(normalizedExpr);
 
