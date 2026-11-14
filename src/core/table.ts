@@ -29,7 +29,7 @@ export function generateFunctionTable(
   if (span.gt(maxRows)) {
     mathError(`Table exceeds ${maxRows} rows`);
   }
-  const countDec = span.plus('1e-24').floor().plus(1);
+  const countDec = span.floor().plus(1);
   if (!countDec.isFinite() || countDec.lt(1) || countDec.gt(maxRows)) {
     mathError(`Table exceeds ${maxRows} rows`);
   }

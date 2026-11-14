@@ -1,6 +1,7 @@
 import { CONSTANT_BY_TOKEN } from './constants';
 import { CalculatorError, mathError, syntax } from './errors';
 import { completeParentheses } from './expression';
+import { normalizeInverseTrigNotation } from './trigNotation';
 import type { NumberFormatSetting } from './format';
 import {
   VARIABLES, add, applyFunction, applyUnitConversion, combinatoric, convertAngleToActive,
@@ -144,6 +145,7 @@ type VctTok =
 const VAR_SET = new Set<string>(VARIABLES);
 
 function tokenizeVector(source: string): VctTok[] {
+  source = normalizeInverseTrigNotation(source);
   const tokens: VctTok[] = [];
   let i = 0;
   while (i < source.length) {
@@ -293,12 +295,19 @@ export function evaluateVectorExpression(source: string, ctx: VectorEvalContext)
         if (!op || prec < minPrec) break;
         if (!implicit) take();
         const right = op === '⏨' ? parseSciExp() : parseExpr(op === '^' ? prec : prec + 1);
+        const consumed = tokens[pos - 1];
+        const rightIsPercent = consumed?.type === 'postfix' && consumed.text === '%';
 
         if (op === '+' || op === '-') {
           if (left.kind === 'vector' && right.kind === 'vector') {
             left = { kind: 'vector', vector: addVector(left.vector, right.vector, op === '-') };
           } else if (left.kind === 'scalar' && right.kind === 'scalar') {
-            left = { kind: 'scalar', scalar: op === '-' ? subtract(left.scalar, right.scalar) : add(left.scalar, right.scalar) };
+            left = {
+              kind: 'scalar',
+              scalar: op === '-'
+                ? rightIsPercent ? subtract(left.scalar, multiply(left.scalar, right.scalar)) : subtract(left.scalar, right.scalar)
+                : rightIsPercent ? add(left.scalar, multiply(left.scalar, right.scalar)) : add(left.scalar, right.scalar),
+            };
           } else {
             throw new CalculatorError('Argument ERROR', 'Cannot add scalar and vector');
           }

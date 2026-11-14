@@ -29,13 +29,22 @@ function isBelowTol(s: Scalar, tol: InstanceType<typeof D>): boolean {
   return s.decimal.abs().lte(tol);
 }
 
+function sameRootWithinRelativeTolerance(
+  a: InstanceType<typeof D>,
+  b: InstanceType<typeof D>,
+  tolerance: string,
+): boolean {
+  const scale = D.max(a.abs(), b.abs());
+  return scale.isZero() || a.minus(b).abs().lte(scale.times(tolerance));
+}
+
 export function snapExactScalar(s: Scalar): Scalar {
   if (s.exact || s.symbolic) return s;
   return cleanScalar(s.decimal);
 }
 
 function cleanScalar(d: InstanceType<typeof D>): Scalar {
-  const cleaned = d.abs().lt('1e-22') ? new D(0) : d;
+  const cleaned = d;
   if (cleaned.isZero()) return scalarFromInteger(0);
   if (cleaned.isInteger() && cleaned.abs().lt('1e15')) {
     return scalarFromInteger(BigInt(cleaned.toFixed(0)));
@@ -56,9 +65,9 @@ function cleanScalar(d: InstanceType<typeof D>): Scalar {
       if (kNext > 10000n) break;
       hPrev = hCur; hCur = hNext;
       kPrev = kCur; kCur = kNext;
-      if (kCur > 0n) {
+      if (kCur > 0n && hCur !== 0n) {
         const approx = new D(hCur.toString()).div(kCur.toString());
-        if (cleaned.abs().minus(approx).abs().lt('1e-22')) {
+        if (cleaned.abs().minus(approx).abs().lt('1e-32')) {
           const signedN = cleaned.isNegative() ? -hCur : hCur;
           return divide(scalarFromInteger(signedN), scalarFromInteger(kCur));
         }
@@ -74,7 +83,7 @@ function cleanScalar(d: InstanceType<typeof D>): Scalar {
   for (let q = 1; q <= 24; q++) {
     const prod = overPi.times(q);
     const nearest = prod.round();
-    if (!nearest.isZero() && nearest.abs().lte(48) && prod.minus(nearest).abs().lt('1e-24')) {
+    if (!nearest.isZero() && nearest.abs().lte(48) && prod.minus(nearest).abs().lt('1e-32')) {
       return divide(
         multiply(scalarFromInteger(BigInt(nearest.toFixed(0))), scalarPi()),
         scalarFromInteger(BigInt(q)),
@@ -85,8 +94,8 @@ function cleanScalar(d: InstanceType<typeof D>): Scalar {
 }
 
 function formatComplex(real: InstanceType<typeof D>, imagAbs: InstanceType<typeof D>): [string, string] {
-  const rClean = real.abs().lt('1e-22') ? new D(0) : real;
-  const iClean = imagAbs.abs().lt('1e-22') ? new D(0) : imagAbs;
+  const rClean = real.isZero() ? new D(0) : real;
+  const iClean = imagAbs.isZero() ? new D(0) : imagAbs;
   const rStr = formatDecimal(makeScalar(rClean, undefined, true));
   const iStr = iClean.eq(1) ? '' : formatDecimal(makeScalar(iClean, undefined, true));
   if (rClean.isZero()) {
@@ -128,17 +137,31 @@ export function solveLinear3(coeffs: Scalar[]): EqnOutcome {
     [coeffs[4], coeffs[5], coeffs[6], coeffs[7]],
     [coeffs[8], coeffs[9], coeffs[10], coeffs[11]],
   ];
-  const matScale = [
-    coeffs[0], coeffs[1], coeffs[2],
-    coeffs[4], coeffs[5], coeffs[6],
-    coeffs[8], coeffs[9], coeffs[10],
-  ].reduce((mx, c) => D.max(mx, c.decimal.abs()), new D(0));
-  const rhsScale = [coeffs[3], coeffs[7], coeffs[11]].reduce((mx, c) => D.max(mx, c.decimal.abs()), new D(0));
+  // Scale each equation independently before elimination. A single global
+  // threshold incorrectly rejects valid systems when one row is measured in
+  // very large units and another in small units.
+  for (const equation of m) {
+    let scale = equation[0];
+    for (let c = 1; c < 3; c++) {
+      if (equation[c].decimal.abs().gt(scale.decimal.abs())) scale = equation[c];
+    }
+    if (scale.decimal.isZero()) {
+      if (!isZeroScalar(equation[3])) return { status: 'no-solution' };
+      continue;
+    }
+    const divisor = scale.decimal.isNegative() ? negate(scale) : scale;
+    for (let c = 0; c < 4; c++) equation[c] = divide(equation[c], divisor);
+  }
+
+  const matScale = m.flatMap((equation) => equation.slice(0, 3))
+    .reduce((mx, c) => D.max(mx, c.decimal.abs()), new D(0));
+  const rhsScale = m.map((equation) => equation[3])
+    .reduce((mx, c) => D.max(mx, c.decimal.abs()), new D(0));
   if (matScale.isZero()) {
     return rhsScale.isZero() ? { status: 'infinite' } : { status: 'no-solution' };
   }
   const pivotTol = matScale.times('1e-28');
-  const rhsTol = D.max(matScale, rhsScale).times('1e-26');
+  const rhsScales = m.map((equation) => equation[3].decimal.abs());
 
   let row = 0;
   const pivotCols: number[] = [];
@@ -149,11 +172,14 @@ export function solveLinear3(coeffs: Scalar[]): EqnOutcome {
     }
     if (isBelowTol(m[best][col], pivotTol)) continue;
     [m[row], m[best]] = [m[best], m[row]];
+    [rhsScales[row], rhsScales[best]] = [rhsScales[best], rhsScales[row]];
     const pivot = m[row][col];
     for (let c = col; c < 4; c++) m[row][c] = divide(m[row][c], pivot);
+    rhsScales[row] = rhsScales[row].div(pivot.decimal.abs());
     for (let r = 0; r < 3; r++) {
       if (r === row || isBelowTol(m[r][col], pivotTol)) continue;
       const factor = m[r][col];
+      rhsScales[r] = rhsScales[r].plus(factor.decimal.abs().times(rhsScales[row]));
       for (let c = col; c < 4; c++) {
         m[r][c] = subtract(m[r][c], multiply(factor, m[row][c]));
       }
@@ -163,7 +189,7 @@ export function solveLinear3(coeffs: Scalar[]): EqnOutcome {
   }
 
   for (let r = row; r < 3; r++) {
-    if (!isBelowTol(m[r][3], rhsTol)) return { status: 'no-solution' };
+    if (!isBelowTol(m[r][3], rhsScales[r].times('1e-26'))) return { status: 'no-solution' };
   }
   if (pivotCols.length < 3) return { status: 'infinite' };
 
@@ -195,10 +221,29 @@ export function solveQuadratic(coeffs: Scalar[]): EqnOutcome {
     items.push({ label: 'X', scalar: snapExactScalar(vx) });
   } else if (disc.decimal.gt(0)) {
     const sq = applyFunction('sqrt', [disc], 'DEG');
-    const r1 = snapExactScalar(divide(add(negate(b), sq), twoA));
-    const r2 = snapExactScalar(divide(subtract(negate(b), sq), twoA));
-    items.push({ label: 'X₁', scalar: r1 });
-    items.push({ label: 'X₂', scalar: r2 });
+    let r1: Scalar;
+    let r2: Scalar;
+    if (b.decimal.isZero()) {
+      r1 = divide(sq, twoA);
+      r2 = divide(negate(sq), twoA);
+    } else {
+      // Avoid cancellation in -b ± √D when |b| is much larger than √D.
+      // Compute the well-conditioned root first, then obtain its partner from
+      // the product of roots c/a while preserving the calculator's X₁/X₂ order.
+      const signedRoot = b.decimal.isNegative() ? negate(sq) : sq;
+      const q = divide(add(negate(b), negate(signedRoot)), scalarFromInteger(2));
+      const stableRoot = divide(q, a);
+      const otherRoot = divide(c, q);
+      if (b.decimal.isNegative()) {
+        r1 = stableRoot;
+        r2 = otherRoot;
+      } else {
+        r1 = otherRoot;
+        r2 = stableRoot;
+      }
+    }
+    items.push({ label: 'X₁', scalar: snapExactScalar(r1) });
+    items.push({ label: 'X₂', scalar: snapExactScalar(r2) });
   } else {
     const realS = divide(negate(b), twoA);
     const absTwoA = twoA.decimal.isNegative() ? negate(twoA) : twoA;
@@ -207,7 +252,7 @@ export function solveQuadratic(coeffs: Scalar[]): EqnOutcome {
     const iSym = formatSymbolicLinear(imagS);
     if (rSym !== null && iSym !== null) {
       const iPart = iSym === '1' ? 'i' : iSym.includes('+') || iSym.includes('−') ? `(${iSym})i` : `${iSym}i`;
-      if (realS.decimal.abs().lt('1e-24')) {
+      if (realS.decimal.isZero()) {
         items.push({ label: 'X₁', complexText: iPart, complexParts: { re: realS, im: imagS } });
         items.push({ label: 'X₂', complexText: `−${iPart}`, complexParts: { re: realS, im: negate(imagS) } });
       } else {
@@ -237,7 +282,7 @@ function buildComplexConjugatePair(
   const iSym = formatSymbolicLinear(imagPosS);
   if (rSym !== null && iSym !== null) {
     const iPart = iSym === '1' ? 'i' : iSym.includes('+') || iSym.includes('−') ? `(${iSym})i` : `${iSym}i`;
-    if (realS.decimal.abs().lt('1e-24')) {
+    if (realS.decimal.isZero()) {
       return [
         { label: label1, complexText: iPart, complexParts: { re: realS, im: imagPosS } },
         { label: label2, complexText: `−${iPart}`, complexParts: { re: realS, im: negate(imagPosS) } },
@@ -274,7 +319,7 @@ function tryDeflateCubicWithExactRoot(coeffs: Scalar[], approxCandidates: Instan
     const discScale = D.max(q1.decimal.pow(2), fourAQ0.decimal.abs());
     if (isBelowTol(disc, discScale.times('1e-26'))) {
       const rDouble = snapExactScalar(divide(negate(q1), twoA));
-      if (rExact.decimal.minus(rDouble.decimal).abs().lt('1e-20')) {
+      if (sameRootWithinRelativeTolerance(rExact.decimal, rDouble.decimal, '1e-28')) {
         return { status: 'solved', items: [{ label: 'X', scalar: rExact }] };
       }
       return {
@@ -292,7 +337,7 @@ function tryDeflateCubicWithExactRoot(coeffs: Scalar[], approxCandidates: Instan
       const allReal = [rExact, r2, r3];
       const unique: Scalar[] = [];
       for (const rt of allReal) {
-        if (!unique.some((u) => u.decimal.minus(rt.decimal).abs().lt('1e-20'))) {
+        if (!unique.some((u) => sameRootWithinRelativeTolerance(u.decimal, rt.decimal, '1e-28'))) {
           unique.push(rt);
         }
       }
@@ -341,8 +386,8 @@ export function solveCubic(coeffs: Scalar[]): EqnOutcome {
   const p = c.minus(b.pow(2).div(3));
   const q = b.pow(3).times(2).div(27).minus(b.times(c).div(3)).plus(d);
 
-  const pScale = D.max(new D(1), c.abs(), b.pow(2).div(3));
-  const qScale = D.max(new D(1), b.abs().pow(3).div(13.5), b.times(c).abs().div(3), d.abs());
+  const pScale = D.max(c.abs(), b.pow(2).div(3));
+  const qScale = D.max(b.abs().pow(3).div(13.5), b.times(c).abs().div(3), d.abs());
 
   if (p.abs().lte(pScale.times('1e-26')) && q.abs().lte(qScale.times('1e-26'))) {
     const exactShift = snapExactScalar(divide(negate(bS), multiply(scalarFromInteger(3), aS)));
@@ -355,7 +400,7 @@ export function solveCubic(coeffs: Scalar[]): EqnOutcome {
   const halfQ = q.div(2);
   const thirdP = p.div(3);
   const disc = halfQ.pow(2).plus(thirdP.pow(3));
-  const discScale = D.max(new D(1), halfQ.pow(2), thirdP.abs().pow(3));
+  const discScale = D.max(halfQ.pow(2), thirdP.abs().pow(3));
 
   if (disc.abs().lte(discScale.times('1e-24'))) {
     if (p.abs().lte(pScale.times('1e-20'))) {

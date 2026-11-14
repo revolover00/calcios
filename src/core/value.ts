@@ -11,6 +11,7 @@ import {
 
 /** Internal decimal arithmetic has guard digits. Display rounding happens only at the edge. */
 export const D = Decimal.clone({ precision: 34, rounding: Decimal.ROUND_HALF_UP, maxE: 10000, minE: -10000 });
+const DHigh = Decimal.clone({ precision: 256, rounding: Decimal.ROUND_HALF_UP, maxE: 10000, minE: -10000 });
 export type AngleUnit = 'DEG' | 'RAD' | 'GRA';
 export type VariableName = 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'X' | 'Y' | 'M';
 export const VARIABLES: VariableName[] = ['A', 'B', 'C', 'D', 'E', 'F', 'X', 'Y', 'M'];
@@ -71,10 +72,11 @@ export function makeScalar(
 ): Scalar {
   const number = new D(value);
   if (!number.isFinite() || number.abs().gte(LIMIT)) mathError('Result outside the supported range');
-  if (!number.isZero() && number.abs().lt('1e-99')) {
-    return { decimal: new D(0), exact: { n: ZERO, d: ONE }, preferDecimal };
-  }
   return { decimal: number, exact, symbolic: exact ? undefined : symbolic, preferDecimal };
+}
+
+function decimalFromRational(value: Rational): InstanceType<typeof D> {
+  return new D(value.n.toString()).div(value.d.toString());
 }
 
 export function scalarFromInteger(value: number | bigint): Scalar {
@@ -173,19 +175,17 @@ export function deserialize(value: StoredScalar): Scalar {
 export function zeroStored(): StoredScalar { return serialize(scalarFromInteger(0)); }
 
 export function negate(a: Scalar): Scalar {
-  return makeScalar(
-    a.decimal.neg(),
-    a.exact && rational(-a.exact.n, a.exact.d),
-    a.preferDecimal,
-    a.symbolic && negateSymbolic(a.symbolic),
-  );
+  const exact = a.exact && rational(-a.exact.n, a.exact.d);
+  const value = exact ? decimalFromRational(exact) : a.decimal.neg();
+  return makeScalar(value, exact, a.preferDecimal, a.symbolic && negateSymbolic(a.symbolic));
 }
 
 export function add(a: Scalar, b: Scalar): Scalar {
   const pref = a.preferDecimal || b.preferDecimal;
   if (a.exact && b.exact) {
     const r = rational(a.exact.n * b.exact.d + b.exact.n * a.exact.d, a.exact.d * b.exact.d);
-    return makeScalar(a.decimal.plus(b.decimal), r, pref);
+    const value = r ? decimalFromRational(r) : a.decimal.plus(b.decimal);
+    return makeScalar(value, r, pref);
   }
   const sym = addSymbolic(a, b);
   const ex = sym.exact && rational(sym.exact.n, sym.exact.d);
@@ -198,7 +198,8 @@ export function multiply(a: Scalar, b: Scalar): Scalar {
   const pref = a.preferDecimal || b.preferDecimal;
   if (a.exact && b.exact) {
     const r = rational(a.exact.n * b.exact.n, a.exact.d * b.exact.d);
-    return makeScalar(a.decimal.times(b.decimal), r, pref);
+    const value = r ? decimalFromRational(r) : a.decimal.times(b.decimal);
+    return makeScalar(value, r, pref);
   }
   const sym = multiplySymbolic(a, b);
   const ex = sym.exact && rational(sym.exact.n, sym.exact.d);
@@ -213,7 +214,8 @@ export function divide(a: Scalar, b: Scalar): Scalar {
     let rawD = a.exact.d * b.exact.n;
     if (rawD < ZERO) { rawN = -rawN; rawD = -rawD; }
     const r = rational(rawN, rawD);
-    const out = makeScalar(a.decimal.dividedBy(b.decimal), r, pref);
+    const value = r ? decimalFromRational(r) : a.decimal.dividedBy(b.decimal);
+    const out = makeScalar(value, r, pref);
     if (absBig(rawN).toString().length <= 40 && rawD.toString().length <= 40) {
       out.rawUnreduced = { n: rawN, d: rawD };
     }
@@ -297,6 +299,33 @@ function exactRationalNthRoot(r: Rational, k: number): Rational | null {
   return rational(r.n < ZERO ? -rn : rn, rd) ?? null;
 }
 
+function decimalHigh(value: Scalar): InstanceType<typeof DHigh> {
+  if (value.exact) {
+    return new DHigh(value.exact.n.toString()).div(value.exact.d.toString());
+  }
+  return new DHigh(value.decimal.toString());
+}
+
+function highPrecisionLn(value: Scalar): InstanceType<typeof D> {
+  return new D(decimalHigh(value).ln().toString());
+}
+
+function highPrecisionLogBase(arg: Scalar, base: Scalar): InstanceType<typeof D> {
+  return new D(decimalHigh(arg).ln().div(decimalHigh(base).ln()).toString());
+}
+
+function exactRationalPowerRelation(base: Rational, arg: Rational, p: number, q: number): boolean {
+  // Verify arg^q = base^p exactly: Decimal equality can hide distinctions beyond
+  // its precision, precisely where a logarithm is close to an integer.
+  const maxDigits = Math.max(base.n.toString().length, base.d.toString().length, arg.n.toString().length, arg.d.toString().length);
+  if (maxDigits * Math.max(q, Math.abs(p)) > 20_000) return false;
+  const leftN = arg.n ** BigInt(q);
+  const leftD = arg.d ** BigInt(q);
+  const rightN = p >= 0 ? base.n ** BigInt(p) : base.d ** BigInt(-p);
+  const rightD = p >= 0 ? base.d ** BigInt(p) : base.n ** BigInt(-p);
+  return leftN * rightD === leftD * rightN;
+}
+
 function exactRationalLog(base: Scalar, arg: Scalar): Rational | undefined {
   if (arg.exact && arg.exact.n === ONE && arg.exact.d === ONE) {
     return { n: ZERO, d: ONE };
@@ -304,19 +333,29 @@ function exactRationalLog(base: Scalar, arg: Scalar): Rational | undefined {
   if (!base.exact && !base.symbolic && !arg.exact && !arg.symbolic) {
     return undefined;
   }
-  const raw = arg.decimal.ln().div(base.decimal.ln());
+  const baseHigh = decimalHigh(base);
+  const argHigh = decimalHigh(arg);
+  const raw = argHigh.ln().div(baseHigh.ln());
   for (let q = 1; q <= 12; q++) {
     const scaled = raw.times(q);
     const pRound = scaled.round();
-    if (scaled.minus(pRound).abs().gt('1e-22')) continue;
+    if (scaled.minus(pRound).abs().gt('1e-32')) continue;
     if (pRound.abs().gt(60)) continue;
     const pNum = pRound.toNumber();
-    const lhs = pNum >= 0 ? base.decimal.pow(pNum) : new D(1).div(base.decimal.pow(-pNum));
-    const rhs = arg.decimal.pow(q);
-    const scale = D.max(lhs.abs(), rhs.abs(), new D(1));
-    if (lhs.minus(rhs).abs().lte(scale.times('1e-26'))) {
-      return rational(BigInt(pNum), BigInt(q));
+    let isExact: boolean;
+    if (base.exact && arg.exact) {
+      isExact = exactRationalPowerRelation(base.exact, arg.exact, pNum, q);
+    } else {
+      const poweredBase = power(base, scalarFromInteger(pNum));
+      const poweredArg = power(arg, scalarFromInteger(q));
+      const sameExact = poweredBase.exact && poweredArg.exact &&
+        poweredBase.exact.n === poweredArg.exact.n && poweredBase.exact.d === poweredArg.exact.d;
+      const sameSymbolic = poweredBase.symbolic && poweredArg.symbolic &&
+        JSON.stringify(poweredBase.symbolic, (_, value) => typeof value === 'bigint' ? value.toString() : value) ===
+        JSON.stringify(poweredArg.symbolic, (_, value) => typeof value === 'bigint' ? value.toString() : value);
+      isExact = Boolean(sameExact || sameSymbolic);
     }
+    if (isExact) return rational(BigInt(pNum), BigInt(q));
   }
   return undefined;
 }
@@ -338,7 +377,8 @@ export function power(a: Scalar, b: Scalar): Scalar {
         const e = BigInt(Math.abs(exponent));
         const n = a.exact.n ** e, d = a.exact.d ** e;
         const exact = exponent < 0 ? rational(d, n) : rational(n, d);
-        return makeScalar(a.decimal.pow(b.decimal), exact, pref);
+        const value = exact ? decimalFromRational(exact) : a.decimal.pow(b.decimal);
+        return makeScalar(value, exact, pref);
       }
       if ((a.symbolic?.kind === 'surd' || a.symbolic?.kind === 'multi-surd') && Math.abs(exponent) <= 10) {
         let acc: Scalar = scalarFromInteger(1);
@@ -385,7 +425,8 @@ export function power(a: Scalar, b: Scalar): Scalar {
         const rn = rt.n ** e;
         const rd = rt.d ** e;
         const exact = b.exact.n < ZERO ? rational(rd, rn) : rational(rn, rd);
-        return makeScalar(a.decimal.pow(b.decimal), exact, pref);
+        const value = exact ? decimalFromRational(exact) : a.decimal.pow(b.decimal);
+        return makeScalar(value, exact, pref);
       }
     }
 
@@ -479,8 +520,11 @@ export function primeFactorize(value: Scalar): string {
 }
 
 function simpleExact(value: Decimal): Rational | undefined {
-  const candidates: Rational[] = [{ n: 0n, d: 1n }, { n: 1n, d: 2n }, { n: -1n, d: 2n }, { n: 1n, d: 1n }, { n: -1n, d: 1n }];
-  return candidates.find(({ n, d }) => value.minus(new D(n.toString()).div(d.toString())).abs().lt('1e-28'));
+  if (value.isZero()) return { n: ZERO, d: ONE };
+  const candidates: Rational[] = [
+    { n: 1n, d: 2n }, { n: -1n, d: 2n }, { n: 1n, d: 1n }, { n: -1n, d: 1n },
+  ];
+  return candidates.find(({ n, d }) => value.eq(new D(n.toString()).div(d.toString())));
 }
 
 export function fromRadians(value: Decimal, angle: AngleUnit): Decimal {
@@ -767,11 +811,11 @@ export function applyFunction(
     case 'ln': {
       if (x.lte(0)) mathError('Logarithm domain');
       if (a.exact && a.exact.n === ONE && a.exact.d === ONE) return scalarFromInteger(0);
-      const val = x.ln();
+      const val = highPrecisionLn(a);
       const nearInt = val.round();
-      if (nearInt.abs().lte(50) && val.minus(nearInt).abs().lt('1e-26')) {
+      if (!a.exact && nearInt.abs().lte(50) && val.minus(nearInt).abs().lt('5e-34')) {
         const expCheck = nearInt.exp();
-        if (expCheck.minus(x).abs().lte(D.max(x, new D(1)).times('1e-26'))) {
+        if (expCheck.minus(x).abs().lte(D.max(x, new D(1)).times('5e-34'))) {
           return makeScalar(nearInt, rational(BigInt(nearInt.toFixed(0))), a.preferDecimal);
         }
       }
@@ -780,15 +824,16 @@ export function applyFunction(
     case 'log': {
       if (x.lte(0)) mathError('Logarithm domain');
       const exactLog = exactRationalLog(scalarFromInteger(10), a);
-      if (exactLog) return makeScalar(x.log(10), exactLog, a.preferDecimal);
-      return makeScalar(x.log(10), undefined, true);
+      const val = highPrecisionLogBase(a, scalarFromInteger(10));
+      if (exactLog) return makeScalar(val, exactLog, a.preferDecimal);
+      return makeScalar(val, undefined, true);
     }
     case 'logb': {
       const yScalar = args[1];
       const y = yScalar.decimal;
       if (x.lte(0) || x.eq(1) || y.lte(0)) mathError('Logarithm domain');
       const exactLog = exactRationalLog(a, yScalar);
-      const val = y.ln().div(x.ln());
+      const val = highPrecisionLogBase(yScalar, a);
       if (exactLog) return makeScalar(val, exactLog, a.preferDecimal || yScalar.preferDecimal);
       return makeScalar(val, undefined, true);
     }
@@ -803,10 +848,39 @@ export function applyFunction(
         }
       }
       const rad = toRadians(x, angle);
-      if (name === 'tan' && rad.cos().abs().lt('1e-30')) {
-        mathError('Undefined tangent');
+      let raw: InstanceType<typeof D>;
+      if (name === 'tan') {
+        // Near an odd quarter-turn, Decimal.tan(x) loses digits when its
+        // internal sine and cosine are both evaluated near π/2. Reduce to
+        // the signed offset from the nearest pole and use tan(π/2 + δ) =
+        // -cot(δ), preserving the small offset instead of subtracting it
+        // from two nearly equal trigonometric values.
+        let delta: InstanceType<typeof D>;
+        if (angle === 'RAD') {
+          const pi = D.acos(-1);
+          const halfPi = pi.div(2);
+          const turns = rad.minus(halfPi).div(pi).round();
+          delta = rad.minus(halfPi.plus(pi.times(turns)));
+        } else {
+          const period = new D(angle === 'DEG' ? 180 : 200);
+          const pole = period.div(2);
+          const turns = x.minus(pole).div(period).round();
+          delta = x.minus(pole.plus(period.times(turns)));
+        }
+        if (delta.isZero() || (angle === 'RAD' && delta.abs().lt('1e-33'))) {
+          // At this distance the input has reached Decimal's resolution near
+          // π/2; its side of the exact pole is no longer reliably knowable.
+          mathError('Undefined tangent');
+        }
+        if (delta.abs().lt('0.1')) {
+          const deltaRad = toRadians(delta, angle);
+          raw = deltaRad.cos().neg().div(deltaRad.sin());
+        } else {
+          raw = rad.tan();
+        }
+      } else {
+        raw = name === 'sin' ? rad.sin() : rad.cos();
       }
-      const raw = name === 'sin' ? rad.sin() : name === 'cos' ? rad.cos() : rad.tan();
       if (exactDeg) {
         const trigSym = exactTrigDegrees(name, exactDeg.n, exactDeg.d);
         if (trigSym?.exact) {

@@ -13,8 +13,6 @@ export type DistSubMode =
 /** High-precision complementary error function erfc(x) for x >= 0 in 34-digit Decimal */
 function erfcPositive(x: InstanceType<typeof D>): InstanceType<typeof D> {
   if (x.isZero()) return new D(1);
-  if (x.gt(140)) return new D(0);
-
   const piSqrt = D.acos(-1).sqrt();
   if (x.lte('3.0')) {
     let term = x;
@@ -140,9 +138,24 @@ export function normalCd(lower: Scalar, upper: Scalar, mu: Scalar, sigma: Scalar
 export function inverseNormal(area: Scalar, mu: Scalar, sigma: Scalar): Scalar {
   if (sigma.decimal.lte(0)) mathError('σ must be positive');
   const p = area.decimal;
-  if (p.lt(0) || p.gt(1)) mathError('Area must be in [0, 1]');
-  if (p.isZero() || p.eq(1)) mathError('Extreme tail probability');
-  if (p.lt('1e-99') || new D(1).minus(p).lt('1e-99')) mathError('Extreme tail probability');
+  if (area.exact) {
+    if (area.exact.n < 0n || area.exact.n > area.exact.d) mathError('Area must be in [0, 1]');
+    if (area.exact.n === 0n || area.exact.n === area.exact.d) mathError('Extreme tail probability');
+  } else {
+    if (p.lt(0) || p.gt(1)) mathError('Area must be in [0, 1]');
+    if (p.isZero() || p.eq(1)) mathError('Extreme tail probability');
+  }
+
+  // Use the smaller tail directly. Exact complements preserve probabilities such
+  // as 1 - 1e-100 that round to 1 at the Decimal working precision.
+  const upperTail = area.exact
+    ? new D((area.exact.d - area.exact.n).toString()).div(area.exact.d.toString())
+    : new D(1).minus(p);
+  const isUpper = area.exact
+    ? area.exact.n * 2n > area.exact.d
+    : p.gt('0.5');
+  const tail = isUpper ? upperTail : p;
+  if (tail.isZero()) mathError('Extreme tail probability');
 
   // Acklam rational initial guess using Decimal.ln() so tiny tails never underflow to Math.log(0) = -Infinity
   const a = [-3.969683028665376e+01, 2.209460984245205e+02, -2.759285104469687e+02, 1.383577518672690e+02, -3.066479806614716e+01, 2.506628277459239e+00];
@@ -150,18 +163,13 @@ export function inverseNormal(area: Scalar, mu: Scalar, sigma: Scalar): Scalar {
   const c = [-7.784894002430293e-03, -3.223964580411365e-01, -2.400758277161838e+00, -2.549732539343734e+00, 4.374664141464968e+00, 2.938163982698783e+00];
   const d = [7.784695709041462e-03, 3.224671290700398e-01, 2.445134137142996e+00, 3.754408661907416e+00];
   let z0: number;
-  if (p.lt('0.02425')) {
-    const q = Math.sqrt(Number(p.ln().times(-2).toFixed(12)));
-    z0 = (((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) /
+  if (tail.lt('0.02425')) {
+    const q = Math.sqrt(Number(tail.ln().times(-2).toFixed(12)));
+    const lowerApprox = (((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) /
       ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1);
-  } else if (p.gt('0.97575')) {
-    const comp = new D(1).minus(p);
-    const q = Math.sqrt(Number(comp.ln().times(-2).toFixed(12)));
-    z0 = -(((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) /
-      ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1);
+    z0 = isUpper ? -lowerApprox : lowerApprox;
   } else {
-    const pf = p.toNumber();
-    const q = pf - 0.5;
+    const q = p.toNumber() - 0.5;
     const r = q * q;
     z0 = (((((a[0] * r + a[1]) * r + a[2]) * r + a[3]) * r + a[4]) * r + a[5]) * q /
       (((((b[0] * r + b[1]) * r + b[2]) * r + b[3]) * r + b[4]) * r + 1);
@@ -169,10 +177,10 @@ export function inverseNormal(area: Scalar, mu: Scalar, sigma: Scalar): Scalar {
 
   let z = new D(z0);
   for (let i = 0; i < 10; i++) {
-    const err = p.gt('0.5')
-      ? new D(1).minus(p).minus(stdNormUpperTail(z))
-      : stdNormCdf(z).minus(p);
-    if (err.abs().lt('1e-30')) break;
+    const err = isUpper
+      ? tail.minus(stdNormUpperTail(z))
+      : stdNormCdf(z).minus(tail);
+    if (err.abs().div(tail).lt('1e-30')) break;
     const pdf = stdNormPdf(z);
     if (pdf.isZero()) break;
     z = z.minus(err.div(pdf));
@@ -234,7 +242,9 @@ export function poissonPd(x: Scalar, lambda: Scalar): Scalar {
   if (lambda.decimal.lte(0)) mathError('λ must be positive');
   if (!x.decimal.isInteger()) mathError('x must be integer');
   if (x.decimal.lt(0)) return makeScalar(0, undefined, true);
-  if (x.decimal.gt('1e7')) return makeScalar(0, undefined, true);
+  // poissonPmDecimal takes k as a JS number; beyond the safe-integer range it
+  // would silently round distinct integer outcomes to the same value.
+  if (x.decimal.gt('9007199254740991')) mathError('Poisson x too large');
   const k = x.decimal.toNumber();
   return makeScalar(poissonPmDecimal(k, lambda.decimal), undefined, true);
 }

@@ -3,7 +3,7 @@ import { evaluateExpression, evaluateRichExpression } from './expression';
 import { createInitialState } from './calculator';
 import { formatDecimal, formatResult } from './format';
 import { CalculatorError } from './errors';
-import { serialize } from './value';
+import { applyFunction, scalarFromLiteral, serialize } from './value';
 
 const state = createInitialState();
 const ctx = { angle: state.angle, variables: state.variables, ans: state.ans } as const;
@@ -19,6 +19,89 @@ describe('expression engine', () => {
     ['asin(0.5)', '30'], ['sinh(0)', '0'], ['2×10^(3)', '2000'],
   ])('%s = %s', (expression, expected) => {
     expect(formatDecimal(solve(expression))).toBe(expected);
+  });
+
+  it('matches Casio percent behavior for additive, subtractive, and multiplicative expressions', () => {
+    expect(formatDecimal(solve('200+10%'))).toBe('220');
+    expect(formatDecimal(solve('200-10%'))).toBe('180');
+    expect(formatDecimal(solve('200×10%'))).toBe('20');
+    expect(formatDecimal(solve('200÷10%'))).toBe('2000');
+    expect(formatDecimal(solve('200+10%+10%'))).toBe('242');
+  });
+
+  it('parses superscript and caret inverse-trig notation as inverse functions', () => {
+    expect(formatDecimal(solve('tan⁻¹(1)'))).toBe('45');
+    expect(formatDecimal(solve('sin‐¹(0.5)'))).toBe('30');
+    expect(formatDecimal(solve('cos^{-1}(0)'))).toBe('90');
+    expect(formatDecimal(solve('tan^-1(1)'))).toBe('45');
+    expect(formatDecimal(solve('2tan⁻¹(1)'))).toBe('90');
+    expect(formatDecimal(solve('arctan(1)'))).toBe('45');
+    expect(formatResult(evaluateExpression('tan⁻¹(1)', { ...ctx, angle: 'RAD' }), 'exact')).toEqual({
+      type: 'symbolic-pi',
+      sign: '',
+      numerator: '1',
+      denominator: '4',
+    });
+  });
+
+  it('rejects exact tangent poles without rejecting valid near-pole values', () => {
+    const solveRad = (source: string) => evaluateExpression(source, { ...ctx, angle: 'RAD' });
+    expect(() => solveRad('tan(π÷2)')).toThrow(CalculatorError);
+    const nearDegreePole = solve('tan(90.00000000000000000000000000001)');
+    const expected = '5.729577951308232087679815481410516e30';
+    expect(nearDegreePole.decimal.minus(`-${expected}`).abs().div(expected).lt('1e-25')).toBe(true);
+    expect(solveRad('tan(1.57079632679489661923132169163965)').decimal.abs().gt('1e30')).toBe(true);
+  });
+
+  it('reconstructs decimal magnitude after exact cancellation below working precision', () => {
+    const residual = solve('1.0000000000000000000000000000000000000001-1');
+    expect(residual.decimal.toString()).toBe('1e-40');
+    expect(residual.exact).toEqual({ n: 1n, d: 10n ** 40n });
+    expect(solve('-(1.0000000000000000000000000000000000000001-1)').decimal.toString()).toBe('-1e-40');
+  });
+
+  it('does not snap near-special-angle trig values to exact fractions', () => {
+    const nearHalf = solve('sin(30.000000000000000000000000000001)');
+    expect(nearHalf.exact).toBeUndefined();
+    expect(nearHalf.decimal.minus('0.5').abs().gt('1e-33')).toBe(true);
+  });
+
+  it('does not snap logarithms near one to the exact integer zero', () => {
+    const nearOne = applyFunction('ln', [scalarFromLiteral('1.000000000000000000000000000001')], 'DEG');
+    expect(nearOne.decimal.gt(0)).toBe(true);
+    expect(nearOne.decimal.lt('1e-29')).toBe(true);
+    expect(nearOne.exact).toBeUndefined();
+    expect(formatDecimal(solve('ln(e)'))).toBe('1');
+    expect(solve('log(sqrt(10))').exact).toEqual({ n: 1n, d: 2n });
+    const resolutionEdge = solve('ln(1.000000000000000000000000000000001)');
+    expect(resolutionEdge.decimal.gt(0)).toBe(true);
+    expect(resolutionEdge.exact).toBeUndefined();
+    expect(solve('log(10.00000000000000000000000000001)').decimal.gt(1)).toBe(true);
+    const nearTen = solve('log(10.00000000000000000000000000000001)');
+    expect(nearTen.decimal.gt(1)).toBe(true);
+    expect(nearTen.exact).toBeUndefined();
+    expect(solve('logb(10,10.00000000000000000000000000000001)').decimal.gt(1)).toBe(true);
+    const beyondDecimalPrecision = solve('log(10.0000000000000000000000000000000000000001)');
+    expect(beyondDecimalPrecision.decimal.gt(1)).toBe(true);
+    expect(beyondDecimalPrecision.exact).toBeUndefined();
+    const beyondPrecisionLogb = solve('logb(10,10.0000000000000000000000000000000000000001)');
+    expect(beyondPrecisionLogb.decimal.gt(1)).toBe(true);
+    expect(beyondPrecisionLogb.exact).toBeUndefined();
+    const tinyLn = solve('ln(1.0000000000000000000000000000000000000001)');
+    expect(tinyLn.decimal.minus('1e-40').abs().lt('1e-50')).toBe(true);
+    const ultraTinyLn = solve(`ln(1.${'0'.repeat(99)}1)`);
+    expect(ultraTinyLn.decimal.minus('1e-100').abs().lt('1e-110')).toBe(true);
+    expect(ultraTinyLn.exact).toBeUndefined();
+  });
+
+  it('does not round small nonzero trig or inverse-trig results to exact zero', () => {
+    const sinTinyDeg = applyFunction('sin', [scalarFromLiteral('1e-29')], 'DEG');
+    expect(sinTinyDeg.decimal.gt(0)).toBe(true);
+    expect(sinTinyDeg.exact).not.toEqual({ n: 0n, d: 1n });
+
+    const atanTinyRad = applyFunction('atan', [scalarFromLiteral('1e-30')], 'RAD');
+    expect(atanTinyRad.decimal.gt(0)).toBe(true);
+    expect(atanTinyRad.exact).not.toEqual({ n: 0n, d: 1n });
   });
 
   it('keeps exact rational arithmetic for S⇔D', () => {
@@ -98,6 +181,7 @@ describe('expression engine', () => {
     expect(formatDecimal(solve('12°30°'))).toBe('12.5');
     expect(formatDecimal(solve('12°30°45°'))).toBe('12.5125');
     expect(formatDecimal(solve('-1°30°'))).toBe('-1.5');
+    expect(formatDecimal(solve('-0°30°'))).toBe('-0.5');
   });
   it('supports Polar and Rectangular coordinate pairs', () => {
     const pol = evaluateRichExpression('Pol(3,4)', ctx);
