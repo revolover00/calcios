@@ -1,4 +1,4 @@
-import { proxyVisionRequest } from '../src/server/groqProxy';
+import { proxyVisionRequest } from '../src/server/groqProxy.js';
 
 interface VercelRequestLike {
   method?: string;
