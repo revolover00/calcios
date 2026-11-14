@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { calculatorReducer, createInitialState, formatActiveComplexDisplay, hydrateState, saveableState } from './calculator';
-import { evaluateComplex } from './cmplx';
+import { evaluateComplex, formatComplexDisplay, mulComplex, powComplex } from './cmplx';
 import { solveEqn } from './eqn';
 import { evaluateExpression } from './expression';
-import { deserialize, scalarFromInteger, serialize, zeroStored, VARIABLES } from './value';
+import { D, deserialize, makeScalar, scalarFromInteger, scalarFromLiteral, serialize, zeroStored, VARIABLES } from './value';
 
 const vars = Object.fromEntries(VARIABLES.map((name) => [name, zeroStored()])) as Record<(typeof VARIABLES)[number], ReturnType<typeof zeroStored>>;
 const ctx = { angle: 'RAD' as const, variables: vars, ans: zeroStored() };
@@ -30,6 +30,173 @@ describe('real-Casio parity extensions', () => {
     }
   });
 
+  it('applies Casio relative-percent semantics to scalar calculations in CMPLX mode', () => {
+    const cmplxAns = { re: zeroStored(), im: zeroStored() };
+    for (const [expression, expected] of [
+      ['200+10%', 220],
+      ['200-10%', 180],
+      ['200+10%+10%', 242],
+      ['200×10%', 20],
+      ['200÷10%', 2000],
+      ['200+(10%)', 200.1],
+      ['200+10%×2', 200.2],
+    ] as const) {
+      const result = evaluateComplex(expression, { angle: 'RAD', variables: vars, cmplxAns }).value;
+      expect(result.re.decimal.toNumber()).toBe(expected);
+      expect(result.im.decimal.isZero()).toBe(true);
+    }
+  });
+
+  it('returns complex values for real inverse-trig inputs outside the real domain in CMPLX mode', () => {
+    const complexZero = { re: zeroStored(), im: zeroStored() };
+    const asin = evaluateComplex('asin(2)', {
+      angle: 'RAD', variables: vars, cmplxAns: complexZero,
+    }).value;
+    expect(asin.re.decimal.minus(D.acos(-1).div(2)).abs().lt('1e-28')).toBe(true);
+    expect(asin.im.decimal.lt(0)).toBe(true);
+    expect(asin.im.decimal.abs().toNumber()).toBeCloseTo(Math.log(2 + Math.sqrt(3)), 12);
+
+    const asinNegative = evaluateComplex('asin(-2)', {
+      angle: 'RAD', variables: vars, cmplxAns: complexZero,
+    }).value;
+    expect(asinNegative.re.decimal.toNumber()).toBeCloseTo(-Math.PI / 2, 12);
+    expect(asinNegative.im.decimal.toNumber()).toBeCloseTo(Math.log(2 + Math.sqrt(3)), 12);
+
+    const acosh = evaluateComplex('acosh(0.5)', {
+      angle: 'RAD', variables: vars, cmplxAns: complexZero,
+    }).value;
+    expect(acosh.re.decimal.isZero()).toBe(true);
+    expect(acosh.im.decimal.abs().toNumber()).toBeCloseTo(Math.PI / 3, 12);
+
+    const acoshNegative = evaluateComplex('acosh(-2)', {
+      angle: 'RAD', variables: vars, cmplxAns: complexZero,
+    }).value;
+    expect(acoshNegative.re.decimal.toNumber()).toBeCloseTo(Math.log(2 + Math.sqrt(3)), 12);
+    expect(acoshNegative.im.decimal.toNumber()).toBeCloseTo(Math.PI, 12);
+
+    const acos = evaluateComplex('acos(2)', {
+      angle: 'RAD', variables: vars, cmplxAns: complexZero,
+    }).value;
+    expect(acos.re.decimal.isZero()).toBe(true);
+    expect(acos.im.decimal.toNumber()).toBeCloseTo(Math.log(2 + Math.sqrt(3)), 12);
+    const acosNegative = evaluateComplex('acos(-2)', {
+      angle: 'RAD', variables: vars, cmplxAns: complexZero,
+    }).value;
+    expect(acosNegative.re.decimal.toNumber()).toBeCloseTo(Math.PI, 12);
+    expect(acosNegative.im.decimal.toNumber()).toBeCloseTo(-Math.log(2 + Math.sqrt(3)), 12);
+
+    const atanh = evaluateComplex('atanh(2)', {
+      angle: 'RAD', variables: vars, cmplxAns: complexZero,
+    }).value;
+    expect(atanh.re.decimal.toNumber()).toBeCloseTo(Math.log(3) / 2, 12);
+    expect(atanh.im.decimal.toNumber()).toBeCloseTo(Math.PI / 2, 12);
+  });
+
+  it('preserves a tiny real component when taking the square root near the negative real axis', () => {
+    const result = evaluateComplex('sqrt(-1+1e-100i)', {
+      angle: 'RAD', variables: vars, cmplxAns: { re: zeroStored(), im: zeroStored() },
+    }).value;
+    expect(result.re.decimal.minus('5e-101').abs().lt('1e-130')).toBe(true);
+    expect(result.im.decimal.minus(1).abs().lt('1e-30')).toBe(true);
+    const viaPower = evaluateComplex('(-1+1e-100i)^(1/2)', {
+      angle: 'RAD', variables: vars, cmplxAns: { re: zeroStored(), im: zeroStored() },
+    }).value;
+    expect(viaPower.re.decimal.minus('5e-101').abs().lt('1e-130')).toBe(true);
+
+    const lowerHalfPlane = evaluateComplex('sqrt(-1-1e-100i)', {
+      angle: 'RAD', variables: vars, cmplxAns: { re: zeroStored(), im: zeroStored() },
+    }).value;
+    expect(lowerHalfPlane.re.decimal.minus('5e-101').abs().lt('1e-130')).toBe(true);
+    expect(lowerHalfPlane.im.decimal.plus(1).abs().lt('1e-30')).toBe(true);
+
+    const positiveAxis = evaluateComplex('sqrt(1+1e-100i)', {
+      angle: 'RAD', variables: vars, cmplxAns: { re: zeroStored(), im: zeroStored() },
+    }).value;
+    expect(positiveAxis.re.decimal.minus(1).abs().lt('1e-30')).toBe(true);
+    expect(positiveAxis.im.decimal.minus('5e-101').abs().lt('1e-130')).toBe(true);
+
+    for (const [reText, imText] of [
+      ['-1', '1e-100'], ['-1', '-1e-100'], ['1', '1e-100'],
+      ['1', '-1e-100'], ['-1e90', '1e50'], ['1e90', '-1e50'],
+    ]) {
+      const z = {
+        re: scalarFromLiteral(reText),
+        im: scalarFromLiteral(imText),
+      };
+      const squareRoot = evaluateComplex(`sqrt(${reText}${imText.startsWith('-') ? '' : '+'}${imText}i)`, {
+        angle: 'RAD', variables: vars, cmplxAns: { re: zeroStored(), im: zeroStored() },
+      }).value;
+      const roundTrip = mulComplex(squareRoot, squareRoot);
+      const scale = z.re.decimal.abs().plus(z.im.decimal.abs());
+      expect(roundTrip.re.decimal.minus(z.re.decimal).abs().lte(scale.times('1e-30'))).toBe(true);
+      expect(roundTrip.im.decimal.minus(z.im.decimal).abs().lte(scale.times('1e-30'))).toBe(true);
+    }
+  });
+
+  it('keeps complex division and magnitude stable at very large and very small scales', () => {
+    const ctx = { angle: 'RAD' as const, variables: vars, cmplxAns: { re: zeroStored(), im: zeroStored() } };
+    for (const scale of ['1e-90', '1e90']) {
+      const same = evaluateComplex(`((${scale}+${scale}i)/(${scale}+${scale}i))`, ctx).value;
+      expect(same.re.decimal.minus(1).abs().lt('1e-28')).toBe(true);
+      expect(same.im.decimal.isZero()).toBe(true);
+      const opposite = evaluateComplex(`((${scale}+${scale}i)/(${scale}-${scale}i))`, ctx).value;
+      expect(opposite.re.decimal.isZero()).toBe(true);
+      expect(opposite.im.decimal.minus(1).abs().lt('1e-28')).toBe(true);
+    }
+    const magnitude = evaluateComplex('abs(1e90+1e90i)', ctx).value;
+    expect(magnitude.re.decimal.minus(new D(2).sqrt().times('1e90')).abs().div('1e90').lt('1e-28')).toBe(true);
+  });
+
+  it('preserves reciprocal identities for integer complex powers over scale extremes', () => {
+    const ctx = { angle: 'RAD' as const, variables: vars, cmplxAns: { re: zeroStored(), im: zeroStored() } };
+    const values = ['1+i', '-2+3i', '1e20+1e-20i', '-1e-20+2e20i'];
+    for (const value of values) {
+      for (const exponent of [1, 2, 3]) {
+        const result = evaluateComplex(`(${value})^${exponent}×(${value})^-${exponent}`, ctx).value;
+        expect(result.re.decimal.minus(1).abs().lt('1e-25')).toBe(true);
+        expect(result.im.decimal.abs().lt('1e-25')).toBe(true);
+      }
+    }
+  });
+
+  it('round-trips circular and hyperbolic complex inverse functions across representative quadrants', () => {
+    const radCtx = { angle: 'RAD' as const, variables: vars, cmplxAns: { re: zeroStored(), im: zeroStored() } };
+    const closeComplex = (actual: ReturnType<typeof evaluateComplex>['value'], re: number, im: number) => {
+      expect(actual.re.decimal.minus(re).abs().lt('1e-18')).toBe(true);
+      expect(actual.im.decimal.minus(im).abs().lt('1e-18')).toBe(true);
+    };
+    for (const [re, im] of [[-2, -1.5], [-0.5, 1.25], [0.25, -2], [1.5, 0.75], [3, -0.2]]) {
+      const source = `${re < 0 ? `(${re})` : re}${im < 0 ? '' : '+'}${im}i`;
+      closeComplex(evaluateComplex(`sin(asin(${source}))`, radCtx).value, re, im);
+      closeComplex(evaluateComplex(`cos(acos(${source}))`, radCtx).value, re, im);
+      closeComplex(evaluateComplex(`tan(atan(${source}))`, radCtx).value, re, im);
+      closeComplex(evaluateComplex(`sinh(asinh(${source}))`, radCtx).value, re, im);
+      closeComplex(evaluateComplex(`cosh(acosh(${source}))`, radCtx).value, re, im);
+      closeComplex(evaluateComplex(`tanh(atanh(${source}))`, radCtx).value, re, im);
+    }
+  });
+
+  it('preserves tiny nonzero components when calculating a complex argument', () => {
+    const result = evaluateComplex('arg(e^(-64)+i)', {
+      angle: 'RAD', variables: vars, cmplxAns: { re: zeroStored(), im: zeroStored() },
+    }).value.re.decimal;
+    const expectedOffset = D.exp(-64);
+    const actualOffset = D.acos(-1).div(2).minus(result);
+    expect(actualOffset.gt(expectedOffset.div(2))).toBe(true);
+    expect(actualOffset.minus(expectedOffset).abs().div(expectedOffset).lt('1e-5')).toBe(true);
+  });
+
+  it('does not treat a nearby finite decimal as the exact complex constant e', () => {
+    const nearbyE = makeScalar(D.exp(1).plus('1e-31'), undefined, true);
+    const result = powComplex(
+      { re: nearbyE, im: scalarFromInteger(0) },
+      { re: scalarFromInteger(0), im: scalarFromInteger(1) },
+      'RAD',
+    );
+    const exactEToI = { re: D.cos(1), im: D.sin(1) };
+    expect(result.im.decimal.minus(exactEToI.im).abs().gt('1e-33')).toBe(true);
+  });
+
   it('uses the selected angle unit for complex circular trigonometry', () => {
     const out = evaluateComplex('sin(30+i)', {
       angle: 'DEG', variables: vars, cmplxAns: { re: zeroStored(), im: zeroStored() },
@@ -40,6 +207,18 @@ describe('real-Casio parity extensions', () => {
 
   it('evaluates inverse trigonometric functions for complex arguments', () => {
     const radCtx = { angle: 'RAD' as const, variables: vars, cmplxAns: { re: zeroStored(), im: zeroStored() } };
+    const tinyComponentArg = evaluateComplex('arg(1e-30+i)', radCtx).value.re.decimal;
+    expect(tinyComponentArg.minus(D.acos(-1).div(2)).abs().gt('5e-31')).toBe(true);
+    const tinyRealDisplay = formatComplexDisplay({
+      re: scalarFromLiteral('1e-30'),
+      im: scalarFromInteger(1),
+    }, 'rect', 'RAD', false);
+    expect(tinyRealDisplay).not.toBe('i');
+
+    const tanInverseNotation = evaluateComplex('tan⁻¹(1)', radCtx).value;
+    expect(tanInverseNotation.re.decimal.toNumber()).toBeCloseTo(Math.PI / 4, 12);
+    expect(tanInverseNotation.im.decimal.toNumber()).toBeCloseTo(0, 12);
+
     const asinI = evaluateComplex('asin(i)', radCtx).value;
     expect(asinI.re.decimal.toNumber()).toBeCloseTo(0, 12);
     expect(asinI.im.decimal.toNumber()).toBeCloseTo(Math.asinh(1), 12);

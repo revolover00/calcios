@@ -7,18 +7,20 @@ import { evaluateBaseN } from './basen';
 import {
   calculatorReducer,
   createInitialState,
+  formatActiveComplexDisplay,
   formatActiveEqnItemDisplay,
   formatActiveResult,
   hydrateState,
   saveableState,
   type CalculatorState,
 } from './calculator';
-import { absComplex, divComplex, evaluateComplex, formatComplex2D, formatComplexDisplay, zeroStoredComplex } from './cmplx';
+import { absComplex, divComplex, evaluateComplex, formatComplex2D, formatComplexDisplay, serializeComplex, zeroStoredComplex } from './cmplx';
 import { solveCubic, solveLinear2, solveLinear3 } from './eqn';
 import { CalculatorError } from './errors';
 import { evaluateExpression, extractVariables, parseAssignmentStatement } from './expression';
 import { formatDecimal, formatEngineering, formatResult, formatSymbolicLinear } from './format';
 import { solveInequality } from './ineq';
+import { statNormR } from './dist';
 import { invertMatrix, refMatrix, rrefMatrix, type MatrixValue } from './matrix';
 import { computeStatSummary } from './stat';
 import { extractSquareFactor } from './symbolic';
@@ -29,6 +31,7 @@ import {
   deserialize,
   makeScalar,
   mixedFraction,
+  multiply,
   polarFromRect,
   roundScalar,
   scalarFromInteger,
@@ -57,11 +60,11 @@ function pressSeq(initial: CalculatorState, ...keys: string[]): CalculatorState 
 }
 
 describe('Second 50-Bug Senior Audit Regression Suite (#51–#100)', () => {
-  it('Bugs #51–#60 (Value, Expression, Symbolic): sub-1e-99 underflow flush, integer mfrac, scaled Pol, n<1e10 nCr, Rnd exact, RAD tan pole, rng stream, var DMS, multi-stmt CALC =, large surd factor', () => {
-    // #51: sub-1e-99 magnitudes flush cleanly to exact 0
-    const tiny = makeScalar('1e-120');
-    expect(tiny.decimal.isZero()).toBe(true);
-    expect(tiny.exact).toEqual({ n: 0n, d: 1n });
+  it('Bugs #51–#60 (Value, Expression, Symbolic): tiny magnitude preservation, integer mfrac, scaled Pol, n<1e10 nCr, Rnd exact, RAD tan pole, rng stream, var DMS, multi-stmt CALC =, large surd factor', () => {
+    // #51: representable sub-1e-99 values remain nonzero and exact.
+    const tiny = multiply(scalarFromLiteral('1e-60'), scalarFromLiteral('1e-60'));
+    expect(tiny.decimal.eq('1e-120')).toBe(true);
+    expect(tiny.exact).toEqual({ n: 1n, d: 10n ** 120n });
 
     // #52: mixedFraction rejects non-integer or irrational arguments
     expect(() => mixedFraction(scalarFromLiteral('1.5'), scalarFromInteger(1), scalarFromInteger(2))).toThrow(CalculatorError);
@@ -133,6 +136,44 @@ describe('Second 50-Bug Senior Audit Regression Suite (#51–#100)', () => {
     // #60: extractSquareFactor extracts large prime squares up to 10^12 (150011 is prime > 25000*6)
     const radicand = 2n * 150011n * 150011n;
     expect(extractSquareFactor(radicand)).toEqual({ sq: 150011n, rem: 2n });
+  });
+
+  it('retains representable normal-tail probabilities beyond the arbitrary cutoff', () => {
+    const tail = statNormR(scalarFromInteger(200)).decimal;
+    expect(tail.isZero()).toBe(false);
+    expect(tail.lt('1e-8600')).toBe(true);
+  });
+
+  it('does not add an out-of-range final row to a function table', () => {
+    const context = { angle: 'DEG' as const, variables: zeroVars(), ans: zeroStored() };
+    const rows = generateFunctionTable(
+      'X', null, scalarFromInteger(0), scalarFromLiteral('0.9999999999999999999999999'),
+      scalarFromInteger(1), context,
+    );
+    expect(rows.map((row) => row.x)).toEqual(['0']);
+
+    const exactGrid = generateFunctionTable(
+      'X', null, scalarFromInteger(0), scalarFromLiteral('0.3'),
+      scalarFromLiteral('0.1'), context,
+    );
+    expect(exactGrid.map((row) => row.x)).toEqual(['0', '0.1', '0.2', '0.3']);
+  });
+
+  it('keeps the polar angle of tiny nonzero complex values in the component view', () => {
+    const state = createInitialState();
+    state.mode = 'CMPLX';
+    state.angle = 'DEG';
+    state.cmplx = {
+      ...state.cmplx,
+      format: 'polar',
+      partView: 'second',
+      result: serializeComplex({
+        re: scalarFromLiteral('1e-30'),
+        im: scalarFromLiteral('1e-30'),
+      }),
+    };
+
+    expect(formatActiveComplexDisplay(state)?.value).toEqual({ type: 'text', text: '45' });
   });
 
   it('Bugs #61–#65 (Format & NaturalMath): symmetric negative symbolic budget, integer ▸Simp factor, -0 guard, Fix carry >=1e10, true minus rendering', () => {

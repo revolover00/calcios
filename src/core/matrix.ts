@@ -1,6 +1,7 @@
 import { CONSTANT_BY_TOKEN } from './constants';
 import { CalculatorError, mathError, syntax } from './errors';
 import { completeParentheses } from './expression';
+import { normalizeInverseTrigNotation } from './trigNotation';
 import type { NumberFormatSetting } from './format';
 import {
   D, VARIABLES, add, applyFunction, applyUnitConversion, combinatoric, convertAngleToActive,
@@ -39,9 +40,16 @@ export function deserializeMatrix(m: StoredMatrix): MatrixValue {
   return { rows: m.rows, cols: m.cols, cells: m.cells.map((row) => row.map(deserialize)) };
 }
 
-function matrixPivotTol(m: MatrixValue): InstanceType<typeof D> {
-  const maxEntry = m.cells.flat().reduce((mx, c) => D.max(mx, c.decimal.abs()), new D(0));
-  return maxEntry.isZero() ? new D(0) : maxEntry.times('1e-28');
+function matrixColumnTol(
+  grid: Scalar[][],
+  col: number,
+  firstRow: number,
+): InstanceType<typeof D> {
+  const columnScale = grid.slice(firstRow).reduce(
+    (mx, row) => D.max(mx, row[col].decimal.abs()),
+    new D(0),
+  );
+  return columnScale.times('1e-28');
 }
 
 function isBelowTol(s: Scalar, tol: InstanceType<typeof D>): boolean {
@@ -97,23 +105,43 @@ export function absMatrix(m: MatrixValue): MatrixValue {
 export function determinantMatrix(m: MatrixValue): Scalar {
   if (m.rows !== m.cols) throw new CalculatorError('Argument ERROR', 'Determinant requires square matrix');
   const n = m.rows;
-  if (n === 1) return m.cells[0][0];
-  if (n === 2) {
-    return subtract(multiply(m.cells[0][0], m.cells[1][1]), multiply(m.cells[0][1], m.cells[1][0]));
+  if (n === 0 || m.cells.length !== n || m.cells.some((row) => row.length !== n)) {
+    throw new CalculatorError('Argument ERROR', 'Invalid matrix dimensions');
   }
-  // 3x3 exact cofactor expansion
-  const a = m.cells;
-  const c0 = multiply(a[0][0], subtract(multiply(a[1][1], a[2][2]), multiply(a[1][2], a[2][1])));
-  const c1 = multiply(a[0][1], subtract(multiply(a[1][0], a[2][2]), multiply(a[1][2], a[2][0])));
-  const c2 = multiply(a[0][2], subtract(multiply(a[1][0], a[2][1]), multiply(a[1][1], a[2][0])));
-  return add(subtract(c0, c1), c2);
+
+  // Gaussian elimination supports every square matrix size accepted by the
+  // matrix value model; the old 3x3 expansion silently ignored rows/columns
+  // beyond the third one.
+  const grid = m.cells.map((row) => [...row]);
+  let det = scalarFromInteger(1);
+  for (let col = 0; col < n; col++) {
+    let best = col;
+    for (let row = col + 1; row < n; row++) {
+      if (grid[row][col].decimal.abs().gt(grid[best][col].decimal.abs())) best = row;
+    }
+    if (grid[best][col].decimal.isZero()) return scalarFromInteger(0);
+    if (best !== col) {
+      [grid[col], grid[best]] = [grid[best], grid[col]];
+      det = negate(det);
+    }
+
+    const pivot = grid[col][col];
+    det = multiply(det, pivot);
+    for (let row = col + 1; row < n; row++) {
+      if (grid[row][col].decimal.isZero()) continue;
+      const factor = divide(grid[row][col], pivot);
+      for (let c = col + 1; c < n; c++) {
+        grid[row][c] = subtract(grid[row][c], multiply(factor, grid[col][c]));
+      }
+      grid[row][col] = scalarFromInteger(0);
+    }
+  }
+  return det;
 }
 
 export function invertMatrix(m: MatrixValue): MatrixValue {
   if (m.rows !== m.cols) throw new CalculatorError('Argument ERROR', 'Inverse requires square matrix');
   const n = m.rows;
-  const tol = matrixPivotTol(m);
-  if (tol.isZero()) mathError('Singular matrix');
   const aug: Scalar[][] = m.cells.map((row, r) => [
     ...row,
     ...Array.from({ length: n }, (_, c) => scalarFromInteger(r === c ? 1 : 0)),
@@ -124,6 +152,7 @@ export function invertMatrix(m: MatrixValue): MatrixValue {
     for (let r = col + 1; r < n; r++) {
       if (aug[r][col].decimal.abs().gt(aug[best][col].decimal.abs())) best = r;
     }
+    const tol = matrixColumnTol(aug, col, col);
     if (isBelowTol(aug[best][col], tol)) mathError('Singular matrix');
     [aug[col], aug[best]] = [aug[best], aug[col]];
     const piv = aug[col][col];
@@ -146,8 +175,6 @@ export function invertMatrix(m: MatrixValue): MatrixValue {
 
 /** Row Echelon Form (Ref) with leading 1s and partial pivoting. */
 export function refMatrix(m: MatrixValue): MatrixValue {
-  const tol = matrixPivotTol(m);
-  if (tol.isZero()) return { rows: m.rows, cols: m.cols, cells: m.cells.map((r) => [...r]) };
   const grid = m.cells.map((row) => [...row]);
   let leadRow = 0;
   for (let col = 0; col < m.cols && leadRow < m.rows; col++) {
@@ -155,6 +182,7 @@ export function refMatrix(m: MatrixValue): MatrixValue {
     for (let r = leadRow + 1; r < m.rows; r++) {
       if (grid[r][col].decimal.abs().gt(grid[best][col].decimal.abs())) best = r;
     }
+    const tol = matrixColumnTol(grid, col, leadRow);
     if (isBelowTol(grid[best][col], tol)) continue;
     if (best !== leadRow) [grid[leadRow], grid[best]] = [grid[best], grid[leadRow]];
     const piv = grid[leadRow][col];
@@ -174,8 +202,6 @@ export function refMatrix(m: MatrixValue): MatrixValue {
 
 /** Reduced Row Echelon Form (Rref) via exact Gauss-Jordan elimination. */
 export function rrefMatrix(m: MatrixValue): MatrixValue {
-  const tol = matrixPivotTol(m);
-  if (tol.isZero()) return { rows: m.rows, cols: m.cols, cells: m.cells.map((r) => [...r]) };
   const grid = m.cells.map((row) => [...row]);
   let leadRow = 0;
   for (let col = 0; col < m.cols && leadRow < m.rows; col++) {
@@ -183,6 +209,7 @@ export function rrefMatrix(m: MatrixValue): MatrixValue {
     for (let r = leadRow + 1; r < m.rows; r++) {
       if (grid[r][col].decimal.abs().gt(grid[best][col].decimal.abs())) best = r;
     }
+    const tol = matrixColumnTol(grid, col, leadRow);
     if (isBelowTol(grid[best][col], tol)) continue;
     if (best !== leadRow) [grid[leadRow], grid[best]] = [grid[best], grid[leadRow]];
     const piv = grid[leadRow][col];
@@ -261,6 +288,7 @@ type MatTok =
 const VAR_SET = new Set<string>(VARIABLES);
 
 function tokenizeMatrix(source: string): MatTok[] {
+  source = normalizeInverseTrigNotation(source);
   const tokens: MatTok[] = [];
   let i = 0;
   while (i < source.length) {
@@ -401,12 +429,19 @@ export function evaluateMatrixExpression(source: string, ctx: MatrixEvalContext)
         if (!op || prec < minPrec || prec === 0) break;
         if (!implicit) take();
         const right = op === '⏨' ? parseSciExp() : parseExpr(op === '^' ? prec : prec + 1);
+        const consumed = tokens[pos - 1];
+        const rightIsPercent = consumed?.type === 'postfix' && consumed.text === '%';
 
         if (op === '+' || op === '-') {
           if (left.kind === 'matrix' && right.kind === 'matrix') {
             left = { kind: 'matrix', matrix: addMatrix(left.matrix, right.matrix, op === '-') };
           } else if (left.kind === 'scalar' && right.kind === 'scalar') {
-            left = { kind: 'scalar', scalar: op === '-' ? subtract(left.scalar, right.scalar) : add(left.scalar, right.scalar) };
+            left = {
+              kind: 'scalar',
+              scalar: op === '-'
+                ? rightIsPercent ? subtract(left.scalar, multiply(left.scalar, right.scalar)) : subtract(left.scalar, right.scalar)
+                : rightIsPercent ? add(left.scalar, multiply(left.scalar, right.scalar)) : add(left.scalar, right.scalar),
+            };
           } else {
             throw new CalculatorError('Argument ERROR', 'Cannot add scalar and matrix');
           }

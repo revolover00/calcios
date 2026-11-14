@@ -1,10 +1,10 @@
-import { snapExactScalar, solveCubic } from './eqn';
+import { solveCubic, solveQuadratic } from './eqn';
 import { mathError } from './errors';
 import {
   DEFAULT_NUMBER_FORMAT, formatDecimal, formatResult, formatSymbolicLinear,
   type DecimalMark, type DisplayValue, type IneqSegmentDisplay, type NumberFormatSetting,
 } from './format';
-import { D, applyFunction, divide, multiply, negate, scalarFromInteger, subtract, type Scalar } from './value';
+import { D, type Scalar } from './value';
 
 export type IneqDegree = 2 | 3;
 export type IneqRelation = '>' | '<' | '≥' | '≤';
@@ -25,6 +25,12 @@ type RawSegment =
   | { kind: 'right'; lower: Scalar }
   | { kind: 'between'; lower: Scalar; upper: Scalar };
 
+function sameInequalityRoot(a: Scalar, b: Scalar): boolean {
+  if (a.exact && b.exact) return a.exact.n === b.exact.n && a.exact.d === b.exact.d;
+  const scale = D.max(a.decimal.abs(), b.decimal.abs());
+  return scale.isZero() || a.decimal.minus(b.decimal).abs().lte(scale.times('1e-28'));
+}
+
 function uniqueSortedRealRoots(degree: IneqDegree, coeffs: Scalar[]): Scalar[] {
   if (coeffs[0].decimal.abs().lt('1e-95') && coeffs[0].decimal.isZero()) {
     mathError('Leading coefficient cannot be zero');
@@ -35,19 +41,11 @@ function uniqueSortedRealRoots(degree: IneqDegree, coeffs: Scalar[]): Scalar[] {
 
   let rawRoots: Scalar[] = [];
   if (degree === 2) {
-    const [a, b, c] = coeffs;
-    const disc = subtract(multiply(b, b), multiply(multiply(scalarFromInteger(4), a), c));
-    const coeffScale = b.decimal.pow(2).plus(a.decimal.times(c.decimal).abs().times(4));
-    const zeroDisc = disc.exact ? disc.exact.n === 0n : disc.decimal.abs().lte(coeffScale.times('1e-26'));
-    if (zeroDisc) {
-      rawRoots = [snapExactScalar(divide(negate(b), multiply(scalarFromInteger(2), a)))];
-    } else if (disc.decimal.gt(0)) {
-      const sq = applyFunction('sqrt', [disc], 'DEG');
-      const twoA = multiply(scalarFromInteger(2), a);
-      rawRoots = [
-        snapExactScalar(divide(subtract(negate(b), sq), twoA)),
-        snapExactScalar(divide(subtract(negate(b), negate(sq)), twoA)),
-      ];
+    const out = solveQuadratic(coeffs);
+    if (out.status === 'solved') {
+      rawRoots = out.items
+        .filter((item) => (item.label === 'X' || item.label === 'X₁' || item.label === 'X₂') && item.scalar)
+        .map((item) => item.scalar!);
     }
   } else {
     const out = solveCubic(coeffs);
@@ -63,12 +61,8 @@ function uniqueSortedRealRoots(degree: IneqDegree, coeffs: Scalar[]): Scalar[] {
       deduped.push(r);
       continue;
     }
-    const prev = deduped[deduped.length - 1].decimal;
-    const mag = D.max(r.decimal.abs(), prev.abs());
-    const dupTol = mag.isZero() ? new D('1e-24') : mag.times('1e-18');
-    if (r.decimal.minus(prev).abs().gt(dupTol)) {
-      deduped.push(r);
-    }
+    const prev = deduped[deduped.length - 1];
+    if (!sameInequalityRoot(r, prev)) deduped.push(r);
   }
   return deduped;
 }

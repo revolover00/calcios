@@ -1127,7 +1127,7 @@ function currentValue(s: CalculatorState): StoredScalar {
     return s.ans;
   }
   if (s.mode === 'BASE-N') {
-    const val = evaluateBaseN(s.expression, s.baseN.base, BigInt(s.baseN.ans));
+    const val = evaluateBaseN(s.expression, s.baseN.base, BigInt(s.baseN.ans), s.variables);
     return serialize(scalarFromInteger(val));
   }
   if (s.mode === 'CMPLX') {
@@ -3993,8 +3993,8 @@ export function formatActiveComplexDisplay(state: CalculatorState): {
 
   if (state.cmplx.partView !== 'both') {
     if (state.cmplx.format === 'polar') {
-      const reZero = z.re.decimal.abs().lt('1e-24');
-      const imZero = z.im.decimal.abs().lt('1e-24');
+      const reZero = z.re.exact ? z.re.exact.n === 0n : !z.re.symbolic && z.re.decimal.isZero();
+      const imZero = z.im.exact ? z.im.exact.n === 0n : !z.im.symbolic && z.im.decimal.isZero();
       if (state.cmplx.partView === 'first') {
         const r = absComplex(z, state.angle).re;
         return {

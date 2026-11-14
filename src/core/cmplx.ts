@@ -1,6 +1,7 @@
 import { CONSTANT_BY_TOKEN } from './constants';
 import { CalculatorError, mathError, syntax } from './errors';
 import { completeParentheses } from './expression';
+import { normalizeInverseTrigNotation } from './trigNotation';
 import {
   formatDecimal, formatResult, formatSymbolicLinear,
   type DecimalMark, type DisplayValue, type NumberFormatSetting,
@@ -19,6 +20,12 @@ export type ComplexFormat = 'rect' | 'polar';
 export interface Complex {
   re: Scalar;
   im: Scalar;
+}
+
+function isNumericalZero(value: Scalar, tolerance: string): boolean {
+  if (value.exact) return value.exact.n === 0n;
+  if (value.symbolic) return false;
+  return value.decimal.abs().lt(tolerance);
 }
 
 export interface StoredComplex {
@@ -115,10 +122,10 @@ export function argComplex(a: Complex, angle: AngleUnit): Complex {
     angle === 'RAD' ? scalarPi() : angle === 'GRA' ? scalarFromInteger(200) : scalarFromInteger(180);
   const quarterTurn = divide(halfTurn, scalarFromInteger(2));
 
-  if (a.re.decimal.abs().lt('1e-26')) {
+  if (a.re.decimal.isZero()) {
     return realToComplex(a.im.decimal.gt(0) ? quarterTurn : negate(quarterTurn));
   }
-  if (a.im.decimal.abs().lt('1e-26')) {
+  if (a.im.decimal.isZero()) {
     return realToComplex(a.re.decimal.gt(0) ? scalarFromInteger(0) : halfTurn);
   }
 
@@ -191,7 +198,7 @@ export function powComplex(base: Complex, exp: Complex, angle: AngleUnit): Compl
   }
 
   // Exact fast-path when base is Euler's constant e: e^(z) = expComplex(z)
-  if (base.im.decimal.isZero() && base.re.decimal.minus(new D(1).exp()).abs().lt('1e-30')) {
+  if (base.im.decimal.isZero() && base.re.decimal.eq(new D(1).exp())) {
     return expComplex(exp);
   }
 
@@ -218,16 +225,17 @@ export function sqrtComplex(z: Complex, angle: AngleUnit): Complex {
   const modS = absComplex(z, angle).re;
   const halfRePlus = divide(add(modS, z.re), scalarFromInteger(2));
   const halfReMinus = divide(subtract(modS, z.re), scalarFromInteger(2));
-  if (!halfRePlus.decimal.isNegative() && !halfReMinus.decimal.isNegative()) {
-    const reS = applyFunction('sqrt', [halfRePlus], angle);
-    const imAbsS = applyFunction('sqrt', [halfReMinus], angle);
-    return { re: reS, im: z.im.decimal.isNegative() ? negate(imAbsS) : imAbsS };
+  const two = scalarFromInteger(2);
+  if (z.re.decimal.isNegative()) {
+    // The usual sqrt((|z| + Re(z))/2) subtracts nearly equal numbers here;
+    // derive the small real component from 2ab = Im(z) instead.
+    const imAbs = applyFunction('sqrt', [halfReMinus], angle);
+    const re = divide(z.im.decimal.isNegative() ? negate(z.im) : z.im, multiply(two, imAbs));
+    return { re, im: z.im.decimal.isNegative() ? negate(imAbs) : imAbs };
   }
-  const mod = z.re.decimal.pow(2).plus(z.im.decimal.pow(2)).sqrt();
-  const rePart = D.max(new D(0), mod.plus(z.re.decimal).div(2)).sqrt();
-  const imAbs = D.max(new D(0), mod.minus(z.re.decimal).div(2)).sqrt();
-  const imPart = z.im.decimal.isNegative() ? imAbs.neg() : imAbs;
-  return { re: makeScalar(rePart, undefined, true), im: makeScalar(imPart, undefined, true) };
+  const re = applyFunction('sqrt', [halfRePlus], angle);
+  const im = divide(z.im, multiply(two, re));
+  return { re, im };
 }
 
 function inverseAngleFromRadians(z: Complex, angle: AngleUnit): Complex {
@@ -334,6 +342,7 @@ const CMPLX_FUNCS = [
 const VAR_SET = new Set<string>(VARIABLES);
 
 function tokenizeCmplx(source: string): CmplxToken[] {
+  source = normalizeInverseTrigNotation(source);
   const tokens: CmplxToken[] = [];
   let i = 0;
   const kwSorted = [...CMPLX_FUNCS, 'Ran#', 'PreAns', 'Ans', 'nCr', 'nPr'].sort((a, b) => b.length - a.length);
@@ -505,9 +514,11 @@ export function evaluateComplex(
         if (!op || prec < minPrec || prec === 0) break;
         if (!implicit) take();
         const right = op === '⏨' ? parseSciExp() : parseExpr(op === '^' ? prec : prec + 1);
+        const consumed = tokens[pos - 1];
+        const rightIsPercent = consumed?.type === 'postfix' && consumed.text === '%';
         switch (op) {
-          case '+': left = addComplex(left, right); break;
-          case '-': left = subComplex(left, right); break;
+          case '+': left = rightIsPercent ? addComplex(left, mulComplex(left, right)) : addComplex(left, right); break;
+          case '-': left = rightIsPercent ? subComplex(left, mulComplex(left, right)) : subComplex(left, right); break;
           case '×': case '*': left = mulComplex(left, right); break;
           case '÷': case '/': left = divComplex(left, right); break;
           case '^': left = powComplex(left, right, ctx.angle); break;
@@ -629,7 +640,15 @@ export function evaluateComplex(
             }
             return divComplex(lnComplex(a1), realToComplex(makeScalar(new D(10).ln(), undefined, true)));
           }
-          if (!a1.im.decimal.isZero() && ['asin', 'acos', 'atan', 'asinh', 'acosh', 'atanh'].includes(tok.text)) {
+          const realInverseOutsideDomain = a1.im.decimal.isZero() && (
+            ((tok.text === 'asin' || tok.text === 'acos') && a1.re.decimal.abs().gt(1)) ||
+            (tok.text === 'acosh' && a1.re.decimal.lt(1)) ||
+            (tok.text === 'atanh' && a1.re.decimal.abs().gt(1))
+          );
+          if (
+            (realInverseOutsideDomain || !a1.im.decimal.isZero()) &&
+            ['asin', 'acos', 'atan', 'asinh', 'acosh', 'atanh'].includes(tok.text)
+          ) {
             return complexInverseFunction(tok.text, a1, ctx.angle);
           }
           if (['sin', 'cos', 'tan', 'sinh', 'cosh', 'tanh'].includes(tok.text) && !a1.im.decimal.isZero()) {
@@ -692,8 +711,8 @@ export function formatComplexDisplay(
   numFmt?: NumberFormatSetting,
   decimalMark: DecimalMark = 'Dot',
 ): string {
-  const rawReZero = z.re.decimal.abs().lt('1e-24');
-  const rawImZero = z.im.decimal.abs().lt('1e-24');
+  const rawReZero = isNumericalZero(z.re, '1e-24');
+  const rawImZero = isNumericalZero(z.im, '1e-24');
 
   if (format === 'polar') {
     const r = absComplex(z, angle).re;
@@ -739,8 +758,8 @@ export function formatComplex2D(
   numFmt?: NumberFormatSetting,
   decimalMark: DecimalMark = 'Dot',
 ): DisplayValue {
-  const rawReZero = z.re.decimal.abs().lt('1e-24');
-  const rawImZero = z.im.decimal.abs().lt('1e-24');
+  const rawReZero = isNumericalZero(z.re, '1e-24');
+  const rawImZero = isNumericalZero(z.im, '1e-24');
   const fmt = preferExact ? 'exact' : 'decimal';
 
   if (format === 'polar') {
