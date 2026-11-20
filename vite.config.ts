@@ -199,6 +199,21 @@ export default defineConfig(({ mode }) => {
     },
     server: { host: '0.0.0.0', allowedHosts: true },
     preview: { host: '0.0.0.0', allowedHosts: true },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (/[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/.test(id)) {
+              return 'react-vendor';
+            }
+            if (/[\\/]node_modules[\\/]decimal\\.js[\\/]/.test(id)) {
+              return 'decimal-vendor';
+            }
+            return undefined;
+          },
+        },
+      },
+    },
     test: {
       environment: 'jsdom',
       setupFiles: ['./src/test-setup.ts'],
