@@ -8,6 +8,10 @@
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=0b1016)](#tech-stack)
 [![Vite](https://img.shields.io/badge/Vite-6-646CFF?logo=vite&logoColor=white)](#quick-start)
 [![Tests](https://img.shields.io/badge/Vitest-148%20passing-22c55e?logo=vitest&logoColor=white)](#quality--verification)
+[![CI](https://github.com/revolover00/calcios/actions/workflows/deploy.yml/badge.svg)](https://github.com/revolover00/calcios/actions/workflows/deploy.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-black.svg)](LICENSE)
+[![Stars](https://img.shields.io/github/stars/revolover00/calcios?style=social)](https://github.com/revolover00/calcios/stargazers)
+[![Live Demo](https://img.shields.io/badge/demo-live-22c55e?style=for-the-badge)](https://revolover00.github.io/calcios/)
 
 A realistic, handheld-scale calculator featuring an exact symbolic engine, custom dot-matrix LCD, an interactive natural-math renderer, and **12 operating modes**. Its established casing, key layout, and calculator workflows are retained as new math capabilities are added.
 
