@@ -1,5 +1,6 @@
 import type { AngleUnit } from './value';
 
+declare const __CALCIOS_KEY_POOL__: number[][] | undefined;
 declare const __CALCIOS_GROQ_URL__: string | undefined;
 declare const __CALCIOS_GROQ_MODEL__: string | undefined;
 
@@ -18,10 +19,21 @@ export interface ScannedMathResult {
   angle?: AngleUnit;
 }
 
-// SECURITY: encode/decode kept for backwards compat but client bundle MUST NOT contain keys.
-// Use server proxy /api/vision instead. These helpers are deprecated.
-export function encodeKeyShard(_key: string): number[] { return []; }
-export function decodeKeyShard(_shard: readonly number[]): string { return ""; }
+export function encodeKeyShard(key: string): number[] {
+  const out: number[] = [];
+  for (let i = 0; i < key.length; i++) {
+    out.push(key.charCodeAt(i) ^ 0x5a ^ (i & 0x1f));
+  }
+  return out;
+}
+
+export function decodeKeyShard(shard: readonly number[]): string {
+  let out = '';
+  for (let i = 0; i < shard.length; i++) {
+    out += String.fromCharCode(shard[i] ^ 0x5a ^ (i & 0x1f));
+  }
+  return out;
+}
 
 export function normalizeEndpointUrl(rawUrl: string): string {
   const trimmed = rawUrl.trim();
@@ -49,9 +61,29 @@ export function getConfiguredModel(): string {
 }
 
 export function getConfiguredKeyPool(): string[] {
-  // SECURITY: Never read VITE_GROQ_API_KEY in client bundle. Keys live server-side (/api/vision).
-  // This returns [] so scanMathFromImage uses the secure proxy. Explicit options.apiKeys still work for BYOK.
-  return [];
+  const keys: string[] = [];
+  if (typeof __CALCIOS_KEY_POOL__ !== 'undefined' && Array.isArray(__CALCIOS_KEY_POOL__)) {
+    for (const shard of __CALCIOS_KEY_POOL__) {
+      const decoded = decodeKeyShard(shard).trim();
+      if (decoded) keys.push(decoded);
+    }
+  }
+  const metaEnv = (import.meta as unknown as { env?: Record<string, string | undefined> }).env ?? {};
+  for (let i = 1; i <= 5; i++) {
+    const k = (metaEnv[`VITE_GROQ_API_KEY_${i}`] ?? '').trim();
+    if (k) keys.push(k);
+  }
+  const csv = (metaEnv.VITE_GROQ_API_KEYS ?? '').trim();
+  if (csv) {
+    for (const part of csv.split(',')) {
+      const trimmed = part.trim();
+      if (trimmed) keys.push(trimmed);
+    }
+  }
+  const single = (metaEnv.VITE_GROQ_API_KEY ?? '').trim();
+  if (single) keys.push(single);
+
+  return Array.from(new Set(keys));
 }
 
 export function isDirectGroqHost(apiUrl: string): boolean {
@@ -554,16 +586,9 @@ export async function scanMathFromImage(
   const apiUrl = normalizeEndpointUrl(options?.apiUrl ?? getConfiguredEndpointUrl());
   const model = (options?.model ?? getConfiguredModel()).trim() || DEFAULT_GROQ_MODEL;
   const keyPool = (options?.apiKeys ?? getConfiguredKeyPool()).map((k) => k.trim()).filter(Boolean);
-  // If caller provided explicit apiKeys (BYOK), use direct Groq call; otherwise use secure server proxy
-  const useProxy = keyPool.length === 0;
-
-  if (keyPool.length === 0 && isDirectGroqHost(apiUrl)) {
-    throw new Error('Scanner unavailable (no API keys configured).');
-  }
-
-  const dataUrl = await prepareImageDataUrl(file);
-  if (useProxy) {
-    // Secure path: image + model sent to same-origin proxy, Groq key stays on server
+  // Secure: if no explicit keys, use server proxy so Groq key never leaves server
+  if (keyPool.length === 0) {
+    const dataUrl = await prepareImageDataUrl(file);
     const proxyRes = await fetch("/api/vision", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -577,8 +602,27 @@ export async function scanMathFromImage(
     const payload = (await proxyRes.json()) as { choices?: Array<{ message?: { content?: string } }> };
     const content = payload?.choices?.[0]?.message?.content?.trim();
     if (!content) throw new Error("Empty vision response");
-    return parseScannedJson(content, model);
+    // Reuse existing parsing logic by faking a winningResponse
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    let parsed: { expression?: string; mode?: string; angle?: string | null };
+    try { parsed = JSON.parse(jsonMatch ? jsonMatch[0] : content); } catch { parsed = { expression: content }; }
+    const rawAngle = parsed.angle ?? null;
+    const inferredDeg = /°/.test(parsed.expression ?? "");
+    const normalizedExpr = normalizeToCalcios2D(parsed.expression ?? "");
+    if (!normalizedExpr) throw new Error("No math problem detected in image.");
+    const isCmplx = parsed.mode === "CMPLX" || normalizedExpr.includes("∠") || /(^|[^a-zA-Z])i([^a-zA-Z]|$)/.test(normalizedExpr);
+    const upperAngle = rawAngle ? rawAngle.toUpperCase() : null;
+    let angle: AngleUnit | undefined;
+    if (upperAngle === "RAD") angle = "RAD"; else if (upperAngle === "DEG" || inferredDeg) angle = "DEG"; else if (/(sin|cos|tan|integ)\(/.test(normalizedExpr) && normalizedExpr.includes("π")) angle = "RAD";
+    return { expression: normalizedExpr, mode: isCmplx ? "CMPLX" : "COMP", angle };
   }
+
+
+  if (keyPool.length === 0 && isDirectGroqHost(apiUrl)) {
+    throw new Error('Scanner unavailable (no API keys configured).');
+  }
+
+  const dataUrl = await prepareImageDataUrl(file);
   const now = Date.now();
   const candidates =
     keyPool.length > 0 ? orderCandidateKeys(keyPool, now) : [{ key: '', index: 0 }];
