@@ -1,6 +1,5 @@
 import type { AngleUnit } from './value';
 
-declare const __CALCIOS_KEY_POOL__: number[][] | undefined;
 declare const __CALCIOS_GROQ_URL__: string | undefined;
 declare const __CALCIOS_GROQ_MODEL__: string | undefined;
 
@@ -19,21 +18,10 @@ export interface ScannedMathResult {
   angle?: AngleUnit;
 }
 
-export function encodeKeyShard(key: string): number[] {
-  const out: number[] = [];
-  for (let i = 0; i < key.length; i++) {
-    out.push(key.charCodeAt(i) ^ 0x5a ^ (i & 0x1f));
-  }
-  return out;
-}
-
-export function decodeKeyShard(shard: readonly number[]): string {
-  let out = '';
-  for (let i = 0; i < shard.length; i++) {
-    out += String.fromCharCode(shard[i] ^ 0x5a ^ (i & 0x1f));
-  }
-  return out;
-}
+// SECURITY: encode/decode kept for backwards compat but client bundle MUST NOT contain keys.
+// Use server proxy /api/vision instead. These helpers are deprecated.
+export function encodeKeyShard(_key: string): number[] { return []; }
+export function decodeKeyShard(_shard: readonly number[]): string { return ""; }
 
 export function normalizeEndpointUrl(rawUrl: string): string {
   const trimmed = rawUrl.trim();
@@ -61,29 +49,9 @@ export function getConfiguredModel(): string {
 }
 
 export function getConfiguredKeyPool(): string[] {
-  const keys: string[] = [];
-  if (typeof __CALCIOS_KEY_POOL__ !== 'undefined' && Array.isArray(__CALCIOS_KEY_POOL__)) {
-    for (const shard of __CALCIOS_KEY_POOL__) {
-      const decoded = decodeKeyShard(shard).trim();
-      if (decoded) keys.push(decoded);
-    }
-  }
-  const metaEnv = (import.meta as unknown as { env?: Record<string, string | undefined> }).env ?? {};
-  for (let i = 1; i <= 5; i++) {
-    const k = (metaEnv[`VITE_GROQ_API_KEY_${i}`] ?? '').trim();
-    if (k) keys.push(k);
-  }
-  const csv = (metaEnv.VITE_GROQ_API_KEYS ?? '').trim();
-  if (csv) {
-    for (const part of csv.split(',')) {
-      const trimmed = part.trim();
-      if (trimmed) keys.push(trimmed);
-    }
-  }
-  const single = (metaEnv.VITE_GROQ_API_KEY ?? '').trim();
-  if (single) keys.push(single);
-
-  return Array.from(new Set(keys));
+  // SECURITY: Never read VITE_GROQ_API_KEY in client bundle. Keys live server-side (/api/vision).
+  // This returns [] so scanMathFromImage uses the secure proxy. Explicit options.apiKeys still work for BYOK.
+  return [];
 }
 
 export function isDirectGroqHost(apiUrl: string): boolean {
@@ -586,12 +554,31 @@ export async function scanMathFromImage(
   const apiUrl = normalizeEndpointUrl(options?.apiUrl ?? getConfiguredEndpointUrl());
   const model = (options?.model ?? getConfiguredModel()).trim() || DEFAULT_GROQ_MODEL;
   const keyPool = (options?.apiKeys ?? getConfiguredKeyPool()).map((k) => k.trim()).filter(Boolean);
+  // If caller provided explicit apiKeys (BYOK), use direct Groq call; otherwise use secure server proxy
+  const useProxy = keyPool.length === 0;
 
   if (keyPool.length === 0 && isDirectGroqHost(apiUrl)) {
     throw new Error('Scanner unavailable (no API keys configured).');
   }
 
   const dataUrl = await prepareImageDataUrl(file);
+  if (useProxy) {
+    // Secure path: image + model sent to same-origin proxy, Groq key stays on server
+    const proxyRes = await fetch("/api/vision", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dataUrl, model, apiUrl }),
+    });
+    if (!proxyRes.ok) {
+      let msg = `Proxy HTTP ${proxyRes.status}`;
+      try { const j:any = await proxyRes.json(); if (j?.error) msg = typeof j.error === "string" ? j.error : j.error.message || msg; } catch {}
+      throw new Error(msg);
+    }
+    const payload = (await proxyRes.json()) as { choices?: Array<{ message?: { content?: string } }> };
+    const content = payload?.choices?.[0]?.message?.content?.trim();
+    if (!content) throw new Error("Empty vision response");
+    return parseScannedJson(content, model);
+  }
   const now = Date.now();
   const candidates =
     keyPool.length > 0 ? orderCandidateKeys(keyPool, now) : [{ key: '', index: 0 }];
