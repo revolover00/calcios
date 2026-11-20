@@ -163,8 +163,6 @@ export default defineConfig(({ mode }) => {
     base: './',
     plugins: [react(), calciosOfflineSwPlugin()],
     define: {
-      __CALCIOS_GROQ_URL__: JSON.stringify(apiUrl),
-      __CALCIOS_GROQ_MODEL__: JSON.stringify(modelName),
     },
     server: { host: '0.0.0.0', allowedHosts: ['.e2b.app', 'localhost'] },
     preview: { host: '0.0.0.0', allowedHosts: ['.e2b.app', 'localhost'] },

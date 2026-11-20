@@ -1,8 +1,5 @@
 import type { AngleUnit } from './value';
 
-declare const __CALCIOS_KEY_POOL__: number[][] | undefined;
-declare const __CALCIOS_GROQ_URL__: string | undefined;
-declare const __CALCIOS_GROQ_MODEL__: string | undefined;
 
 export const DEFAULT_GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
 export const DEFAULT_GROQ_MODEL = 'qwen/qwen3.8-27b';
@@ -49,25 +46,17 @@ export function normalizeEndpointUrl(rawUrl: string): string {
 }
 
 export function getConfiguredEndpointUrl(): string {
-  const definedUrl = typeof __CALCIOS_GROQ_URL__ === 'string' ? __CALCIOS_GROQ_URL__ : '';
   const metaEnv = (import.meta as unknown as { env?: Record<string, string | undefined> }).env ?? {};
-  return normalizeEndpointUrl(definedUrl || metaEnv.VITE_GROQ_API_URL || DEFAULT_GROQ_API_URL);
+  return normalizeEndpointUrl(metaEnv.VITE_GROQ_API_URL || DEFAULT_GROQ_API_URL);
 }
 
 export function getConfiguredModel(): string {
-  const definedModel = typeof __CALCIOS_GROQ_MODEL__ === 'string' ? __CALCIOS_GROQ_MODEL__.trim() : '';
   const metaEnv = (import.meta as unknown as { env?: Record<string, string | undefined> }).env ?? {};
-  return definedModel || (metaEnv.VITE_GROQ_MODEL ?? '').trim() || DEFAULT_GROQ_MODEL;
+  return (metaEnv.VITE_GROQ_MODEL ?? '').trim() || DEFAULT_GROQ_MODEL;
 }
 
 export function getConfiguredKeyPool(): string[] {
   const keys: string[] = [];
-  if (typeof __CALCIOS_KEY_POOL__ !== 'undefined' && Array.isArray(__CALCIOS_KEY_POOL__)) {
-    for (const shard of __CALCIOS_KEY_POOL__) {
-      const decoded = decodeKeyShard(shard).trim();
-      if (decoded) keys.push(decoded);
-    }
-  }
   const metaEnv = (import.meta as unknown as { env?: Record<string, string | undefined> }).env ?? {};
   for (let i = 1; i <= 5; i++) {
     const k = (metaEnv[`VITE_GROQ_API_KEY_${i}`] ?? '').trim();
@@ -617,10 +606,6 @@ export async function scanMathFromImage(
     return { expression: normalizedExpr, mode: isCmplx ? "CMPLX" : "COMP", angle };
   }
 
-
-  if (keyPool.length === 0 && isDirectGroqHost(apiUrl)) {
-    throw new Error('Scanner unavailable (no API keys configured).');
-  }
 
   const dataUrl = await prepareImageDataUrl(file);
   const now = Date.now();
