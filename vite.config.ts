@@ -47,7 +47,6 @@ self.addEventListener('install', (event) => {
               await cache.put(url, res);
             }
           } catch {
-            // Ignore transient precache miss for individual asset
           }
         })
       );
@@ -73,29 +72,23 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
-
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
-
   const scope = self.registration.scope;
   if (!url.href.startsWith(scope)) return;
-
   const accept = req.headers.get('accept') || '';
   const isNavigation = req.mode === 'navigate' || accept.includes('text/html');
-
   if (isNavigation) {
     event.respondWith(
       (async () => {
         const cache = await caches.open(CACHE_NAME);
         const indexUrl = new URL('./index.html', scope).toString();
         const rootUrl = new URL('./', scope).toString();
-
         try {
           const controller = new AbortController();
           const timer = setTimeout(() => controller.abort(), 3500);
           const netRes = await fetch(req, { signal: controller.signal });
           clearTimeout(timer);
-
           if (netRes && netRes.ok) {
             const text = await netRes.clone().text();
             if (text.includes('id="root"')) {
@@ -103,28 +96,22 @@ self.addEventListener('fetch', (event) => {
               return netRes;
             }
           }
-        } catch {
-          // Network offline, tab woke up without radio, or preview host asleep
-        }
-
+        } catch {}
         const cached =
           (await cache.match(req, { ignoreSearch: true })) ||
           (await cache.match(indexUrl)) ||
           (await cache.match(rootUrl));
         if (cached) return cached;
-
         return fetch(req);
       })()
     );
     return;
   }
-
   event.respondWith(
     (async () => {
       const cache = await caches.open(CACHE_NAME);
       const cached = await cache.match(req, { ignoreSearch: true });
       if (cached) return cached;
-
       try {
         const netRes = await fetch(req);
         if (netRes && netRes.ok) {
@@ -138,8 +125,7 @@ self.addEventListener('fetch', (event) => {
       }
     })()
   );
-});
-`;
+});`;
 
       this.emitFile({
         type: 'asset',
