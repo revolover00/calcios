@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { CalculatorAction, CalculatorState } from '../core/calculator';
-import { scanMathFromImage } from '../core/visionScan';
 import {
   LOWER_KEYPAD_ROWS,
   SCIENTIFIC_ROW_1,
@@ -332,6 +331,8 @@ export function CalculatorHardware({
       setScanError(null);
       setScanView('scanning');
       try {
+        // Keep the image-recognition pipeline out of the initial calculator bundle.
+        const { scanMathFromImage } = await import('../core/visionScan');
         const scanned = await scanMathFromImage(file);
         if (scanSeqRef.current !== seq) return;
         dispatch({
